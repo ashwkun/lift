@@ -1,0 +1,25 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    // The app consumes @ironlog/shared as raw TypeScript source, and those
+    // modules import each other with explicit .ts extensions so Node's
+    // type-stripping test runner can resolve them without a build step.
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./assets/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "../../packages/shared/src/**/*.ts"
+  ],
+  // The shared package's tests run under Node with @types/node; the app has no
+  // Node typings and shouldn't be compiling them anyway.
+  "exclude": ["node_modules", "../../packages/shared/src/**/*.test.ts"]
+}

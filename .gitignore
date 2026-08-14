@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+.expo/
+.expo-shared/
+web-build/
+
+# native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+android/
+ios/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# os / editor
+.DS_Store
+.idea/
+*.swp
+
+# drizzle
+drizzle/meta/_journal.json.bak
