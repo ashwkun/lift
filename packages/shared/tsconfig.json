@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "rootDir": "./src",
+    "noEmit": true,
+    // Source imports carry explicit .ts extensions so Node's type-stripping
+    // runtime can resolve them without a build step.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts"]
+}

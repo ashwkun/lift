@@ -1,0 +1,19 @@
+{
+  "name": "ironlog",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "mobile": "pnpm --filter @ironlog/mobile start",
+    "android": "pnpm --filter @ironlog/mobile android",
+    "ios": "pnpm --filter @ironlog/mobile ios",
+    "api": "pnpm --filter @ironlog/api start:dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  }
+}
