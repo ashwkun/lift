@@ -18,6 +18,11 @@ import {
   type WorkoutSet,
 } from '@/db/schema';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
+import {
+  cancelRestNotification,
+  prepareRestNotifications,
+  scheduleRestNotification,
+} from '@/features/notifications/rest';
 import { RestTimerBar } from '@/features/workouts/rest-timer-bar';
 import {
   addExerciseToWorkout,
@@ -140,6 +145,14 @@ export default function ActiveWorkoutScreen() {
     })();
   }, [params.addedExerciseIds, workoutId]);
 
+  // Ask once when the logging screen first opens, rather than at app launch —
+  // the permission prompt makes far more sense in context.
+  useEffect(() => {
+    if (settings.restTimerEnabled && settings.restTimerNotifications) {
+      void prepareRestNotifications();
+    }
+  }, [settings.restTimerEnabled, settings.restTimerNotifications]);
+
   const now = useTicker(1000, Boolean(workout));
   const elapsed = workout ? Math.floor((now - workout.startedAt.getTime()) / 1000) : 0;
 
@@ -172,7 +185,14 @@ export default function ActiveWorkoutScreen() {
           detail.workoutExercise.restSeconds ??
           detail.exercise.defaultRestSeconds ??
           settings.defaultRestSeconds;
+
         startRest(seconds, set.id);
+
+        // The in-app countdown only runs while foregrounded, so back it with a
+        // scheduled notification for when the phone goes in a pocket.
+        if (settings.restTimerNotifications) {
+          void scheduleRestNotification(seconds, detail.exercise.name);
+        }
       }
     },
     [settings, startRest],
@@ -199,6 +219,7 @@ export default function ActiveWorkoutScreen() {
               formula: settings.oneRepMaxFormula,
             });
             useTimer.getState().stopRest();
+            void cancelRestNotification();
             router.replace({
               pathname: '/workout/summary/[id]',
               params: { id: result.workout.id },
@@ -221,6 +242,7 @@ export default function ActiveWorkoutScreen() {
           void (async () => {
             await discardWorkout(workout.id);
             useTimer.getState().stopRest();
+            void cancelRestNotification();
             router.replace('/(tabs)/workout');
           })();
         },

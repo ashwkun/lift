@@ -21,3 +21,4 @@ export {
   type SearchBarProps,
   type TextFieldProps,
 } from './input';
+export { PromptModal, type PromptModalProps } from './prompt-modal';
