@@ -4,7 +4,15 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Divider, EmptyState, NumericField, Screen, Text } from '@/components/ui';
+import {
+  Button,
+  Divider,
+  EmptyState,
+  NumericField,
+  PromptModal,
+  Screen,
+  Text,
+} from '@/components/ui';
 import {
   addExerciseToRoutine,
   addRoutineSet,
@@ -30,6 +38,7 @@ export default function RoutineEditorScreen() {
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [detail, setDetail] = useState<RoutineDetail | null>(null);
+  const [renaming, setRenaming] = useState(false);
 
   const reload = useCallback(async () => {
     setDetail((await getRoutineDetail(id)) ?? null);
@@ -94,21 +103,7 @@ export default function RoutineEditorScreen() {
           <Text variant="caption" color="textTertiary">
             ROUTINE NAME
           </Text>
-          <Pressable
-            onPress={() => {
-              Alert.prompt?.(
-                'Rename routine',
-                undefined,
-                (value) => {
-                  if (value?.trim()) {
-                    void updateRoutine(id, { name: value.trim() }).then(reload);
-                  }
-                },
-                'plain-text',
-                detail.routine.name,
-              );
-            }}
-          >
+          <Pressable onPress={() => setRenaming(true)}>
             <Text variant="subheading">{detail.routine.name}</Text>
           </Pressable>
         </View>
@@ -234,6 +229,19 @@ export default function RoutineEditorScreen() {
           />
         </View>
       </ScrollView>
+
+      <PromptModal
+        visible={renaming}
+        title="Rename routine"
+        initialValue={detail.routine.name}
+        placeholder="Routine name"
+        maxLength={60}
+        onCancel={() => setRenaming(false)}
+        onConfirm={(value) => {
+          setRenaming(false);
+          void updateRoutine(id, { name: value }).then(reload);
+        }}
+      />
     </Screen>
   );
 }

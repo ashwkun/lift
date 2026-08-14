@@ -3,7 +3,9 @@ import { formatDuration } from '@ironlog/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui';
+import { cancelRestNotification, scheduleRestNotification } from '@/features/notifications/rest';
 import { useTicker } from '@/hooks/use-ticker';
+import { useSettings } from '@/store/settings';
 import { remainingRestSeconds, useTimer } from '@/store/timer';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -18,10 +20,30 @@ export function RestTimerBar() {
   const restTotalSeconds = useTimer((state) => state.restTotalSeconds);
   const adjustRest = useTimer((state) => state.adjustRest);
   const stopRest = useTimer((state) => state.stopRest);
+  const notificationsEnabled = useSettings((state) => state.restTimerNotifications);
 
   // Only tick while a timer is actually running.
   const now = useTicker(1000, restEndsAt !== null);
   const remaining = remainingRestSeconds(restEndsAt, now);
+
+  /** Keeps the scheduled notification in step with the on-screen countdown. */
+  const handleAdjust = (delta: number) => {
+    adjustRest(delta);
+
+    if (!notificationsEnabled) return;
+
+    const next = useTimer.getState().restEndsAt;
+    if (next === null) {
+      void cancelRestNotification();
+      return;
+    }
+    void scheduleRestNotification(Math.ceil((next - Date.now()) / 1000));
+  };
+
+  const handleStop = () => {
+    stopRest();
+    void cancelRestNotification();
+  };
 
   if (remaining === null) return null;
 
@@ -42,7 +64,7 @@ export function RestTimerBar() {
 
       <View style={styles.content}>
         <Pressable
-          onPress={() => adjustRest(-15)}
+          onPress={() => handleAdjust(-15)}
           hitSlop={8}
           accessibilityLabel="Subtract 15 seconds"
           style={styles.adjust}
@@ -62,7 +84,7 @@ export function RestTimerBar() {
         </View>
 
         <Pressable
-          onPress={() => adjustRest(15)}
+          onPress={() => handleAdjust(15)}
           hitSlop={8}
           accessibilityLabel="Add 15 seconds"
           style={styles.adjust}
@@ -72,7 +94,7 @@ export function RestTimerBar() {
           </Text>
         </Pressable>
 
-        <Pressable onPress={stopRest} hitSlop={8} accessibilityLabel="Skip rest">
+        <Pressable onPress={handleStop} hitSlop={8} accessibilityLabel="Skip rest">
           <Ionicons name="close" size={18} color={colors.textSecondary} />
         </Pressable>
       </View>
