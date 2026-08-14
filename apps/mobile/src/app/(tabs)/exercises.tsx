@@ -4,19 +4,38 @@ import {
   MUSCLE_GROUP_LABELS,
   type Equipment,
   type MuscleGroup,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { asc, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { Chip, Divider, EmptyState, IconButton, Screen, SearchBar, Text } from '@/components/ui';
+import {
+  Chip,
+  Divider,
+  EmptyState,
+  FilterSelect,
+  IconButton,
+  Screen,
+  SearchBar,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
-import { exercises as exercisesTable, type Exercise } from '@/db/schema';
+import { exercises as exercisesTable } from '@/db/schema';
 import { ExerciseRow } from '@/features/exercises/exercise-row';
-import { filterExercises } from '@/features/exercises/repository';
+import {
+  exerciseListColumns,
+  filterExercises,
+  type ExerciseListItem,
+} from '@/features/exercises/repository';
 import { spacing, useColors } from '@/theme';
+
+/** Hoisted: an inline arrow here is a new component type on every render, which
+    remounts every separator in the list instead of reusing them. */
+function ListSeparator() {
+  return <Divider inset={70} />;
+}
 
 export default function ExercisesScreen() {
   const colors = useColors();
@@ -26,37 +45,55 @@ export default function ExercisesScreen() {
   const [equipment, setEquipment] = useState<Equipment | null>(null);
 
   // Live query: the list re-renders whenever the exercises table changes, so a
-  // newly created custom exercise appears without any manual refetch.
+  // newly created custom exercise appears without any manual refetch. Only the
+  // columns a row draws are selected — see `exerciseListColumns`.
   const { data: allExercises = [] } = useLiveQuery(
     db
-      .select()
+      .select(exerciseListColumns)
       .from(exercisesTable)
       .where(isNull(exercisesTable.deletedAt))
       .orderBy(asc(exercisesTable.name)),
   );
 
+  /*
+   * Filtering runs against the *deferred* query, not the live one.
+   *
+   * Scoring 6,800 names is far too much work to finish between two keystrokes
+   * on a mid-range phone, and doing it synchronously means every character
+   * waits for the previous one's filter — the keyboard visibly falls behind.
+   * `useDeferredValue` lets the TextInput commit at input priority and re-runs
+   * the filter at transition priority, where React can abandon it the moment
+   * another character arrives. The list lags the field by a frame or two under
+   * fast typing, which is the correct trade: the field is what the eye tracks.
+   */
+  const deferredSearch = useDeferredValue(search);
+
   const visible = useMemo(
-    () => filterExercises(allExercises, { search, muscle, equipment }),
-    [allExercises, search, muscle, equipment],
+    () => filterExercises(allExercises, { search: deferredSearch, muscle, equipment }),
+    [allExercises, deferredSearch, muscle, equipment],
   );
 
   // Facets come from the full library rather than the filtered view, so
-  // selecting a muscle doesn't cause the other chips to vanish.
+  // choosing a muscle doesn't cause the equipment options to vanish. Counts
+  // ride along because with ~6,800 exercises "Neck (9)" is worth knowing
+  // before you tap into it.
   const facets = useMemo(() => {
-    const muscles = new Set<MuscleGroup>();
-    const equipmentTypes = new Set<Equipment>();
+    const muscles = new Map<MuscleGroup, number>();
+    const equipmentTypes = new Map<Equipment, number>();
+
     for (const exercise of allExercises) {
       if (exercise.isArchived) continue;
-      muscles.add(exercise.primaryMuscle);
-      equipmentTypes.add(exercise.equipment);
+      muscles.set(exercise.primaryMuscle, (muscles.get(exercise.primaryMuscle) ?? 0) + 1);
+      equipmentTypes.set(exercise.equipment, (equipmentTypes.get(exercise.equipment) ?? 0) + 1);
     }
+
     return {
-      muscles: [...muscles].sort((a, b) =>
-        MUSCLE_GROUP_LABELS[a].localeCompare(MUSCLE_GROUP_LABELS[b]),
-      ),
-      equipment: [...equipmentTypes].sort((a, b) =>
-        EQUIPMENT_LABELS[a].localeCompare(EQUIPMENT_LABELS[b]),
-      ),
+      muscles: [...muscles]
+        .map(([value, count]) => ({ value, label: MUSCLE_GROUP_LABELS[value], count }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+      equipment: [...equipmentTypes]
+        .map(([value, count]) => ({ value, label: EQUIPMENT_LABELS[value], count }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
     };
   }, [allExercises]);
 
@@ -68,9 +105,19 @@ export default function ExercisesScreen() {
     setEquipment(null);
   };
 
-  const openExercise = (exercise: Exercise) => {
+  // Stable identity, so `ExerciseRow`'s `memo` actually holds. A fresh arrow
+  // here would change every visible row's props on every keystroke and defeat
+  // the memo entirely.
+  const openExercise = useCallback((exercise: ExerciseListItem) => {
     router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } });
-  };
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: ExerciseListItem }) => (
+      <ExerciseRow exercise={item} onPress={openExercise} />
+    ),
+    [openExercise],
+  );
 
   return (
     <Screen>
@@ -95,33 +142,23 @@ export default function ExercisesScreen() {
           onClear={() => setSearch('')}
           placeholder="Search exercises"
         />
-      </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        {hasFilters && (
-          <Chip label="Clear" icon="close" onPress={clearFilters} />
-        )}
-        {facets.muscles.map((item) => (
-          <Chip
-            key={`muscle-${item}`}
-            label={MUSCLE_GROUP_LABELS[item]}
-            selected={muscle === item}
-            onPress={() => setMuscle(muscle === item ? null : item)}
+        <View style={styles.filterRow}>
+          <FilterSelect
+            label="Muscle"
+            value={muscle}
+            options={facets.muscles}
+            onChange={setMuscle}
           />
-        ))}
-        {facets.equipment.map((item) => (
-          <Chip
-            key={`equipment-${item}`}
-            label={EQUIPMENT_LABELS[item]}
-            selected={equipment === item}
-            onPress={() => setEquipment(equipment === item ? null : item)}
+          <FilterSelect
+            label="Equipment"
+            value={equipment}
+            options={facets.equipment}
+            onChange={setEquipment}
           />
-        ))}
-      </ScrollView>
+          {hasFilters && <Chip label="Clear" icon="close" onPress={clearFilters} />}
+        </View>
+      </View>
 
       <View style={styles.countRow}>
         <Text variant="caption" color="textTertiary">
@@ -132,8 +169,8 @@ export default function ExercisesScreen() {
       <FlashList
         data={visible}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ExerciseRow exercise={item} onPress={openExercise} />}
-        ItemSeparatorComponent={() => <Divider inset={70} />}
+        renderItem={renderItem}
+        ItemSeparatorComponent={ListSeparator}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         ListEmptyComponent={
@@ -156,12 +193,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
+    gap: spacing.md,
   },
-  filterRow: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-    paddingBottom: spacing.md,
-  },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   countRow: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,

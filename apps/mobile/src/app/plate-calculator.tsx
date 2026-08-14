@@ -5,7 +5,7 @@ import {
   formatWeight,
   fromDisplayWeight,
   toDisplayWeight,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';

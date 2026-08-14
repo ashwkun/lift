@@ -1,17 +1,45 @@
 import { Ionicons } from '@expo/vector-icons';
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
   TextInput,
   View,
+  type StyleProp,
   type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 
-import { fontSize, fontWeight, HIT_SLOP, radius, spacing, useColors } from '@/theme';
+import { controlHeight, font, fontSize, HIT_SLOP, radius, spacing, useColors } from '@/theme';
 
 import { Text } from './text';
+
+// Derived from the prop rather than imported by name: React Native has renamed
+// these payload types across versions, and deriving keeps this compiling
+// through the next rename.
+type FocusHandler = NonNullable<TextInputProps['onFocus']>;
+type BlurHandler = NonNullable<TextInputProps['onBlur']>;
+
+/**
+ * Tracks focus while still forwarding whatever `onFocus`/`onBlur` the caller
+ * passed, so a focus ring never costs a component its own handlers.
+ */
+function useFocusRing(props: Pick<TextInputProps, 'onFocus' | 'onBlur'>) {
+  const [focused, setFocused] = useState(false);
+
+  const onFocus: FocusHandler = (event) => {
+    setFocused(true);
+    props.onFocus?.(event);
+  };
+
+  const onBlur: BlurHandler = (event) => {
+    setFocused(false);
+    props.onBlur?.(event);
+  };
+
+  return { focused, onFocus, onBlur };
+}
 
 // ---------------------------------------------------------------------------
 // SearchBar
@@ -22,14 +50,26 @@ export interface SearchBarProps extends Omit<TextInputProps, 'style'> {
   style?: ViewStyle;
 }
 
-export function SearchBar({ value, onClear, style, ...rest }: SearchBarProps) {
+export function SearchBar({ value, onClear, style, onFocus, onBlur, ...rest }: SearchBarProps) {
   const colors = useColors();
+  const ring = useFocusRing({ onFocus, onBlur });
 
   return (
     <View
-      style={[styles.searchContainer, { backgroundColor: colors.surfaceMuted }, style]}
+      style={[
+        styles.searchContainer,
+        {
+          backgroundColor: colors.surfaceMuted,
+          borderColor: ring.focused ? colors.accent : 'transparent',
+        },
+        style,
+      ]}
     >
-      <Ionicons name="search" size={17} color={colors.textTertiary} />
+      <Ionicons
+        name="search"
+        size={17}
+        color={ring.focused ? colors.accent : colors.textTertiary}
+      />
       <TextInput
         value={value}
         placeholderTextColor={colors.textTertiary}
@@ -38,6 +78,8 @@ export function SearchBar({ value, onClear, style, ...rest }: SearchBarProps) {
         autoCapitalize="none"
         returnKeyType="search"
         clearButtonMode="never"
+        onFocus={ring.onFocus}
+        onBlur={ring.onBlur}
         {...rest}
       />
       {value ? (
@@ -58,14 +100,20 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   error?: string;
   hint?: string;
   containerStyle?: ViewStyle;
-  style?: ViewStyle;
+  /** Styles the input itself — a `TextInput` takes text styles, not view styles. */
+  style?: StyleProp<TextStyle>;
 }
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, error, hint, containerStyle, style, ...rest },
+  { label, error, hint, containerStyle, style, onFocus, onBlur, ...rest },
   ref,
 ) {
   const colors = useColors();
+  const ring = useFocusRing({ onFocus, onBlur });
+
+  // Error outranks focus: a field you are typing into is still the field that
+  // is wrong, and swapping red for blue on focus hides that until you leave.
+  const borderColor = error ? colors.danger : ring.focused ? colors.accent : colors.border;
 
   return (
     <View style={[styles.fieldContainer, containerStyle]}>
@@ -77,13 +125,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       <TextInput
         ref={ref}
         placeholderTextColor={colors.textTertiary}
+        onFocus={ring.onFocus}
+        onBlur={ring.onBlur}
         style={[
           styles.field,
-          {
-            backgroundColor: colors.surfaceMuted,
-            color: colors.text,
-            borderColor: error ? colors.danger : colors.border,
-          },
+          { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor },
           style,
         ]}
         {...rest}
@@ -110,14 +156,15 @@ export interface NumericFieldProps extends Omit<TextInputProps, 'style' | 'value
   /** Dims the field and shows the previous session's value as a placeholder. */
   ghost?: boolean;
   align?: 'left' | 'center' | 'right';
-  style?: ViewStyle;
+  style?: StyleProp<TextStyle>;
 }
 
 export const NumericField = forwardRef<TextInput, NumericFieldProps>(function NumericField(
-  { value, ghost = false, align = 'center', style, ...rest },
+  { value, ghost = false, align = 'center', style, onFocus, onBlur, ...rest },
   ref,
 ) {
   const colors = useColors();
+  const ring = useFocusRing({ onFocus, onBlur });
 
   return (
     <TextInput
@@ -128,11 +175,17 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
       keyboardType="decimal-pad"
       selectTextOnFocus
       placeholderTextColor={colors.textTertiary}
+      onFocus={ring.onFocus}
+      onBlur={ring.onBlur}
       style={[
         styles.numericField,
         {
           backgroundColor: ghost ? 'transparent' : colors.surfaceMuted,
           color: ghost ? colors.textTertiary : colors.text,
+          // The ring matters more here than anywhere else: set rows put several
+          // of these side by side, and mid-set you need to know at a glance
+          // which box the keyboard is pointed at.
+          borderColor: ring.focused ? colors.accent : 'transparent',
           textAlign: align,
         },
         style,
@@ -148,8 +201,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    height: 38,
+    height: controlHeight.sm,
     borderRadius: radius.md,
+    borderWidth: 1,
   },
   searchInput: {
     flex: 1,
@@ -158,11 +212,11 @@ const styles = StyleSheet.create({
   },
   fieldContainer: { gap: spacing.xs },
   field: {
-    height: 44,
+    height: controlHeight.md,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   numericField: {
     minWidth: 62,
@@ -170,7 +224,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.xs,
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
+    ...font('semibold'),
     fontVariant: ['tabular-nums'],
+    borderWidth: 1,
   },
 });

@@ -13,7 +13,7 @@ import {
   type SyncPullResponse,
   type SyncPushResponse,
   type SyncableTable,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db/client';

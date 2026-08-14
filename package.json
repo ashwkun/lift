@@ -1,5 +1,5 @@
 {
-  "name": "ironlog",
+  "name": "lift",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.32.1",
@@ -7,10 +7,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "mobile": "pnpm --filter @ironlog/mobile start",
-    "android": "pnpm --filter @ironlog/mobile android",
-    "ios": "pnpm --filter @ironlog/mobile ios",
-    "api": "pnpm --filter @ironlog/api start:dev",
+    "mobile": "pnpm --filter @lift/mobile start",
+    "android": "pnpm --filter @lift/mobile android",
+    "ios": "pnpm --filter @lift/mobile ios",
+    "api": "pnpm --filter @lift/api start:dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

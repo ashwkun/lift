@@ -8,7 +8,7 @@ import {
   TRACKING_FIELDS,
   type SetType,
   type TrackingType,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -135,7 +135,7 @@ export const SetRow = memo(function SetRow({
           accessibilityLabel="Delete set"
           style={[styles.deleteAction, { backgroundColor: colors.danger }]}
         >
-          <Ionicons name="trash" size={20} color="#FFFFFF" />
+          <Ionicons name="trash" size={20} color={colors.textOnDanger} />
         </Pressable>
       )}
     >
@@ -234,7 +234,7 @@ export const SetRow = memo(function SetRow({
           <Ionicons
             name="checkmark"
             size={18}
-            color={set.isCompleted ? '#FFFFFF' : colors.textTertiary}
+            color={set.isCompleted ? colors.textOnSuccess : colors.textTertiary}
           />
         </Pressable>
       </View>

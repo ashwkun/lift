@@ -1,13 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
-import { formatDurationShort, formatVolume } from '@ironlog/shared';
-import { useFocusEffect } from 'expo-router';
-import { router } from 'expo-router';
+import { formatDurationShort, formatVolume } from '@lift/shared';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
 import { LineChart } from '@/components/charts/line-chart';
-import { Button, Card, EmptyState, Screen, SectionHeader, Text } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Divider,
+  EmptyState,
+  ListRow,
+  Screen,
+  SectionHeader,
+  StatTile,
+  Text,
+} from '@/components/ui';
 import {
   getDashboardStats,
   getMuscleDistribution,
@@ -19,7 +27,7 @@ import {
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { spacing } from '@/theme';
 
 const BODY_PART_LABELS: Record<string, string> = {
   chest: 'Chest',
@@ -32,7 +40,6 @@ const BODY_PART_LABELS: Record<string, string> = {
 };
 
 export default function HomeScreen() {
-  const colors = useColors();
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -69,7 +76,8 @@ export default function HomeScreen() {
     }, []),
   );
 
-  const chartWidth = width - spacing.lg * 2 - spacing.lg * 2;
+  // Screen width less the card's outer margin and its inner padding.
+  const chartWidth = width - spacing.lg * 4;
 
   if (stats && stats.totalWorkouts === 0) {
     return (
@@ -78,9 +86,7 @@ export default function HomeScreen() {
           icon="flame-outline"
           title="Let's get started"
           description="Log your first workout and your stats, records and progress charts will build from there."
-          action={
-            <Button title="Start a Workout" onPress={() => router.push('/(tabs)/workout')} />
-          }
+          action={<Button title="Start a Workout" onPress={() => router.push('/(tabs)/workout')} />}
         />
       </Screen>
     );
@@ -98,43 +104,44 @@ export default function HomeScreen() {
         <View style={styles.statRow}>
           <StatTile
             icon="flame"
-            label="Week Streak"
+            label="Week streak"
             value={String(stats?.weekStreak ?? 0)}
-            tint={colors.warning}
+            tone="warning"
           />
           <StatTile
             icon="barbell"
             label="Workouts"
             value={String(stats?.totalWorkouts ?? 0)}
-            tint={colors.accent}
+            tone="accent"
           />
           <StatTile
             icon="calendar"
-            label="Active Days"
+            label="Active days"
             value={String(stats?.activeDays ?? 0)}
-            tint={colors.success}
+            tone="success"
           />
         </View>
 
-        <SectionHeader title="This Week" />
+        <SectionHeader title="This week" />
         <Card style={styles.weekCard}>
           <View style={styles.weekStat}>
-            <Text variant="caption" color="textTertiary">
-              WORKOUTS
+            <Text variant="overline" color="textTertiary">
+              Workouts
             </Text>
             <Text variant="numericLarge">{stats?.thisWeekWorkouts ?? 0}</Text>
           </View>
+          <Divider style={styles.weekDivider} />
           <View style={styles.weekStat}>
-            <Text variant="caption" color="textTertiary">
-              VOLUME
+            <Text variant="overline" color="textTertiary">
+              Volume
             </Text>
-            <Text variant="numericLarge">
+            <Text variant="numericLarge" numberOfLines={1} adjustsFontSizeToFit>
               {formatVolume(stats?.thisWeekVolumeKg ?? 0, weightUnit)}
             </Text>
           </View>
         </Card>
 
-        <SectionHeader title="Volume · Last 12 Weeks" />
+        <SectionHeader title="Volume · Last 12 weeks" />
         <Card style={styles.chartCard}>
           <LineChart
             data={volumeData}
@@ -146,95 +153,61 @@ export default function HomeScreen() {
           />
         </Card>
 
-        <SectionHeader title="Sets by Body Part · 30 Days" />
+        <SectionHeader title="Sets by body part · 30 days" />
         <Card style={styles.chartCard}>
           <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
         </Card>
 
         <SectionHeader
-          title="Recent Workouts"
+          title="Recent workouts"
           action={
-            <Pressable onPress={() => router.push('/(tabs)/history')} hitSlop={8}>
-              <Text variant="label" color="accent">
-                See all
-              </Text>
-            </Pressable>
+            <Button
+              title="See all"
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/(tabs)/history')}
+            />
           }
         />
-        <View style={styles.recentList}>
-          {recent.map((workout) => (
-            <Pressable
-              key={workout.id}
-              onPress={() =>
-                router.push({ pathname: '/workout/[id]', params: { id: workout.id } })
-              }
-              style={[styles.recentRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            >
-              <View style={styles.flex}>
-                <Text variant="bodyMedium" numberOfLines={1}>
-                  {workout.name}
-                </Text>
-                <Text variant="caption" color="textTertiary">
-                  {workout.startedAt.toLocaleDateString()} ·{' '}
-                  {formatDurationShort(workout.durationSeconds ?? 0)} ·{' '}
-                  {formatVolume(workout.totalVolumeKg, weightUnit)}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-            </Pressable>
+        <Card padded={false} style={styles.recentCard}>
+          {recent.map((workout, index) => (
+            <View key={workout.id}>
+              {index > 0 && <Divider inset={spacing.lg} />}
+              <ListRow
+                title={workout.name}
+                subtitle={`${workout.startedAt.toLocaleDateString()} · ${formatDurationShort(
+                  workout.durationSeconds ?? 0,
+                )} · ${formatVolume(workout.totalVolumeKg, weightUnit)}`}
+                onPress={() =>
+                  router.push({ pathname: '/workout/[id]', params: { id: workout.id } })
+                }
+              />
+            </View>
           ))}
-        </View>
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
 
-function StatTile({
-  icon,
-  label,
-  value,
-  tint,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  tint: string;
-}) {
-  const colors = useColors();
-
-  return (
-    <View style={[styles.tile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Ionicons name={icon} size={18} color={tint} />
-      <Text variant="numeric">{value}</Text>
-      <Text variant="caption" color="textTertiary" numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.huge },
-  statRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  tile: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+  statRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
-  weekCard: { marginHorizontal: spacing.lg, flexDirection: 'row', justifyContent: 'space-around' },
-  weekStat: { alignItems: 'center', gap: spacing.xs },
-  chartCard: { marginHorizontal: spacing.lg },
-  recentList: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  recentRow: {
+  weekCard: {
+    marginHorizontal: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
   },
-  flex: { flex: 1 },
+  weekStat: { flex: 1, alignItems: 'center', gap: spacing.xs },
+  // A vertical rule between the two figures, so they read as two measurements
+  // rather than one wrapped number. `alignSelf: stretch` overrides the card's
+  // `alignItems: center` to give the rule the full content height.
+  weekDivider: { width: StyleSheet.hairlineWidth, height: undefined, alignSelf: 'stretch' },
+  chartCard: { marginHorizontal: spacing.lg },
+  recentCard: { marginHorizontal: spacing.lg },
 });

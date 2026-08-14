@@ -11,6 +11,15 @@ import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
 
 import * as schema from './schema';
 
+/**
+ * Deliberately still `ironlog.db`, the name used before the app was renamed.
+ *
+ * Nothing reads this but SQLite. Renaming it would not open the existing file
+ * under a new name — it would open a new, empty database and leave every logged
+ * workout stranded in a file the app no longer looks at. The cosmetic win is not
+ * worth silently wiping someone's training history; migrating would mean copying
+ * the file on first launch, which is a real change and not a rename.
+ */
 export const DATABASE_NAME = 'ironlog.db';
 
 /**

@@ -5,7 +5,7 @@ import {
   formatWeight,
   isWorkingSet,
   SET_TYPE_BADGE,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';

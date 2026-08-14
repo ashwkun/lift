@@ -23,10 +23,10 @@ function required(name: string): string {
 /**
  * Origins permitted to complete an auth flow.
  *
- * The app's deep-link scheme (`ironlog://`) must be present or OAuth redirects
+ * The app's deep-link scheme (`lift://`) must be present or OAuth redirects
  * back into the app are rejected.
  */
-const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? 'ironlog://')
+const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? 'lift://')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);

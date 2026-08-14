@@ -1,6 +1,6 @@
 import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
 
-import { fontSize, fontWeight, useColors, type Palette } from '@/theme';
+import { font, fontSize, useColors, type Palette } from '@/theme';
 
 export type TextVariant =
   | 'display'
@@ -35,31 +35,38 @@ export interface TextProps extends RNTextProps {
   align?: TextStyle['textAlign'];
 }
 
+/**
+ * Negative tracking on the large sizes is deliberate. Inter is drawn on a
+ * generous default sidebearing that reads well at body size and looks loose
+ * above ~20px; Apple applies the same optical correction to SF Pro's display
+ * cuts. Small text gets no tracking, and `overline` gets positive tracking
+ * because uppercase needs the room.
+ */
 const VARIANTS: Record<TextVariant, TextStyle> = {
-  display: { fontSize: fontSize.display, fontWeight: fontWeight.bold, letterSpacing: -0.5 },
-  title: { fontSize: fontSize.xxxl, fontWeight: fontWeight.bold, letterSpacing: -0.4 },
-  heading: { fontSize: fontSize.xxl, fontWeight: fontWeight.semibold, letterSpacing: -0.3 },
-  subheading: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold },
-  body: { fontSize: fontSize.md, fontWeight: fontWeight.regular },
-  bodyMedium: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium },
-  caption: { fontSize: fontSize.xs, fontWeight: fontWeight.regular },
+  display: { fontSize: fontSize.display, ...font('bold'), letterSpacing: -0.8 },
+  title: { fontSize: fontSize.xxxl, ...font('bold'), letterSpacing: -0.6 },
+  heading: { fontSize: fontSize.xxl, ...font('semibold'), letterSpacing: -0.4 },
+  subheading: { fontSize: fontSize.xl, ...font('semibold'), letterSpacing: -0.2 },
+  body: { fontSize: fontSize.md, ...font('regular') },
+  bodyMedium: { fontSize: fontSize.md, ...font('medium') },
+  label: { fontSize: fontSize.sm, ...font('medium') },
+  caption: { fontSize: fontSize.xs, ...font('regular') },
   overline: {
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
+    ...font('semibold'),
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   numeric: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
+    ...font('semibold'),
     fontVariant: ['tabular-nums'],
   },
   numericLarge: {
     fontSize: fontSize.xxxl,
-    fontWeight: fontWeight.bold,
+    ...font('bold'),
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
 };
 

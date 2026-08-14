@@ -1,7 +1,7 @@
 // Metro configuration for a pnpm workspace.
 //
 // Two things differ from a standalone Expo app:
-//   1. `@ironlog/shared` is a symlinked workspace package whose *source* we
+//   1. `@lift/shared` is a symlinked workspace package whose *source* we
 //      consume directly, so Metro has to watch the repo root to pick up edits.
 //   2. Dependencies are hoisted to the root `node_modules`, while the workspace
 //      link lives in the app's own — both paths must be resolvable.

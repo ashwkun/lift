@@ -27,7 +27,7 @@ import type {
   SetType,
   SyncState,
   TrackingType,
-} from '@ironlog/shared';
+} from '@lift/shared';
 
 // ---------------------------------------------------------------------------
 // Shared column groups
@@ -66,6 +66,14 @@ export const exercises = sqliteTable(
     isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     imageUrl: text('image_url'),
+    /**
+     * Demonstration media from the bundled catalog. Remote URLs, not downloaded
+     * assets — the catalog is ~6,800 exercises and shipping their clips would
+     * be gigabytes. Both are null for custom exercises and for the slice of the
+     * catalog the upstream source has no media for.
+     */
+    thumbnailUrl: text('thumbnail_url'),
+    videoUrl: text('video_url'),
     /** Hidden from pickers without losing the history that references it. */
     isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
     /** Per-exercise rest override; falls back to the global default when null. */

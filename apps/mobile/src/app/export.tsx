@@ -34,7 +34,7 @@ export default function ExportScreen() {
 
       await Sharing.shareAsync(file.uri, {
         mimeType: kind === 'json' ? 'application/json' : 'text/csv',
-        dialogTitle: kind === 'json' ? 'Export IronLog backup' : 'Export sets as CSV',
+        dialogTitle: kind === 'json' ? 'Export Lift backup' : 'Export sets as CSV',
       });
     } catch (error) {
       Alert.alert('Export failed', (error as Error).message);

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDuration } from '@ironlog/shared';
+import { formatDuration } from '@lift/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui';

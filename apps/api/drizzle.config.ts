@@ -5,6 +5,6 @@ export default {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://ironlog:password@localhost:5432/ironlog',
+    url: process.env.DATABASE_URL ?? 'postgres://lift:password@localhost:5432/lift',
   },
 } satisfies Config;

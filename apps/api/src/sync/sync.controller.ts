@@ -3,7 +3,7 @@ import {
   syncPushRequestSchema,
   type SyncPullResponse,
   type SyncPushResponse,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 
 import { AuthGuard, type AuthedRequest } from '../auth/auth.guard.js';

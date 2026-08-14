@@ -1,3 +1,10 @@
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  useFonts,
+} from '@expo-google-fonts/inter';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,7 +21,7 @@ import { db } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
 import { useSettings } from '@/store/settings';
-import { AppThemeProvider, spacing, useColors, useTheme } from '@/theme';
+import { AppThemeProvider, font, spacing, useColors, useTheme } from '@/theme';
 
 // Held until migrations, seeding and settings hydration all finish, so the
 // first frame the user sees is real content rather than an empty shell.
@@ -35,11 +42,22 @@ export default function RootLayout() {
 /**
  * Runs the startup sequence in order: schema migrations, then the exercise
  * library seed (which needs the tables), then preferences.
+ *
+ * Fonts load alongside all of that rather than after it — they're bundled
+ * assets, not a network fetch, and gating the splash on them too means the
+ * first frame is already Inter instead of flashing Roboto and reflowing.
  */
 function Bootstrap() {
   const { success: migrated, error: migrationError } = useMigrations(db, migrations);
   const hydrate = useSettings((state) => state.hydrate);
   const hydrated = useSettings((state) => state.hydrated);
+
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   const [seedError, setSeedError] = useState<Error | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -64,7 +82,10 @@ function Bootstrap() {
     };
   }, [migrated, hydrate]);
 
-  const ready = migrated && seeded && hydrated;
+  // A missing font is not worth blocking launch over — React Native falls back
+  // to the system face, so `fontError` counts as "done loading", not as a
+  // startup failure the way a failed migration does.
+  const ready = migrated && seeded && hydrated && (fontsLoaded || Boolean(fontError));
   const error = migrationError ?? seedError;
 
   useEffect(() => {
@@ -91,7 +112,7 @@ function AppNavigator() {
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '600' },
+          headerTitleStyle: font('semibold'),
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.background },
         }}
@@ -116,7 +137,7 @@ function StartupError({ error }: { error: Error }) {
   return (
     <View style={[styles.centered, { backgroundColor: colors.background }]}>
       <Text variant="subheading" align="center">
-        Couldn&apos;t start IronLog
+        Couldn&apos;t start Lift
       </Text>
       <Text variant="body" color="textSecondary" align="center" style={styles.errorDetail}>
         {error.message}

@@ -13,7 +13,7 @@ import {
   type SyncConflict,
   type SyncPullResponse,
   type SyncPushResponse,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { Injectable, Logger } from '@nestjs/common';
 import { and, eq, getTableColumns, gt, sql } from 'drizzle-orm';
 

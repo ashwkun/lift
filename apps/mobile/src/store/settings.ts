@@ -13,7 +13,7 @@ import type {
   OneRepMaxFormula,
   ThemePreference,
   WeightUnit,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { eq } from 'drizzle-orm';
 import { create } from 'zustand';
 

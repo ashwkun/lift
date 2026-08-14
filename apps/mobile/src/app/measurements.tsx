@@ -7,7 +7,7 @@ import {
   fromDisplayMeasurement,
   fromDisplayWeight,
   type MeasurementKind,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -93,7 +93,7 @@ export default function MeasurementsScreen() {
                   onPress={() => void openHistory(kind)}
                   style={({ pressed }) => [
                     styles.row,
-                    pressed && { backgroundColor: colors.surfaceMuted },
+                    pressed && { backgroundColor: colors.surfacePressed },
                   ]}
                 >
                   <Text variant="body" style={styles.rowLabel}>

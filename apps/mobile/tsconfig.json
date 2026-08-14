@@ -3,7 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
-    // The app consumes @ironlog/shared as raw TypeScript source, and those
+    // The app consumes @lift/shared as raw TypeScript source, and those
     // modules import each other with explicit .ts extensions so Node's
     // type-stripping test runner can resolve them without a build step.
     "allowImportingTsExtensions": true,

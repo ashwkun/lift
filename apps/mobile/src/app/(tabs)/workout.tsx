@@ -1,11 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDuration } from '@ironlog/shared';
+import { formatDuration } from '@lift/shared';
 import { and, asc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Card, EmptyState, Screen, SectionHeader, Text } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Divider,
+  EmptyState,
+  ListRow,
+  Screen,
+  SectionHeader,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
 import { routines as routinesTable, workouts } from '@/db/schema';
 import { startWorkout } from '@/features/workouts/repository';
@@ -49,44 +58,50 @@ export default function WorkoutScreen() {
         {active && (
           <Pressable
             onPress={() => router.push('/workout/active')}
-            style={[styles.resume, { backgroundColor: colors.accentSurface, borderColor: colors.accent }]}
+            style={({ pressed }) => [
+              styles.resume,
+              {
+                backgroundColor: colors.accentSurface,
+                borderColor: colors.accent,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
           >
             <View style={styles.resumeBody}>
-              <Text variant="caption" color="accent">
-                IN PROGRESS
+              <Text variant="overline" color="accent">
+                In progress
               </Text>
-              <Text variant="bodyMedium">{active.name}</Text>
-              <Text variant="numeric" color="accent">
+              <Text variant="bodyMedium" numberOfLines={1}>
+                {active.name}
+              </Text>
+              <Text variant="numericLarge" color="accent">
                 {formatDuration(Math.floor((now - active.startedAt.getTime()) / 1000))}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+            <Ionicons name="chevron-forward" size={22} color={colors.accent} />
           </Pressable>
         )}
 
         <View style={styles.quickStart}>
-          <Text variant="overline" color="textSecondary">
-            QUICK START
-          </Text>
           <Button
             title={active ? 'Resume Workout' : 'Start Empty Workout'}
-            icon="add"
+            icon={active ? 'play' : 'add'}
             size="lg"
             fullWidth
-            onPress={() =>
-              active ? router.push('/workout/active') : void beginEmpty()
-            }
+            onPress={() => (active ? router.push('/workout/active') : void beginEmpty())}
           />
         </View>
 
         <SectionHeader
           title="Routines"
           action={
-            <Pressable onPress={() => router.push('/routine/new')} hitSlop={8}>
-              <Text variant="label" color="accent">
-                New Routine
-              </Text>
-            </Pressable>
+            <Button
+              title="New"
+              icon="add"
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/routine/new')}
+            />
           }
         />
 
@@ -98,33 +113,37 @@ export default function WorkoutScreen() {
             action={<Button title="Create Routine" onPress={() => router.push('/routine/new')} />}
           />
         ) : (
-          <View style={styles.routineList}>
-            {routines.map((routine) => (
-              <Card key={routine.id} style={styles.routineCard}>
-                <Pressable
+          <Card padded={false} style={styles.routineCard}>
+            {routines.map((routine, index) => (
+              <View key={routine.id}>
+                {index > 0 && <Divider inset={spacing.lg} />}
+                <ListRow
+                  title={routine.name}
+                  subtitle={
+                    routine.lastPerformedAt
+                      ? `Last performed ${routine.lastPerformedAt.toLocaleDateString()}`
+                      : 'Not performed yet'
+                  }
+                  icon="list"
+                  tone="accent"
                   onPress={() =>
                     router.push({ pathname: '/routine/[id]', params: { id: routine.id } })
                   }
-                >
-                  <Text variant="bodyMedium" numberOfLines={1}>
-                    {routine.name}
-                  </Text>
-                  {routine.lastPerformedAt && (
-                    <Text variant="caption" color="textTertiary">
-                      Last performed {routine.lastPerformedAt.toLocaleDateString()}
-                    </Text>
-                  )}
-                </Pressable>
-                <Button
-                  title="Start Routine"
-                  size="sm"
-                  fullWidth
-                  onPress={() => void beginFromRoutine(routine.id)}
-                  style={styles.routineButton}
+                  // Start is the action people come to this row for, so it gets
+                  // its own target instead of hiding behind a tap-through to the
+                  // detail screen.
+                  accessory={
+                    <Button
+                      title="Start"
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => void beginFromRoutine(routine.id)}
+                    />
+                  }
                 />
-              </Card>
+              </View>
             ))}
-          </View>
+          </Card>
         )}
       </ScrollView>
     </Screen>
@@ -136,16 +155,14 @@ const styles = StyleSheet.create({
   resume: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    margin: spacing.lg,
-    marginBottom: 0,
+    gap: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
     padding: spacing.lg,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
-  resumeBody: { gap: 2 },
-  quickStart: { padding: spacing.lg, gap: spacing.sm },
-  routineList: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  routineCard: { gap: spacing.md },
-  routineButton: { marginTop: spacing.xs },
+  resumeBody: { flex: 1, gap: 2 },
+  quickStart: { padding: spacing.lg },
+  routineCard: { marginHorizontal: spacing.lg },
 });

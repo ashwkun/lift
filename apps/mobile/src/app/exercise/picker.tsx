@@ -1,62 +1,112 @@
 import { FlashList } from '@shopify/flash-list';
-import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@ironlog/shared';
+import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { asc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Chip, Divider, EmptyState, Screen, SearchBar, Text } from '@/components/ui';
+import {
+  Button,
+  Divider,
+  EmptyState,
+  FilterSelect,
+  Screen,
+  SearchBar,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
 import { ExerciseRow } from '@/features/exercises/exercise-row';
-import { filterExercises } from '@/features/exercises/repository';
+import {
+  exerciseListColumns,
+  filterExercises,
+  type ExerciseListItem,
+} from '@/features/exercises/repository';
+import { useExercisePicker } from '@/store/exercise-picker';
 import { spacing } from '@/theme';
+
+/** Hoisted so the list reuses separators instead of remounting them. */
+function ListSeparator() {
+  return <Divider inset={70} />;
+}
 
 /**
  * Multi-select exercise picker.
  *
- * Returns the chosen ids to the previous screen as a route param rather than
- * writing to the database itself — the caller knows whether they're building a
- * routine or adding to a live workout, and this screen shouldn't.
+ * Publishes the chosen ids to `useExercisePicker` rather than writing to the
+ * database itself — the caller knows whether they're building a routine or
+ * adding to a live workout, and this screen shouldn't.
  */
 export default function ExercisePickerScreen() {
+  const insets = useSafeAreaInsets();
+
   const [search, setSearch] = useState('');
   const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
+  // A Set, not an array: `selected.includes(id)` ran once per rendered row on
+  // every keystroke and every toggle. This screen opens mid-set, with the
+  // keyboard already up — it is the most latency-sensitive list in the app.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
 
   const { data: allExercises = [] } = useLiveQuery(
     db
-      .select()
+      .select(exerciseListColumns)
       .from(exercisesTable)
       .where(isNull(exercisesTable.deletedAt))
       .orderBy(asc(exercisesTable.name)),
   );
 
+  // Deferred for the same reason as the Exercises tab: the field must never
+  // wait on a 6,800-row filter. See the note there.
+  const deferredSearch = useDeferredValue(search);
+
   const visible = useMemo(
-    () => filterExercises(allExercises, { search, muscle }),
-    [allExercises, search, muscle],
+    () => filterExercises(allExercises, { search: deferredSearch, muscle }),
+    [allExercises, deferredSearch, muscle],
   );
 
   const muscles = useMemo(() => {
-    const set = new Set<MuscleGroup>();
+    const counts = new Map<MuscleGroup, number>();
     for (const exercise of allExercises) {
-      if (!exercise.isArchived) set.add(exercise.primaryMuscle);
+      if (exercise.isArchived) continue;
+      counts.set(exercise.primaryMuscle, (counts.get(exercise.primaryMuscle) ?? 0) + 1);
     }
-    return [...set].sort((a, b) => MUSCLE_GROUP_LABELS[a].localeCompare(MUSCLE_GROUP_LABELS[b]));
+    return [...counts]
+      .map(([value, count]) => ({ value, label: MUSCLE_GROUP_LABELS[value], count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [allExercises]);
 
-  const toggle = (id: string) => {
-    setSelected((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
-  };
+  const toggle = useCallback((id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      // `delete` reports whether it was there, so this is one lookup, not two.
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: ExerciseListItem }) => (
+      <ExerciseRow
+        exercise={item}
+        selectable
+        selected={selected.has(item.id)}
+        onPress={() => toggle(item.id)}
+      />
+    ),
+    [selected, toggle],
+  );
+
+  const submit = useExercisePicker((state) => state.submit);
 
   const confirm = () => {
-    if (selected.length === 0) return;
-    // Order matters: exercises are added in the order the user picked them.
+    if (selected.size === 0) return;
+    // Publish before dismissing. Order matters: exercises are added in the
+    // order the user picked them, which a Set preserves — re-selecting after a
+    // deselect moves the id to the end, exactly as the array version did.
+    submit([...selected]);
     router.back();
-    router.setParams({ addedExerciseIds: selected.join(',') });
   };
 
   return (
@@ -89,31 +139,17 @@ export default function ExercisePickerScreen() {
           placeholder="Search exercises"
           autoFocus
         />
-      </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {muscles.map((item) => (
-          <Chip
-            key={item}
-            label={MUSCLE_GROUP_LABELS[item]}
-            selected={muscle === item}
-            onPress={() => setMuscle(muscle === item ? null : item)}
-          />
-        ))}
-      </ScrollView>
+        <View style={styles.filters}>
+          <FilterSelect label="Muscle" value={muscle} options={muscles} onChange={setMuscle} />
+        </View>
+      </View>
 
       <FlashList
         data={visible}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ExerciseRow
-            exercise={item}
-            selectable
-            selected={selected.includes(item.id)}
-            onPress={() => toggle(item.id)}
-          />
-        )}
-        ItemSeparatorComponent={() => <Divider inset={70} />}
+        renderItem={renderItem}
+        ItemSeparatorComponent={ListSeparator}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <EmptyState
@@ -124,10 +160,14 @@ export default function ExercisePickerScreen() {
         }
       />
 
-      {selected.length > 0 && (
-        <View style={styles.footer}>
+      {selected.size > 0 && (
+        // The confirm bar is the lowest thing on screen, so it carries the
+        // system navigation inset itself rather than padding the whole Screen
+        // (which would leave a dead strip under the list when the bar is
+        // hidden).
+        <View style={[styles.footer, { paddingBottom: spacing.lg + insets.bottom }]}>
           <Button
-            title={`Add ${selected.length} ${selected.length === 1 ? 'Exercise' : 'Exercises'}`}
+            title={`Add ${selected.size} ${selected.size === 1 ? 'Exercise' : 'Exercises'}`}
             fullWidth
             size="lg"
             onPress={confirm}
@@ -139,7 +179,7 @@ export default function ExercisePickerScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
-  filters: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
+  filters: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   footer: { padding: spacing.lg },
 });

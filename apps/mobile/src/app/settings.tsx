@@ -6,13 +6,13 @@ import {
   THEME_PREFERENCES,
   WEIGHT_UNITS,
   formatDurationShort,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { Stack } from 'expo-router';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, Chip, Screen, SectionHeader, Text } from '@/components/ui';
+import { Card, Chip, Screen, SectionHeader, Text, Toggle } from '@/components/ui';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { spacing } from '@/theme';
 
 const REST_PRESETS = [60, 90, 120, 150, 180, 240];
 
@@ -152,11 +152,11 @@ function ToggleRow({
   onChange: (value: boolean) => void;
   disabled?: boolean;
 }) {
-  const colors = useColors();
-
   return (
-    <View style={[styles.row, disabled && styles.disabled]}>
-      <View style={styles.rowLabel}>
+    <View style={styles.row}>
+      {/* Only the label dims. `Toggle` dims itself when disabled, and nesting
+          that inside a dimmed row would multiply the two into near-invisibility. */}
+      <View style={[styles.rowLabel, disabled && styles.disabled]}>
         <Text variant="body">{label}</Text>
         {description && (
           <Text variant="caption" color="textTertiary">
@@ -164,12 +164,7 @@ function ToggleRow({
           </Text>
         )}
       </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        disabled={disabled}
-        trackColor={{ true: colors.accent, false: colors.surfaceMuted }}
-      />
+      <Toggle value={value} onValueChange={onChange} disabled={disabled} />
     </View>
   );
 }

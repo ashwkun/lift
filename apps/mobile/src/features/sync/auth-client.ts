@@ -41,8 +41,8 @@ export const authClient = createAuthClient({
   baseURL: `${API_URL}/api/auth`,
   plugins: [
     expoClient({
-      scheme: 'ironlog',
-      storagePrefix: 'ironlog',
+      scheme: 'lift',
+      storagePrefix: 'lift',
       storage: SecureStore,
     }),
   ],
@@ -56,7 +56,7 @@ export const { signIn, signUp, signOut, useSession, getSession } = authClient;
  */
 export async function getSessionToken(): Promise<string | null> {
   try {
-    return (await SecureStore.getItemAsync('ironlog_session_token')) ?? null;
+    return (await SecureStore.getItemAsync('lift_session_token')) ?? null;
   } catch {
     return null;
   }

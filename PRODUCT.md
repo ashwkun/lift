@@ -1,0 +1,82 @@
+# Product
+
+## Register
+
+product
+
+## Users
+
+Lifters mid-workout, phone in one hand, chalk on the other, between sets. The
+context is hostile to interfaces: standing up, short attention window, sometimes
+one-handed, sometimes with a barbell waiting. The job is to record what just
+happened and get back to lifting — not to browse, explore, or be engaged.
+
+Secondary context is post-workout and rest-day review: checking history, PRs,
+volume trends, body measurements. Calmer, more willing to read, still not a
+session anyone wants to spend long in.
+
+The app is local-first. Everything works with no account and no network; signing
+in only adds backup and cross-device sync.
+
+## Product Purpose
+
+A workout tracker that logs a set faster than any alternative and never loses
+data. Success is measured in taps-per-set and in the absence of interruption:
+no spinner between a rep and its record, no sync prompt, no upsell.
+
+The active workout is a database row rather than in-memory state, so force-
+quitting mid-set loses nothing. Storage is canonical (kg, km, cm) and display is
+derived, so changing units never rewrites history.
+
+## Brand Personality
+
+**Focused, warm, encouraging.** A training partner rather than an instrument.
+It stays out of the way while the work is happening, then acknowledges what was
+achieved — PR badges and the finish-workout celebration are part of the product,
+not decoration to be cut for performance. Warmth is expressed in acknowledgement
+and tone, never in chatter.
+
+## Anti-references
+
+- **Bloated fitness apps** (MyFitnessPal, Fitbit). No ads, no upsells, no social
+  feed, no spinner between taps.
+- **Gamified streak apps** (Duolingo-style). No badge economy, no guilt-trip
+  notifications, no streak anxiety. Celebration is earned and specific: a real
+  PR, a finished session.
+- **Generic SaaS dashboards.** No chart-grid homepage, no hero-metric tiles, no
+  everything-in-identical-cards.
+- **Sluggish web wrappers.** Nothing that betrays it isn't native: janky scroll,
+  delayed taps, keyboard lag, blank frames on navigation.
+
+## Design Principles
+
+1. **The set is the unit of work.** Every design decision is judged by whether
+   it makes recording a set faster or slower. Nothing else outranks it.
+2. **Never block on the network.** The app is fully usable offline by design;
+   any surface that implies otherwise is a bug.
+3. **Celebrate the achievement, not the app.** Motion and colour mark real
+   milestones (a PR, a finished workout) and stay silent otherwise.
+4. **Storage is canonical, display is derived.** Preference changes are edge
+   transformations, never migrations.
+5. **Responsiveness is the feature.** On a mid-range phone, a tap that doesn't
+   register within a frame reads as broken. Perceived speed outranks feature
+   surface area.
+
+## Accessibility & Inclusion
+
+Baseline WCAG AA for text contrast, verified per palette rather than assumed —
+both palettes name a foreground per role colour so a filled control can't pick
+an unreadable one. Minimum 44pt touch targets (`MIN_TOUCH_SIZE`), enforced
+deliberately in the dense set-row layout. Reduced-motion is honoured via
+`use-reduce-motion` and must gate every celebration animation. Interactive
+elements carry `accessibilityRole` and `accessibilityState`; dynamic values
+(timers, set counts) carry labels rather than relying on visual position.
+
+## Performance Targets
+
+Optimize for **mid-range Android and up**. User-reported slow surfaces, in
+priority order:
+
+1. Exercise library — search and scroll over the ~6,800-row catalog.
+2. Active workout — logging sets, rest timer, checking sets off.
+3. Screen and tab transitions.

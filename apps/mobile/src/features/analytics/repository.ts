@@ -10,9 +10,10 @@ import {
   setVolumeKg,
   type AnalyticsContext,
   type BodyPart,
+  type MuscleGroup,
   type SetLike,
-} from '@ironlog/shared';
-import { and, desc, eq, gte, isNotNull, isNull } from 'drizzle-orm';
+} from '@lift/shared';
+import { and, asc, desc, eq, gte, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { exercises, workoutExercises, workoutSets, workouts } from '@/db/schema';
@@ -229,6 +230,380 @@ export async function getExerciseProgress(
   }
 
   return [...byWorkout.values()].sort((a, b) => a.performedAt - b.performedAt);
+}
+
+// ---------------------------------------------------------------------------
+// History trends
+// ---------------------------------------------------------------------------
+
+export const HISTORY_RANGES = [
+  { value: '3m', label: '3 months' },
+  { value: '1y', label: 'Year' },
+  { value: 'all', label: 'All time' },
+] as const;
+
+export type HistoryRange = (typeof HISTORY_RANGES)[number]['value'];
+
+/** The metrics the history chart can plot. All are stored per workout. */
+export const HISTORY_METRICS = [
+  { value: 'volume', label: 'Volume' },
+  { value: 'duration', label: 'Duration' },
+  { value: 'reps', label: 'Reps' },
+] as const;
+
+export type HistoryMetric = (typeof HISTORY_METRICS)[number]['value'];
+
+/**
+ * Bucket size for the trend chart.
+ *
+ * Chosen from the *span* rather than the range name so "all time" stays legible
+ * whether the user has three months of history or six years: at ~50 buckets the
+ * bars are a pixel wide and the axis is unreadable, so the granularity coarsens
+ * before that point.
+ */
+export type Granularity = 'week' | 'month' | 'quarter' | 'year';
+
+export interface TrendBucket {
+  /** Epoch ms of the bucket's first day. Doubles as its identity. */
+  start: number;
+  label: string;
+  volumeKg: number;
+  durationSeconds: number;
+  reps: number;
+  sets: number;
+  workouts: number;
+}
+
+export interface MuscleBreakdownEntry {
+  muscle: MuscleGroup;
+  bodyPart: BodyPart;
+  /**
+   * Working sets, with sets that only trained this muscle indirectly counted at
+   * `SECONDARY_SET_WEIGHT`. Fractional as a result.
+   */
+  sets: number;
+  /** Sets where this muscle was the primary target. Whole number. */
+  directSets: number;
+  reps: number;
+  volumeKg: number;
+  /** Distinct exercises that trained this muscle in the window. */
+  exercises: number;
+  /**
+   * `sets` averaged over the weeks the window spans. The body map reads this
+   * rather than `sets`, so the same muscle looks the same whether you are
+   * viewing three months or a year.
+   */
+  setsPerWeek: number;
+}
+
+export interface HistoryAnalytics {
+  range: HistoryRange;
+  granularity: Granularity;
+  buckets: TrendBucket[];
+  totals: {
+    workouts: number;
+    volumeKg: number;
+    durationSeconds: number;
+    reps: number;
+    sets: number;
+  };
+  /** Per muscle, busiest first. Drives the body map and its detail list. */
+  muscles: MuscleBreakdownEntry[];
+  bodyParts: MuscleDistributionEntry[];
+  /** Highest set count of any single muscle — the heatmap's upper bound. */
+  peakMuscleSets: number;
+  /** Weeks the window actually spans, floored at 1. Divisor for `setsPerWeek`. */
+  weeks: number;
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function bucketStart(date: Date, granularity: Granularity): Date {
+  switch (granularity) {
+    case 'week':
+      return startOfWeek(date);
+    case 'month':
+      return startOfMonth(date);
+    case 'quarter':
+      return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
+    case 'year':
+      return new Date(date.getFullYear(), 0, 1);
+  }
+}
+
+function advance(date: Date, granularity: Granularity, steps = 1): Date {
+  const next = new Date(date);
+  switch (granularity) {
+    case 'week':
+      next.setDate(next.getDate() + 7 * steps);
+      break;
+    case 'month':
+      next.setMonth(next.getMonth() + steps);
+      break;
+    case 'quarter':
+      next.setMonth(next.getMonth() + 3 * steps);
+      break;
+    case 'year':
+      next.setFullYear(next.getFullYear() + steps);
+      break;
+  }
+  return next;
+}
+
+function bucketLabel(date: Date, granularity: Granularity): string {
+  switch (granularity) {
+    case 'week':
+      return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    case 'month':
+      return date.toLocaleDateString(undefined, { month: 'short' });
+    case 'quarter':
+      return `Q${Math.floor(date.getMonth() / 3) + 1} ${String(date.getFullYear()).slice(2)}`;
+    case 'year':
+      return String(date.getFullYear());
+  }
+}
+
+/** Months between two dates, used to pick a granularity for "all time". */
+function monthsBetween(from: Date, to: Date): number {
+  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+}
+
+/**
+ * Everything the history screen's analytics header needs, in one pass.
+ *
+ * Trends read from the denormalised totals on `workouts` (no set-level join),
+ * while the muscle breakdown needs the full join down to `exercises`. Keeping
+ * them in one function means the screen makes a single call per range change
+ * instead of three that can land out of order.
+ */
+export async function getHistoryAnalytics(range: HistoryRange): Promise<HistoryAnalytics> {
+  const now = new Date();
+
+  let since: Date | null = null;
+  if (range === '3m') {
+    since = startOfWeek(now);
+    since.setDate(since.getDate() - 12 * 7); // 13 weekly buckets, current week last
+  } else if (range === '1y') {
+    since = startOfMonth(now);
+    since.setMonth(since.getMonth() - 11); // 12 monthly buckets
+  }
+
+  const rangeFilter = [isNotNull(workouts.finishedAt), isNull(workouts.deletedAt)];
+  if (since) rangeFilter.push(gte(workouts.startedAt, since));
+
+  const sessions = await db
+    .select({
+      startedAt: workouts.startedAt,
+      durationSeconds: workouts.durationSeconds,
+      totalVolumeKg: workouts.totalVolumeKg,
+      totalReps: workouts.totalReps,
+      totalSets: workouts.totalSets,
+    })
+    .from(workouts)
+    .where(and(...rangeFilter))
+    .orderBy(asc(workouts.startedAt));
+
+  const totals = {
+    workouts: sessions.length,
+    volumeKg: sessions.reduce((sum, row) => sum + row.totalVolumeKg, 0),
+    durationSeconds: sessions.reduce((sum, row) => sum + (row.durationSeconds ?? 0), 0),
+    reps: sessions.reduce((sum, row) => sum + row.totalReps, 0),
+    sets: sessions.reduce((sum, row) => sum + row.totalSets, 0),
+  };
+
+  // "All time" spans whatever the user has; the other ranges are fixed windows
+  // and keep their granularity even when the user has only just started, so the
+  // axis doesn't reshape itself after every workout.
+  let granularity: Granularity;
+  if (range === '3m') {
+    granularity = 'week';
+  } else if (range === '1y') {
+    granularity = 'month';
+  } else {
+    const first = sessions[0]?.startedAt ?? now;
+    const months = monthsBetween(first, now);
+    granularity = months <= 18 ? 'month' : months <= 72 ? 'quarter' : 'year';
+  }
+
+  const firstStart = since ?? (sessions[0]?.startedAt ?? now);
+  const cursorStart = bucketStart(firstStart, granularity);
+  const lastStart = bucketStart(now, granularity);
+
+  const buckets = new Map<number, TrendBucket>();
+  for (
+    let cursor = cursorStart;
+    cursor.getTime() <= lastStart.getTime();
+    cursor = advance(cursor, granularity)
+  ) {
+    buckets.set(cursor.getTime(), {
+      start: cursor.getTime(),
+      label: bucketLabel(cursor, granularity),
+      volumeKg: 0,
+      durationSeconds: 0,
+      reps: 0,
+      sets: 0,
+      workouts: 0,
+    });
+  }
+
+  for (const row of sessions) {
+    const bucket = buckets.get(bucketStart(row.startedAt, granularity).getTime());
+    // A workout older than the first bucket can only happen on a fixed window,
+    // where the query already excluded it — but a clock change could produce one.
+    if (!bucket) continue;
+
+    bucket.volumeKg += row.totalVolumeKg;
+    bucket.durationSeconds += row.durationSeconds ?? 0;
+    bucket.reps += row.totalReps;
+    bucket.sets += row.totalSets;
+    bucket.workouts += 1;
+  }
+
+  const { muscles, bodyParts, peakMuscleSets, weeks } = await getMuscleBreakdown(since);
+
+  return {
+    range,
+    granularity,
+    buckets: [...buckets.values()],
+    totals,
+    muscles,
+    bodyParts,
+    peakMuscleSets,
+    weeks,
+  };
+}
+
+/**
+ * How much a set counts toward a muscle the exercise only trains indirectly.
+ *
+ * A close-grip press is real triceps work, but not the set that a dedicated
+ * pushdown is, and counting it whole would put arms level with chest on a pure
+ * push routine. Half is the conventional discount.
+ */
+export const SECONDARY_SET_WEIGHT = 0.5;
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Working sets per muscle since `since` (null = all time).
+ *
+ * Counts sets rather than volume for the same reason `getMuscleDistribution`
+ * does: volume lets a heavy squat bury an entire session of arm work.
+ *
+ * Only `sets` carries the secondary-muscle weighting. `reps`, `volumeKg` and
+ * the body-part split stay primary-only, so the numbers printed next to each
+ * muscle still add up to the totals shown everywhere else in the app.
+ */
+async function getMuscleBreakdown(since: Date | null): Promise<{
+  muscles: MuscleBreakdownEntry[];
+  bodyParts: MuscleDistributionEntry[];
+  peakMuscleSets: number;
+  weeks: number;
+}> {
+  const filters = [
+    eq(workoutSets.isCompleted, true),
+    isNull(workoutSets.deletedAt),
+    isNull(workoutExercises.deletedAt),
+    isNull(workouts.deletedAt),
+    isNotNull(workouts.finishedAt),
+  ];
+  if (since) filters.push(gte(workouts.startedAt, since));
+
+  const rows = await db
+    .select({
+      set: workoutSets,
+      exerciseId: exercises.id,
+      primaryMuscle: exercises.primaryMuscle,
+      secondaryMuscles: exercises.secondaryMuscles,
+      trackingType: exercises.trackingType,
+      startedAt: workouts.startedAt,
+    })
+    .from(workoutSets)
+    .innerJoin(workoutExercises, eq(workoutSets.workoutExerciseId, workoutExercises.id))
+    .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
+    .innerJoin(workouts, eq(workoutExercises.workoutId, workouts.id))
+    .where(and(...filters));
+
+  const byMuscle = new Map<MuscleGroup, MuscleBreakdownEntry>();
+  // Tracked separately from the entry so `exercises` counts distinct ids rather
+  // than sets.
+  const seenExercises = new Map<MuscleGroup, Set<string>>();
+  const byBodyPart = new Map<BodyPart, MuscleDistributionEntry>();
+  let earliest = Number.POSITIVE_INFINITY;
+
+  const touch = (muscle: MuscleGroup): MuscleBreakdownEntry => {
+    let entry = byMuscle.get(muscle);
+    if (!entry) {
+      entry = {
+        muscle,
+        bodyPart: MUSCLE_TO_BODY_PART[muscle],
+        sets: 0,
+        directSets: 0,
+        reps: 0,
+        volumeKg: 0,
+        exercises: 0,
+        setsPerWeek: 0,
+      };
+      byMuscle.set(muscle, entry);
+      seenExercises.set(muscle, new Set());
+    }
+    return entry;
+  };
+
+  for (const row of rows) {
+    if (row.set.setType === 'warmup') continue;
+
+    const muscle = row.primaryMuscle;
+    const bodyPart = MUSCLE_TO_BODY_PART[muscle];
+    const volume = setVolumeKg(row.set as SetLike, { trackingType: row.trackingType });
+    earliest = Math.min(earliest, row.startedAt.getTime());
+
+    const entry = touch(muscle);
+    entry.sets += 1;
+    entry.directSets += 1;
+    entry.reps += row.set.reps ?? 0;
+    entry.volumeKg += volume;
+    seenExercises.get(muscle)!.add(row.exerciseId);
+
+    // Seeded exercises always carry an array, but a row written by an older
+    // build — or by a sync peer — may not.
+    const secondary = Array.isArray(row.secondaryMuscles) ? row.secondaryMuscles : [];
+    for (const other of secondary) {
+      if (other === muscle) continue;
+      const assisted = touch(other);
+      assisted.sets += SECONDARY_SET_WEIGHT;
+      seenExercises.get(other)!.add(row.exerciseId);
+    }
+
+    let part = byBodyPart.get(bodyPart);
+    if (!part) {
+      part = { bodyPart, sets: 0, volumeKg: 0 };
+      byBodyPart.set(bodyPart, part);
+    }
+    part.sets += 1;
+    part.volumeKg += volume;
+  }
+
+  for (const [muscle, ids] of seenExercises) {
+    byMuscle.get(muscle)!.exercises = ids.size;
+  }
+
+  // On "all time" the window is however long the log actually is, not however
+  // long ago the first workout could have been.
+  const from = since?.getTime() ?? (Number.isFinite(earliest) ? earliest : Date.now());
+  const weeks = Math.max(1, (Date.now() - from) / MS_PER_WEEK);
+
+  const muscles = [...byMuscle.values()].sort((a, b) => b.sets - a.sets);
+  for (const entry of muscles) entry.setsPerWeek = entry.sets / weeks;
+
+  return {
+    muscles,
+    bodyParts: [...byBodyPart.values()].sort((a, b) => b.sets - a.sets),
+    peakMuscleSets: muscles[0]?.sets ?? 0,
+    weeks,
+  };
 }
 
 /** Calendar dates with a completed workout, for the activity heatmap. */

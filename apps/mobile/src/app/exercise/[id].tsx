@@ -8,7 +8,7 @@ import {
   repMaxTable,
   type PrKind,
   type SetLike,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -24,6 +24,7 @@ import {
   type Exercise,
   type WorkoutSet,
 } from '@/db/schema';
+import { ExerciseMedia } from '@/features/exercises/exercise-media';
 import { deleteExercise, getExercise } from '@/features/exercises/repository';
 import { useSettings } from '@/store/settings';
 import { spacing, useColors } from '@/theme';
@@ -161,6 +162,14 @@ export default function ExerciseDetailScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.media}>
+          <ExerciseMedia
+            name={exercise.name}
+            thumbnailUrl={exercise.thumbnailUrl}
+            videoUrl={exercise.videoUrl}
+          />
+        </View>
+
         <View style={styles.chips}>
           <Chip label={MUSCLE_GROUP_LABELS[exercise.primaryMuscle]} selected />
           <Chip label={EQUIPMENT_LABELS[exercise.equipment]} />
@@ -265,6 +274,7 @@ function formatRecord(kind: PrKind, value: number, unit: 'kg' | 'lb'): string {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.huge },
+  media: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',

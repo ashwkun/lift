@@ -1,10 +1,10 @@
-# IronLog
+# Lift
 
 A local-first workout tracker in the spirit of Hevy. Everything works offline;
 an account is optional and only adds backup and cross-device sync.
 
 ```
-ironlog/
+lift/
 ├── apps/mobile      Expo SDK 57 · React Native 0.86 · expo-router
 ├── apps/api         NestJS 11 · Postgres · better-auth
 └── packages/shared  domain logic — no React, no database, fully tested
@@ -16,7 +16,7 @@ Requires Node 22+, pnpm, and (for the API) Docker.
 
 ```bash
 pnpm install
-pnpm --filter @ironlog/shared build   # the API consumes compiled JS
+pnpm --filter @lift/shared build   # the API consumes compiled JS
 ```
 
 ### Mobile
@@ -46,7 +46,7 @@ device — `localhost` there resolves to the phone.
 ## Testing
 
 ```bash
-pnpm --filter @ironlog/shared test    # 41 unit tests
+pnpm --filter @lift/shared test    # 41 unit tests
 python3 apps/api/test/sync-e2e.py     # 28 end-to-end tests, needs a running API
 ```
 

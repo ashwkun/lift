@@ -8,11 +8,32 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { fontSize, fontWeight, radius, spacing, useColors, MIN_TOUCH_SIZE } from '@/theme';
+import {
+  controlHeight,
+  font,
+  fontSize,
+  radius,
+  spacing,
+  useColors,
+  type Palette,
+} from '@/theme';
 
 import { Text } from './text';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+export type ButtonVariant =
+  /** The one action a screen most wants you to take. At most one per view. */
+  | 'primary'
+  /** Filled but neutral — the companion action next to a primary. */
+  | 'secondary'
+  /** Outlined and transparent, for actions on top of a card or image. */
+  | 'outline'
+  /** Text only. Lowest weight; use inside rows and headers. */
+  | 'ghost'
+  /** Destructive and irreversible: delete a workout, discard a session. */
+  | 'danger'
+  /** Confirms and completes: finish workout, save. */
+  | 'success';
+
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends Omit<PressableProps, 'style' | 'children'> {
@@ -26,11 +47,72 @@ export interface ButtonProps extends Omit<PressableProps, 'style' | 'children'> 
   style?: ViewStyle;
 }
 
-const SIZES: Record<ButtonSize, { height: number; paddingHorizontal: number; fontSize: number }> = {
-  sm: { height: 34, paddingHorizontal: spacing.md, fontSize: fontSize.sm },
-  md: { height: MIN_TOUCH_SIZE, paddingHorizontal: spacing.lg, fontSize: fontSize.md },
-  lg: { height: 52, paddingHorizontal: spacing.xl, fontSize: fontSize.lg },
+interface SizeSpec {
+  height: number;
+  paddingHorizontal: number;
+  fontSize: number;
+  iconSize: number;
+  radius: number;
+}
+
+const SIZES: Record<ButtonSize, SizeSpec> = {
+  sm: {
+    height: controlHeight.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSize.sm,
+    iconSize: 16,
+    radius: radius.sm,
+  },
+  md: {
+    height: controlHeight.md,
+    paddingHorizontal: spacing.lg,
+    fontSize: fontSize.md,
+    iconSize: 18,
+    radius: radius.md,
+  },
+  lg: {
+    height: controlHeight.lg,
+    paddingHorizontal: spacing.xl,
+    fontSize: fontSize.lg,
+    iconSize: 20,
+    radius: radius.md,
+  },
 };
+
+interface VariantSpec {
+  bg: string;
+  bgPressed: string;
+  fg: string;
+  border?: string;
+}
+
+/**
+ * Every variant names its own pressed colour rather than leaning on opacity.
+ *
+ * Dimming works on a filled button and does nothing legible on a transparent
+ * one, which is how ghost and outline ended up feeling dead to the touch while
+ * primary felt fine. A colour per state makes all six respond identically.
+ */
+function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
+  return {
+    primary: { bg: c.accent, bgPressed: c.accentPressed, fg: c.textOnAccent },
+    secondary: {
+      bg: c.surfaceMuted,
+      bgPressed: c.surfacePressed,
+      fg: c.text,
+      border: c.border,
+    },
+    outline: {
+      bg: 'transparent',
+      bgPressed: c.surfaceMuted,
+      fg: c.text,
+      border: c.borderStrong,
+    },
+    ghost: { bg: 'transparent', bgPressed: c.surfaceMuted, fg: c.accent },
+    danger: { bg: c.danger, bgPressed: c.dangerPressed, fg: c.textOnDanger },
+    success: { bg: c.success, bgPressed: c.successPressed, fg: c.textOnSuccess },
+  };
+}
 
 export function Button({
   title,
@@ -46,17 +128,9 @@ export function Button({
 }: ButtonProps) {
   const colors = useColors();
   const dimensions = SIZES[size];
+  const { bg, bgPressed, fg, border } = variantSpecs(colors)[variant];
+
   const isDisabled = disabled || loading;
-
-  const palette: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
-    primary: { bg: colors.accent, fg: colors.textOnAccent },
-    secondary: { bg: colors.surfaceMuted, fg: colors.text, border: colors.border },
-    ghost: { bg: 'transparent', fg: colors.accent },
-    danger: { bg: colors.danger, fg: '#FFFFFF' },
-    success: { bg: colors.success, fg: '#FFFFFF' },
-  };
-
-  const { bg, fg, border } = palette[variant];
 
   return (
     <Pressable
@@ -68,32 +142,40 @@ export function Button({
         {
           height: dimensions.height,
           paddingHorizontal: dimensions.paddingHorizontal,
-          backgroundColor: bg,
+          borderRadius: dimensions.radius,
+          backgroundColor: pressed ? bgPressed : bg,
           borderColor: border ?? 'transparent',
           borderWidth: border ? StyleSheet.hairlineWidth : 0,
         },
         fullWidth && styles.fullWidth,
-        // Opacity rather than a separate pressed colour keeps every variant
-        // (including transparent ghosts) reacting consistently.
-        pressed && styles.pressed,
         isDisabled && styles.disabled,
         style,
       ]}
       {...rest}
     >
-      {loading ? (
-        <ActivityIndicator color={fg} size="small" />
-      ) : (
-        <View style={styles.content}>
-          {icon && iconPosition === 'left' && (
-            <Ionicons name={icon} size={dimensions.fontSize + 3} color={fg} />
-          )}
-          <Text style={{ color: fg, fontSize: dimensions.fontSize, fontWeight: fontWeight.semibold }}>
-            {title}
-          </Text>
-          {icon && iconPosition === 'right' && (
-            <Ionicons name={icon} size={dimensions.fontSize + 3} color={fg} />
-          )}
+      {/*
+        The label stays mounted while loading and is hidden with opacity, so the
+        button keeps its width instead of collapsing to spinner-size and shoving
+        whatever sits beside it sideways for the length of the request.
+      */}
+      <View style={[styles.content, loading && styles.hidden]}>
+        {icon && iconPosition === 'left' && (
+          <Ionicons name={icon} size={dimensions.iconSize} color={fg} />
+        )}
+        <Text
+          numberOfLines={1}
+          style={{ color: fg, fontSize: dimensions.fontSize, ...font('semibold') }}
+        >
+          {title}
+        </Text>
+        {icon && iconPosition === 'right' && (
+          <Ionicons name={icon} size={dimensions.iconSize} color={fg} />
+        )}
+      </View>
+
+      {loading && (
+        <View style={styles.spinner} pointerEvents="none">
+          <ActivityIndicator color={fg} size="small" />
         </View>
       )}
     </Pressable>
@@ -102,7 +184,6 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -110,9 +191,19 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.sm,
   },
+  hidden: { opacity: 0 },
+  spinner: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fullWidth: { alignSelf: 'stretch' },
-  pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
 });

@@ -46,7 +46,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`IronLog API listening on :${port}`);
+  logger.log(`Lift API listening on :${port}`);
 }
 
 void bootstrap();

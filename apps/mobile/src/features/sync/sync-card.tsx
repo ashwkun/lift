@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Text } from '@/components/ui';
+import { Button, Card, IconButton, Text } from '@/components/ui';
 import { useSync } from '@/store/sync';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -116,9 +116,12 @@ export function SyncCard() {
             </Text>
           </View>
         </View>
-        <Pressable onPress={handleSignOut} hitSlop={8} accessibilityLabel="Sign out">
-          <Ionicons name="log-out-outline" size={20} color={colors.textSecondary} />
-        </Pressable>
+        <IconButton
+          name="log-out-outline"
+          size={20}
+          onPress={handleSignOut}
+          accessibilityLabel="Sign out"
+        />
       </View>
 
       {lastError && (

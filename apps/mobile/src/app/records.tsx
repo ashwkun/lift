@@ -5,7 +5,7 @@ import {
   formatWeight,
   PR_KIND_LABELS,
   type PrKind,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { desc, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';

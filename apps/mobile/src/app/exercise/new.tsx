@@ -7,7 +7,7 @@ import {
   type Equipment,
   type MuscleGroup,
   type TrackingType,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';

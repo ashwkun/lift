@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDuration, formatVolume, type SetType } from '@ironlog/shared';
+import { formatDuration, formatVolume, type SetType } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, Stack } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Divider, EmptyState, Screen, Text } from '@/components/ui';
 import { db } from '@/db/client';
@@ -18,6 +19,11 @@ import {
   type WorkoutSet,
 } from '@/db/schema';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
+import {
+  buildCelebration,
+  ExerciseCelebration,
+  type CelebrationData,
+} from '@/features/workouts/exercise-celebration';
 import {
   cancelRestNotification,
   prepareRestNotifications,
@@ -36,13 +42,16 @@ import {
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
 import { useTicker } from '@/hooks/use-ticker';
+import { useExercisePicker } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
 import { spacing, useColors } from '@/theme';
 
 export default function ActiveWorkoutScreen() {
   const colors = useColors();
-  const params = useLocalSearchParams<{ addedExerciseIds?: string }>();
+  const insets = useSafeAreaInsets();
+  const pendingExerciseIds = useExercisePicker((state) => state.pending);
+  const clearPendingExercises = useExercisePicker((state) => state.clear);
 
   const settings = useSettings();
   const startRest = useTimer((state) => state.startRest);
@@ -89,10 +98,28 @@ export default function ActiveWorkoutScreen() {
     [linkKey],
   );
 
-  const { data: allExercises = [] } = useLiveQuery(db.select().from(exercisesTable));
+  /*
+   * Only the exercises this workout uses.
+   *
+   * This was an unfiltered `select().from(exercisesTable)` — all ~6,800 catalog
+   * rows marshalled out of SQLite to look up the six the session contains, and
+   * `details` below rebuilt a 6,800-entry Map from them on every set edit
+   * (measured at 0.87ms on desktop V8, several times that on device). The
+   * screen needs a handful of rows; now it asks for a handful.
+   */
+  const exerciseIds = links.map((link) => link.exerciseId);
+  const exerciseIdsKey = exerciseIds.join(',');
+
+  const { data: workoutExerciseRows = [] } = useLiveQuery(
+    db
+      .select()
+      .from(exercisesTable)
+      .where(inArray(exercisesTable.id, exerciseIds.length > 0 ? exerciseIds : ['__none__'])),
+    [exerciseIdsKey],
+  );
 
   const details = useMemo<WorkoutExerciseDetail[]>(() => {
-    const exerciseById = new Map(allExercises.map((row) => [row.id, row]));
+    const exerciseById = new Map(workoutExerciseRows.map((row) => [row.id, row]));
     const setsByParent = new Map<string, WorkoutSet[]>();
 
     for (const set of sets) {
@@ -106,10 +133,14 @@ export default function ActiveWorkoutScreen() {
       if (!exercise) return [];
       return [{ workoutExercise: link, exercise, sets: setsByParent.get(link.id) ?? [] }];
     });
-  }, [links, sets, allExercises]);
+  }, [links, sets, workoutExerciseRows]);
 
   // Previous-session values for the ghost column, loaded once per exercise.
   const [previousByExercise, setPreviousByExercise] = useState<Record<string, WorkoutSet[]>>({});
+
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  // Monotonic, so finishing the same exercise twice still replays the confetti.
+  const celebrationSeq = useRef(0);
   const exerciseIdKey = details.map((detail) => detail.exercise.id).join(',');
 
   useEffect(() => {
@@ -131,19 +162,18 @@ export default function ActiveWorkoutScreen() {
     };
   }, [exerciseIdKey, workoutId]);
 
-  // Exercises chosen in the picker come back as a route param.
+  // Exercises chosen in the picker arrive through the hand-off store.
   useEffect(() => {
-    const ids = params.addedExerciseIds;
-    if (!ids || !workoutId) return;
+    if (pendingExerciseIds.length === 0 || !workoutId) return;
 
     void (async () => {
-      for (const id of ids.split(',').filter(Boolean)) {
+      for (const id of pendingExerciseIds) {
         const created = await addExerciseToWorkout(workoutId, id);
         await addSet(created.id);
       }
-      router.setParams({ addedExerciseIds: undefined });
+      clearPendingExercises();
     })();
-  }, [params.addedExerciseIds, workoutId]);
+  }, [pendingExerciseIds, workoutId, clearPendingExercises]);
 
   // Ask once when the logging screen first opens, rather than at app launch —
   // the permission prompt makes far more sense in context.
@@ -152,9 +182,6 @@ export default function ActiveWorkoutScreen() {
       void prepareRestNotifications();
     }
   }, [settings.restTimerEnabled, settings.restTimerNotifications]);
-
-  const now = useTicker(1000, Boolean(workout));
-  const elapsed = workout ? Math.floor((now - workout.startedAt.getTime()) / 1000) : 0;
 
   const liveStats = useMemo(() => {
     let volume = 0;
@@ -180,6 +207,43 @@ export default function ActiveWorkoutScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
+      // The live query has not refreshed yet, so "is the exercise finished?" is
+      // answered from the rows already in hand plus the write just made — every
+      // other set complete means this check was the last one.
+      const finishesExercise =
+        detail.sets.length > 0 &&
+        detail.sets.every((other) => other.id === set.id || other.isCompleted);
+
+      if (finishesExercise) {
+        const finalSets = detail.sets.map((other) =>
+          other.id === set.id ? { ...other, isCompleted: true } : other,
+        );
+
+        celebrationSeq.current += 1;
+        const next = buildCelebration({
+          id: celebrationSeq.current,
+          exerciseName: detail.exercise.name,
+          sets: finalSets,
+          previousSets: previousByExercise[detail.exercise.id] ?? [],
+          ctx: {
+            trackingType: detail.exercise.trackingType,
+            bodyweightKg: settings.bodyweightKg ?? undefined,
+            formula: settings.oneRepMaxFormula,
+          },
+          weightUnit: settings.weightUnit,
+          distanceUnit: settings.distanceUnit,
+        });
+
+        if (next) {
+          setCelebration(next);
+          // A second, heavier tap on top of the per-set success buzz: the same
+          // gesture just closed out something bigger than a set.
+          if (settings.hapticsEnabled) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          }
+        }
+      }
+
       if (settings.restTimerEnabled && settings.restTimerAutoStart) {
         const seconds =
           detail.workoutExercise.restSeconds ??
@@ -195,8 +259,12 @@ export default function ActiveWorkoutScreen() {
         }
       }
     },
-    [settings, startRest],
+    [settings, startRest, previousByExercise],
   );
+
+  // Stable, so the celebration's auto-dismiss timer isn't reset by a re-render
+  // of this screen — every set edit causes one.
+  const dismissCelebration = useCallback(() => setCelebration(null), []);
 
   const handleFinish = useCallback(() => {
     if (!workout) return;
@@ -279,7 +347,7 @@ export default function ActiveWorkoutScreen() {
       />
 
       <View style={[styles.statsBar, { borderBottomColor: colors.border }]}>
-        <Stat label="Duration" value={formatDuration(elapsed)} highlight />
+        <ElapsedStat startedAt={workout.startedAt} />
         <Stat label="Volume" value={formatVolume(liveStats.volume, settings.weightUnit)} />
         <Stat label="Sets" value={String(liveStats.completed)} />
       </View>
@@ -287,7 +355,9 @@ export default function ActiveWorkoutScreen() {
       <RestTimerBar />
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        // The discard button is the last thing in the scroll, so the system
+        // navigation inset is added to the content rather than the container.
+        contentContainerStyle={[styles.scroll, { paddingBottom: spacing.huge + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
@@ -340,8 +410,26 @@ export default function ActiveWorkoutScreen() {
           <Button title="Discard Workout" variant="ghost" fullWidth onPress={handleDiscard} />
         </View>
       </ScrollView>
+
+      <ExerciseCelebration data={celebration} onDismiss={dismissCelebration} />
     </Screen>
   );
+}
+
+/**
+ * The running duration, and the only thing on this screen that ticks.
+ *
+ * `useTicker` used to sit at the screen root, so once a second the whole tree
+ * re-rendered: every exercise block, every set row, every text field in them.
+ * A set row is a controlled input — competing with a full re-render every
+ * second is what made typing a weight feel like it was fighting back. Owning
+ * the ticker here confines the 1Hz update to this one `Text`.
+ */
+function ElapsedStat({ startedAt }: { startedAt: Date }) {
+  const now = useTicker(1000);
+  const elapsed = Math.max(0, Math.floor((now - startedAt.getTime()) / 1000));
+
+  return <Stat label="Duration" value={formatDuration(elapsed)} highlight />;
 }
 
 function Stat({

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { fromDisplayWeight, toDisplayWeight } from '@ironlog/shared';
+import { fromDisplayWeight, toDisplayWeight } from '@lift/shared';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -25,14 +25,15 @@ import {
   type RoutineDetail,
 } from '@/features/routines/repository';
 import { startWorkout } from '@/features/workouts/repository';
+import { useExercisePicker } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
 export default function RoutineEditorScreen() {
-  const { id, addedExerciseIds } = useLocalSearchParams<{
-    id: string;
-    addedExerciseIds?: string;
-  }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  const pendingExerciseIds = useExercisePicker((state) => state.pending);
+  const clearPendingExercises = useExercisePicker((state) => state.clear);
 
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
@@ -48,18 +49,18 @@ export default function RoutineEditorScreen() {
     void reload();
   }, [reload]);
 
-  // Exercises picked in the modal arrive as a route param.
+  // Exercises picked in the modal arrive through the hand-off store.
   useEffect(() => {
-    if (!addedExerciseIds) return;
+    if (pendingExerciseIds.length === 0) return;
 
     void (async () => {
-      for (const exerciseId of addedExerciseIds.split(',').filter(Boolean)) {
+      for (const exerciseId of pendingExerciseIds) {
         await addExerciseToRoutine(id, exerciseId);
       }
-      router.setParams({ addedExerciseIds: undefined });
+      clearPendingExercises();
       await reload();
     })();
-  }, [addedExerciseIds, id, reload]);
+  }, [pendingExerciseIds, id, reload, clearPendingExercises]);
 
   const confirmDelete = () => {
     Alert.alert('Delete routine', 'This cannot be undone.', [
@@ -100,8 +101,8 @@ export default function RoutineEditorScreen() {
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.nameField}>
-          <Text variant="caption" color="textTertiary">
-            ROUTINE NAME
+          <Text variant="overline" color="textTertiary">
+            Routine name
           </Text>
           <Pressable onPress={() => setRenaming(true)}>
             <Text variant="subheading">{detail.routine.name}</Text>
@@ -135,14 +136,14 @@ export default function RoutineEditorScreen() {
               </View>
 
               <View style={styles.columnHeader}>
-                <Text variant="caption" color="textTertiary" style={styles.setCell}>
-                  SET
+                <Text variant="overline" color="textTertiary" style={styles.setCell}>
+                  Set
                 </Text>
-                <Text variant="caption" color="textTertiary" style={styles.targetCell}>
-                  {weightUnit.toUpperCase()}
+                <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                  {weightUnit}
                 </Text>
-                <Text variant="caption" color="textTertiary" style={styles.targetCell}>
-                  REPS
+                <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                  Reps
                 </Text>
                 <View style={styles.removeSpacer} />
               </View>
@@ -197,7 +198,10 @@ export default function RoutineEditorScreen() {
                     targetWeightKg: last?.targetWeightKg ?? null,
                   }).then(reload);
                 }}
-                style={[styles.addSet, { backgroundColor: colors.surfaceMuted }]}
+                style={({ pressed }) => [
+                  styles.addSet,
+                  { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+                ]}
               >
                 <Ionicons name="add" size={16} color={colors.textSecondary} />
                 <Text variant="label" color="textSecondary">

@@ -1,5 +1,5 @@
 {
-  "name": "@ironlog/shared",
+  "name": "@lift/shared",
   "version": "0.1.0",
   "private": true,
   "type": "module",

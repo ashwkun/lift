@@ -7,9 +7,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ironlog
+      POSTGRES_USER: lift
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ironlog
+      POSTGRES_DB: lift
     ports:
       - '5432:5432'
     volumes:
@@ -17,7 +17,7 @@ services:
     healthcheck:
       # The API's own healthcheck depends on this being genuinely ready, not
       # merely started — Postgres accepts connections briefly during init.
-      test: ['CMD-SHELL', 'pg_isready -U ironlog -d ironlog']
+      test: ['CMD-SHELL', 'pg_isready -U lift -d lift']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,10 +31,10 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://ironlog:${POSTGRES_PASSWORD:-password}@postgres:5432/ironlog
+      DATABASE_URL: postgres://lift:${POSTGRES_PASSWORD:-password}@postgres:5432/lift
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-ironlog://,http://localhost:8081}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-lift://,http://localhost:8081}
       PORT: 3000
     ports:
       - '3000:3000'

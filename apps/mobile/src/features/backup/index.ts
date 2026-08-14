@@ -26,8 +26,19 @@ import {
 /** Bumped whenever the shape changes incompatibly, so imports can refuse. */
 export const BACKUP_FORMAT_VERSION = 1;
 
+const BACKUP_FORMAT = 'lift-backup';
+
+/**
+ * Format tags an import will accept.
+ *
+ * `ironlog-backup` is what the app stamped before it was renamed. The file shape
+ * never changed, so refusing those would strand real backups over a cosmetic
+ * difference — they stay readable indefinitely.
+ */
+const ACCEPTED_FORMATS = [BACKUP_FORMAT, 'ironlog-backup'];
+
 export interface BackupFile {
-  format: 'ironlog-backup';
+  format: (typeof ACCEPTED_FORMATS)[number];
   version: number;
   exportedAt: string;
   counts: Record<string, number>;
@@ -80,7 +91,7 @@ export async function buildBackup(): Promise<BackupFile> {
   };
 
   return {
-    format: 'ironlog-backup',
+    format: BACKUP_FORMAT,
     version: BACKUP_FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     counts: Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, rows.length])),
@@ -93,7 +104,7 @@ export async function writeBackupFile(): Promise<File> {
   const backup = await buildBackup();
 
   const stamp = new Date().toISOString().slice(0, 10);
-  const file = new File(Paths.cache, `ironlog-backup-${stamp}.json`);
+  const file = new File(Paths.cache, `lift-backup-${stamp}.json`);
 
   // Overwrite so exporting twice in one day doesn't fail.
   file.create({ overwrite: true });
@@ -160,7 +171,7 @@ export async function writeCsvFile(): Promise<File> {
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
-  const file = new File(Paths.cache, `ironlog-sets-${stamp}.csv`);
+  const file = new File(Paths.cache, `lift-sets-${stamp}.csv`);
   file.create({ overwrite: true });
   file.write(lines.join('\n'));
 
@@ -189,12 +200,12 @@ export interface ImportResult {
 export async function restoreBackup(json: string): Promise<ImportResult> {
   const parsed = JSON.parse(json) as BackupFile;
 
-  if (parsed.format !== 'ironlog-backup') {
-    throw new Error('Not an IronLog backup file.');
+  if (!ACCEPTED_FORMATS.includes(parsed.format)) {
+    throw new Error('Not a Lift backup file.');
   }
   if (parsed.version > BACKUP_FORMAT_VERSION) {
     throw new Error(
-      `This backup was made by a newer version of IronLog (format ${parsed.version}). Update the app first.`,
+      `This backup was made by a newer version of Lift (format ${parsed.version}). Update the app first.`,
     );
   }
 

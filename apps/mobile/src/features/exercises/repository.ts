@@ -3,17 +3,49 @@
  */
 
 import {
-  scoreExerciseMatch,
+  createExerciseMatcher,
   uuidv7,
   type Equipment,
   type MuscleGroup,
   type TrackingType,
-} from '@ironlog/shared';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+} from '@lift/shared';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { touch, trackDelete, trackUpsert } from '@/db/mutations';
 import { exercises, type Exercise } from '@/db/schema';
+
+/**
+ * The subset of an exercise a list screen renders and filters on.
+ *
+ * `Exercise` has seventeen columns; a row in the library list shows five of
+ * them. Selecting the difference costs nothing to write and everything to read
+ * — at ~6,800 rows it is the bulk of what crosses the SQLite boundary when the
+ * Exercises tab or the mid-workout picker opens.
+ */
+export type ExerciseListItem = Pick<
+  Exercise,
+  | 'id'
+  | 'name'
+  | 'equipment'
+  | 'primaryMuscle'
+  | 'secondaryMuscles'
+  | 'isCustom'
+  | 'isArchived'
+  | 'thumbnailUrl'
+>;
+
+/** Column selection producing `ExerciseListItem`. Pass to `db.select()`. */
+export const exerciseListColumns = {
+  id: exercises.id,
+  name: exercises.name,
+  equipment: exercises.equipment,
+  primaryMuscle: exercises.primaryMuscle,
+  secondaryMuscles: exercises.secondaryMuscles,
+  isCustom: exercises.isCustom,
+  isArchived: exercises.isArchived,
+  thumbnailUrl: exercises.thumbnailUrl,
+} as const;
 
 export interface ExerciseFilters {
   search?: string;
@@ -24,17 +56,38 @@ export interface ExerciseFilters {
 }
 
 /**
+ * The columns `filterExercises` reads.
+ *
+ * Declared structurally rather than as `Exercise` so list screens can select
+ * the eight columns they actually render instead of all seventeen — at ~6,800
+ * rows, the unread columns are pure marshalling cost on every load.
+ */
+export interface FilterableExercise {
+  name: string;
+  equipment: Equipment;
+  primaryMuscle: MuscleGroup;
+  secondaryMuscles: MuscleGroup[];
+  isArchived: boolean;
+  isCustom: boolean;
+}
+
+/**
  * Filters and ranks an already-loaded library.
  *
  * Kept pure and separate from the query so screens can drive it from
  * `useLiveQuery` — the list then re-filters reactively as rows change, without
- * a database round-trip per keystroke. The library is ~230 rows, so this is far
- * cheaper than expressing ranked relevance in SQL.
+ * a database round-trip per keystroke.
+ *
+ * Everything per-query is hoisted out of the per-row loop: the matcher compiles
+ * the search once, and the two predicate branches are chosen before iterating
+ * rather than re-tested 6,800 times. Callers should hand this a *deferred*
+ * search value — even at this cost it is too much work to run synchronously
+ * between two keystrokes.
  */
-export function filterExercises(
-  rows: readonly Exercise[],
+export function filterExercises<T extends FilterableExercise>(
+  rows: readonly T[],
   filters: ExerciseFilters = {},
-): Exercise[] {
+): T[] {
   const { search, muscle, equipment, customOnly, includeArchived } = filters;
 
   let result = rows.filter((row) => {
@@ -47,13 +100,18 @@ export function filterExercises(
     return true;
   });
 
-  const query = search?.trim();
-  if (query) {
-    result = result
-      .map((row) => ({ row, score: scoreExerciseMatch(row.name, query) }))
-      .filter((entry) => entry.score > 0)
-      .sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name))
-      .map((entry) => entry.row);
+  const match = search ? createExerciseMatcher(search) : null;
+  if (match) {
+    // One array of scored entries rather than map → filter → sort → map, which
+    // allocated four intermediate arrays of up to 6,800 elements per keystroke.
+    const scored: { row: T; score: number }[] = [];
+    for (const row of result) {
+      const score = match(row.name);
+      if (score > 0) scored.push({ row, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name));
+    result = scored.map((entry) => entry.row);
   }
 
   return result;
@@ -77,8 +135,12 @@ export async function getExercise(id: string): Promise<Exercise | undefined> {
 
 export async function getExercisesByIds(ids: string[]): Promise<Map<string, Exercise>> {
   if (ids.length === 0) return new Map();
-  const rows = await db.select().from(exercises);
-  return new Map(rows.filter((row) => ids.includes(row.id)).map((row) => [row.id, row]));
+
+  // Resolved in SQL against the primary key. This used to read the whole table
+  // and filter in JS with `ids.includes`, which is ~6,800 rows marshalled and
+  // an O(rows x ids) scan to find the handful actually asked for.
+  const rows = await db.select().from(exercises).where(inArray(exercises.id, ids));
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 export interface CreateExerciseInput {
@@ -103,6 +165,10 @@ export async function createCustomExercise(input: CreateExerciseInput): Promise<
     isCustom: true as const,
     notes: input.notes ?? null,
     imageUrl: null,
+    // Catalog media only — a user-created exercise has no upstream artwork, so
+    // its rows fall back to the initials tile.
+    thumbnailUrl: null,
+    videoUrl: null,
     isArchived: false,
     defaultRestSeconds: input.defaultRestSeconds ?? null,
     createdAt: now,

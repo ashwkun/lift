@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { isWorkingSet, TRACKING_FIELDS, type SetType } from '@ironlog/shared';
+import { isWorkingSet, TRACKING_FIELDS, type SetType } from '@lift/shared';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui';
@@ -74,32 +74,33 @@ export function ExerciseBlock({
         </Pressable>
       ) : null}
 
-      {/* Column headings */}
+      {/* Column headings. `overline` uppercases and adds tracking, so these are
+          written in sentence case — the same rule every other heading follows. */}
       <View style={styles.columnHeader}>
-        <Text variant="caption" color="textTertiary" style={styles.indexCell}>
-          SET
+        <Text variant="overline" color="textTertiary" style={styles.indexCell}>
+          Set
         </Text>
-        <Text variant="caption" color="textTertiary" style={styles.previousCell}>
-          PREVIOUS
+        <Text variant="overline" color="textTertiary" style={styles.previousCell}>
+          Previous
         </Text>
         {fields.weight && (
-          <Text variant="caption" color="textTertiary" style={styles.unitCell}>
-            {weightUnit.toUpperCase()}
+          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
+            {weightUnit}
           </Text>
         )}
         {fields.duration && (
-          <Text variant="caption" color="textTertiary" style={styles.unitCell}>
-            TIME
+          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
+            Time
           </Text>
         )}
         {fields.distance && (
-          <Text variant="caption" color="textTertiary" style={styles.unitCell}>
-            KM
+          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
+            Km
           </Text>
         )}
         {fields.reps && (
-          <Text variant="caption" color="textTertiary" style={styles.unitCell}>
-            REPS
+          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
+            Reps
           </Text>
         )}
         <View style={styles.checkSpacer} />
@@ -127,8 +128,7 @@ export function ExerciseBlock({
         onPress={onAddSet}
         style={({ pressed }) => [
           styles.addSet,
-          { backgroundColor: colors.surfaceMuted },
-          pressed && styles.pressed,
+          { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
         ]}
       >
         <Ionicons name="add" size={16} color={colors.textSecondary} />

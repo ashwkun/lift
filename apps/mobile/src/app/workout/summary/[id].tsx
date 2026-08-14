@@ -6,13 +6,15 @@ import {
   isWorkingSet,
   PR_KIND_LABELS,
   type PrKind,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { Confetti } from '@/components/celebration/confetti';
 import { Button, Card, Screen, Text } from '@/components/ui';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
 import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
@@ -29,6 +31,7 @@ export default function WorkoutSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
+  const reduceMotion = useReduceMotion();
 
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [prs, setPrs] = useState<PrSummary[]>([]);
@@ -76,6 +79,12 @@ export default function WorkoutSummaryScreen() {
 
   const { workout, exercises } = detail;
 
+  // Gold-led when the session set records, the standard palette otherwise.
+  const confettiColors =
+    prs.length > 0
+      ? [colors.record, colors.warning, colors.success, colors.accent]
+      : [colors.accent, colors.success, colors.record];
+
   return (
     <Screen>
       <Stack.Screen
@@ -86,6 +95,17 @@ export default function WorkoutSummaryScreen() {
           headerBackVisible: false,
         }}
       />
+
+      {/* Fires once the detail resolves, so the burst lands with the numbers
+          rather than over an empty screen. A PR run gets the gold palette. */}
+      {!reduceMotion && (
+        <Confetti
+          runKey={prs.length > 0 ? 2 : 1}
+          count={prs.length > 0 ? 70 : 48}
+          durationMs={3200}
+          colors={confettiColors}
+        />
+      )}
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>

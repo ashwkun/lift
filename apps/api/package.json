@@ -1,5 +1,5 @@
 {
-  "name": "@ironlog/api",
+  "name": "@lift/api",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@better-auth/expo": "^1.6.28",
-    "@ironlog/shared": "workspace:*",
+    "@lift/shared": "workspace:*",
     "@nestjs/common": "^11.1.29",
     "@nestjs/core": "^11.1.29",
     "@nestjs/platform-express": "^11.1.29",

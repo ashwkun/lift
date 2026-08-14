@@ -6,7 +6,7 @@
  * rewrites history.
  */
 
-import { uuidv7, type MeasurementKind } from '@ironlog/shared';
+import { uuidv7, type MeasurementKind } from '@lift/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';

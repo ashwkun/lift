@@ -6,7 +6,7 @@
  * separate tables: editing a routine must never rewrite history.
  */
 
-import { uuidv7, type SetType } from '@ironlog/shared';
+import { uuidv7, type SetType } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';

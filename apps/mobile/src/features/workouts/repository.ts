@@ -14,7 +14,7 @@ import {
   type PrKind,
   type SetLike,
   type SetType,
-} from '@ironlog/shared';
+} from '@lift/shared';
 import { and, desc, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';

@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "IronLog",
-    "slug": "ironlog",
+    "name": "Lift",
+    "slug": "lift",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ironlog",
+    "scheme": "lift",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
       "supportsTablet": true,
-      "bundleIdentifier": "com.ironlog.app"
+      "bundleIdentifier": "com.lift.app"
     },
     "android": {
-      "package": "com.ironlog.app",
+      "package": "com.lift.app",
       "adaptiveIcon": {
         "backgroundColor": "#101012",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -42,7 +42,8 @@
         }
       ],
       "expo-sharing",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

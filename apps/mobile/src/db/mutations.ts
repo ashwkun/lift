@@ -8,7 +8,7 @@
  * `db.insert` directly.
  */
 
-import type { SyncableTable } from '@ironlog/shared';
+import type { SyncableTable } from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from './client';

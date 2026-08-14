@@ -1,4 +1,4 @@
-# Multi-stage build for the IronLog API inside a pnpm workspace.
+# Multi-stage build for the Lift API inside a pnpm workspace.
 #
 # The build stage needs the workspace root (lockfile, shared package); the
 # runtime stage carries only production dependencies and compiled output.
@@ -24,12 +24,12 @@ COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 
-# The API imports @ironlog/shared as compiled JS, so it must be built first.
-RUN pnpm --filter @ironlog/shared build
-RUN pnpm --filter @ironlog/api build
+# The API imports @lift/shared as compiled JS, so it must be built first.
+RUN pnpm --filter @lift/shared build
+RUN pnpm --filter @lift/api build
 
 # Drop dev dependencies from the installed tree before it's copied forward.
-RUN pnpm --filter @ironlog/api --prod deploy /deploy
+RUN pnpm --filter @lift/api --prod deploy /deploy
 
 # ------------------------------------------------------------- runtime ------
 FROM base AS runtime
