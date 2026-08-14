@@ -33,3 +33,6 @@ yarn-error.*
 
 # drizzle
 drizzle/meta/_journal.json.bak
+
+# build output
+packages/shared/dist/

@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Card, Divider, Screen, SectionHeader, Text } from '@/components/ui';
 import { getDashboardStats, type DashboardStats } from '@/features/analytics/repository';
+import { SyncCard } from '@/features/sync/sync-card';
 import { db } from '@/db/client';
 import { workouts } from '@/db/schema';
 import { and, isNotNull, isNull } from 'drizzle-orm';
@@ -50,6 +51,9 @@ export default function ProfileScreen() {
           <Stat label="Week Streak" value={String(stats?.weekStreak ?? 0)} />
           <Stat label="Volume" value={formatVolume(lifetimeVolume, weightUnit)} />
         </Card>
+
+        <SectionHeader title="Account" />
+        <SyncCard />
 
         <SectionHeader title="Tracking" />
         <Card padded={false}>

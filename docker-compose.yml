@@ -1,0 +1,43 @@
+# Local development stack. For Dokploy, point it at apps/api/Dockerfile and
+# supply the same environment variables through the dashboard — Dokploy manages
+# its own Postgres service and Traefik routing.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ironlog
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ironlog
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API's own healthcheck depends on this being genuinely ready, not
+      # merely started — Postgres accepts connections briefly during init.
+      test: ['CMD-SHELL', 'pg_isready -U ironlog -d ironlog']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ironlog:${POSTGRES_PASSWORD:-password}@postgres:5432/ironlog
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-ironlog://,http://localhost:8081}
+      PORT: 3000
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres-data:

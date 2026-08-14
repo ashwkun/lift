@@ -12,6 +12,7 @@ import migrations from '../../drizzle/migrations';
 import { Text } from '@/components/ui';
 import { db } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
+import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
 import { useSettings } from '@/store/settings';
 import { AppThemeProvider, spacing, useColors, useTheme } from '@/theme';
 
@@ -79,6 +80,9 @@ function Bootstrap() {
 function AppNavigator() {
   const { isDark } = useTheme();
   const colors = useColors();
+
+  // Syncs on launch and whenever the app returns to the foreground.
+  useSyncTriggers();
 
   return (
     <>
