@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": true,
+    // NestJS depends on decorator metadata for dependency injection.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    // The shared package is consumed as source and uses explicit .ts specifiers.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  // drizzle.config.ts is deliberately excluded — drizzle-kit compiles it itself,
+  // and including it would push the build output down a level into dist/src.
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
