@@ -3,8 +3,8 @@
  */
 
 import { uuidv7, type Equipment, type MuscleGroup, type TrackingType } from '@lift/shared';
-import { createExerciseMatcher } from '@lift/shared/exercises';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
+import { filterExercises, type ExerciseFilters } from '@lift/shared/exercises';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { touch, trackDelete, trackUpsert } from '@/db/mutations';
@@ -42,76 +42,6 @@ export const exerciseListColumns = {
   thumbnailUrl: exercises.thumbnailUrl,
 } as const;
 
-export interface ExerciseFilters {
-  search?: string;
-  muscle?: MuscleGroup | null;
-  equipment?: Equipment | null;
-  customOnly?: boolean;
-  includeArchived?: boolean;
-}
-
-/**
- * The columns `filterExercises` reads.
- *
- * Declared structurally rather than as `Exercise` so list screens can select
- * the eight columns they actually render instead of all seventeen — at ~6,800
- * rows, the unread columns are pure marshalling cost on every load.
- */
-export interface FilterableExercise {
-  name: string;
-  equipment: Equipment;
-  primaryMuscle: MuscleGroup;
-  secondaryMuscles: MuscleGroup[];
-  isArchived: boolean;
-  isCustom: boolean;
-}
-
-/**
- * Filters and ranks an already-loaded library.
- *
- * Kept pure and separate from the query so screens can drive it from
- * `useLiveQuery` — the list then re-filters reactively as rows change, without
- * a database round-trip per keystroke.
- *
- * Everything per-query is hoisted out of the per-row loop: the matcher compiles
- * the search once, and the two predicate branches are chosen before iterating
- * rather than re-tested 6,800 times. Callers should hand this a *deferred*
- * search value — even at this cost it is too much work to run synchronously
- * between two keystrokes.
- */
-export function filterExercises<T extends FilterableExercise>(
-  rows: readonly T[],
-  filters: ExerciseFilters = {},
-): T[] {
-  const { search, muscle, equipment, customOnly, includeArchived } = filters;
-
-  let result = rows.filter((row) => {
-    if (!includeArchived && row.isArchived) return false;
-    if (customOnly && !row.isCustom) return false;
-    if (equipment && row.equipment !== equipment) return false;
-    if (muscle && row.primaryMuscle !== muscle && !row.secondaryMuscles.includes(muscle)) {
-      return false;
-    }
-    return true;
-  });
-
-  const match = search ? createExerciseMatcher(search) : null;
-  if (match) {
-    // One array of scored entries rather than map → filter → sort → map, which
-    // allocated four intermediate arrays of up to 6,800 elements per keystroke.
-    const scored: { row: T; score: number }[] = [];
-    for (const row of result) {
-      const score = match(row.name);
-      if (score > 0) scored.push({ row, score });
-    }
-
-    scored.sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name));
-    result = scored.map((entry) => entry.row);
-  }
-
-  return result;
-}
-
 /** Non-reactive load, for code paths outside a React render (export, sync). */
 export async function listExercises(filters: ExerciseFilters = {}): Promise<Exercise[]> {
   const rows = await db
@@ -123,46 +53,43 @@ export async function listExercises(filters: ExerciseFilters = {}): Promise<Exer
   return filterExercises(rows, filters);
 }
 
-/** How many previously-trained exercises the picker offers before the catalog. */
-export const RECENT_EXERCISE_LIMIT = 8;
+// ---------------------------------------------------------------------------
+// Training history: what the suggestions are built from
+// ---------------------------------------------------------------------------
 
 /**
- * The exercises from the most recent finished sessions, most recent first.
+ * Every exercise appearance in a finished session.
  *
- * Returned as an unawaited builder because its only caller feeds it to
- * `useRows`: the picker opens mid-set and this list must not cost a render pass
- * of its own. Grouping by exercise collapses the same lift across sessions to
- * one row, and `max(startedAt)` orders by when you last actually trained it.
+ * Two columns and a date, unaggregated on purpose: usage counts and
+ * co-occurrence are two different rollups of the same rows, and pulling them
+ * as separate `GROUP BY` queries would read the table twice to answer one
+ * question. A heavy log is a few thousand rows here — three years of six-lift
+ * sessions is ~3,000 — which is an order of magnitude less than the catalog
+ * these screens already hold in memory.
  *
- * Finished sessions only. The open session's exercises are the one set of
- * exercises the user demonstrably does *not* need offered back to them, and
- * excluding them keeps the block from reshuffling under the thumb as the
- * session is built.
+ * Returned as an unawaited builder because its callers feed it to `useRows`:
+ * the picker opens mid-set and this must not cost a render pass of its own.
  *
- * Selecting `from(workoutExercises)` is also what makes this live: drizzle's
- * `useLiveQuery` re-runs a query only when its *primary* table changes, so the
- * joined tables here are read once per mount. That is the right granularity —
- * this list turns over when a session ends, and the picker is mounted fresh
- * every time it opens.
+ * Finished sessions only. The open session is the caller's own context, passed
+ * in separately — counting it here would let a lift you just added outrank the
+ * ones you have trained for months.
  */
-export function recentExercisesQuery(limit: number = RECENT_EXERCISE_LIMIT) {
+export function trainingHistoryQuery() {
   return db
-    .select(exerciseListColumns)
+    .select({
+      workoutId: workoutExercises.workoutId,
+      exerciseId: workoutExercises.exerciseId,
+      startedAt: workouts.startedAt,
+    })
     .from(workoutExercises)
     .innerJoin(workouts, eq(workoutExercises.workoutId, workouts.id))
-    .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
     .where(
       and(
         isNotNull(workouts.finishedAt),
         isNull(workouts.deletedAt),
         isNull(workoutExercises.deletedAt),
-        isNull(exercises.deletedAt),
-        eq(exercises.isArchived, false),
       ),
-    )
-    .groupBy(workoutExercises.exerciseId)
-    .orderBy(desc(max(workouts.startedAt)))
-    .limit(limit);
+    );
 }
 
 export async function getExercise(id: string): Promise<Exercise | undefined> {

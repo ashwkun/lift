@@ -1,5 +1,5 @@
 import { File } from 'expo-file-system';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
@@ -207,6 +207,19 @@ export default function ExportScreen() {
         <Text variant="caption" color="textTertiary" style={styles.hint}>
           Restoring merges into what is already here and overwrites nothing. Importing the same file
           twice changes nothing the second time.
+        </Text>
+
+        <Button
+          title="Import from another app"
+          icon="download-outline"
+          variant="ghost"
+          fullWidth
+          disabled={busy !== null}
+          onPress={() => router.push('/import')}
+        />
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          For a Hevy, Lyfta or Strong export, or a Lift CSV — and for restoring only part of a
+          history rather than all of it.
         </Text>
 
         {totalRows !== null && (

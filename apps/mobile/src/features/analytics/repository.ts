@@ -18,6 +18,20 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm
 import { db } from '@/db/client';
 import { exercises, workoutExercises, workoutSets, workouts } from '@/db/schema';
 
+import {
+  advance,
+  bucketLabel,
+  bucketStart,
+  granularityForMonths,
+  monthsBetween,
+  MS_PER_WEEK,
+  startOfMonth,
+  startOfWeek,
+  type Granularity,
+} from './windows';
+
+export type { Granularity };
+
 export interface DashboardStats {
   totalWorkouts: number;
   weekStreak: number;
@@ -32,14 +46,6 @@ export interface DashboardStats {
    * second time to sum the same column.
    */
   lifetimeVolumeKg: number;
-}
-
-/** Monday 00:00 of the week containing `date`. */
-function startOfWeek(date: Date): Date {
-  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayOfWeek = (result.getDay() + 6) % 7; // Monday === 0
-  result.setDate(result.getDate() - dayOfWeek);
-  return result;
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -261,16 +267,6 @@ export const HISTORY_METRICS = [
 
 export type HistoryMetric = (typeof HISTORY_METRICS)[number]['value'];
 
-/**
- * Bucket size for the trend chart.
- *
- * Chosen from the *span* rather than the range name so "all time" stays legible
- * whether the user has three months of history or six years: at ~50 buckets the
- * bars are a pixel wide and the axis is unreadable, so the granularity coarsens
- * before that point.
- */
-export type Granularity = 'week' | 'month' | 'quarter' | 'year';
-
 export interface TrendBucket {
   /** Epoch ms of the bucket's first day. Doubles as its identity. */
   start: number;
@@ -322,60 +318,6 @@ export interface HistoryAnalytics {
   peakMuscleSets: number;
   /** Weeks the window actually spans, floored at 1. Divisor for `setsPerWeek`. */
   weeks: number;
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function bucketStart(date: Date, granularity: Granularity): Date {
-  switch (granularity) {
-    case 'week':
-      return startOfWeek(date);
-    case 'month':
-      return startOfMonth(date);
-    case 'quarter':
-      return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
-    case 'year':
-      return new Date(date.getFullYear(), 0, 1);
-  }
-}
-
-function advance(date: Date, granularity: Granularity, steps = 1): Date {
-  const next = new Date(date);
-  switch (granularity) {
-    case 'week':
-      next.setDate(next.getDate() + 7 * steps);
-      break;
-    case 'month':
-      next.setMonth(next.getMonth() + steps);
-      break;
-    case 'quarter':
-      next.setMonth(next.getMonth() + 3 * steps);
-      break;
-    case 'year':
-      next.setFullYear(next.getFullYear() + steps);
-      break;
-  }
-  return next;
-}
-
-function bucketLabel(date: Date, granularity: Granularity): string {
-  switch (granularity) {
-    case 'week':
-      return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    case 'month':
-      return date.toLocaleDateString(undefined, { month: 'short' });
-    case 'quarter':
-      return `Q${Math.floor(date.getMonth() / 3) + 1} ${String(date.getFullYear()).slice(2)}`;
-    case 'year':
-      return String(date.getFullYear());
-  }
-}
-
-/** Months between two dates, used to pick a granularity for "all time". */
-function monthsBetween(from: Date, to: Date): number {
-  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
 }
 
 /**
@@ -431,8 +373,7 @@ export async function getHistoryAnalytics(range: HistoryRange): Promise<HistoryA
     granularity = 'month';
   } else {
     const first = sessions[0]?.startedAt ?? now;
-    const months = monthsBetween(first, now);
-    granularity = months <= 18 ? 'month' : months <= 72 ? 'quarter' : 'year';
+    granularity = granularityForMonths(monthsBetween(first, now));
   }
 
   const firstStart = since ?? (sessions[0]?.startedAt ?? now);
@@ -491,8 +432,6 @@ export async function getHistoryAnalytics(range: HistoryRange): Promise<HistoryA
  * push routine. Half is the conventional discount.
  */
 export const SECONDARY_SET_WEIGHT = 0.5;
-
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Working sets per muscle since `since` (null = all time).

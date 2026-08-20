@@ -1,10 +1,4 @@
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  useFonts,
-} from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { Stack } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -65,18 +59,29 @@ export default function RootLayout() {
  *
  * Fonts load alongside all of that rather than after it — they're bundled
  * assets, not a network fetch, and gating the splash on them too means the
- * first frame is already Inter instead of flashing Roboto and reflowing.
+ * first frame is already the bundled face instead of flashing a system one
+ * and reflowing.
  */
 function Bootstrap({ onRetry }: { onRetry: () => void }) {
   const { success: migrated, error: migrationError } = useMigrations(db, migrations);
   const hydrate = useSettings((state) => state.hydrate);
   const hydrated = useSettings((state) => state.hydrated);
 
+  // The keys here are the names `fontFamily` in the tokens refers to: expo-font
+  // registers each face under the key it is given, on both platforms, so these
+  // two lists have to agree and nothing else in the app names a font. Four
+  // upright cuts, which is every weight the theme asks for — see `fontFamily`
+  // for which role gets which, and why no italic is loaded.
+  //
+  // Required relatively rather than through the `@/assets` alias, matching the
+  // app's one other bundled asset (`notifications/bell.ts`): the alias is
+  // configured for module imports, and an asset `require` is not worth finding
+  // out about at runtime.
   const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    'LiftSans-Regular': require('../../assets/fonts/LiftSans-Regular.ttf'),
+    'LiftSans-Medium': require('../../assets/fonts/LiftSans-Medium.ttf'),
+    'LiftSans-Bold': require('../../assets/fonts/LiftSans-Bold.ttf'),
+    'LiftSans-Extrabold': require('../../assets/fonts/LiftSans-Extrabold.ttf'),
   });
 
   const [seedError, setSeedError] = useState<Error | null>(null);
@@ -111,6 +116,20 @@ function Bootstrap({ onRetry }: { onRetry: () => void }) {
   // startup failure the way a failed migration does.
   const ready = migrated && seeded && hydrated && (fontsLoaded || Boolean(fontError));
   const error = migrationError ?? seedError;
+
+  // But it is worth *saying*, because the fallback is silent and total: one
+  // unreadable face fails the whole `useFonts` call, every weight in the theme
+  // resolves to the system font, and the app looks exactly like a build where
+  // the type tokens were never applied. That is indistinguishable by eye from a
+  // stale Metro cache, and the two have completely different fixes — so the one
+  // the app actually knows about says so rather than leaving it to be guessed.
+  useEffect(() => {
+    if (__DEV__ && fontError) {
+      console.warn(
+        `[fonts] Falling back to the system face — the bundled family did not load. ${fontError.message}`,
+      );
+    }
+  }, [fontError]);
 
   useEffect(() => {
     if (ready || error) void SplashScreen.hideAsync();
@@ -148,12 +167,35 @@ function AppNavigator() {
           /**
            * The platform's own push, with no override.
            *
-           * A forced `slide_from_right` at a hand-picked duration has to move
-           * the whole incoming screen, and these screens mount straight into a
-           * database query — the transition and the query land on top of each
-           * other and the slide visibly hitches. The native default is shorter,
-           * and the OS is better placed than a constant here to decide what a
-           * push looks like.
+           * This used to carry a warning that any explicit animation hitched,
+           * because these screens mount straight into a database query and the
+           * two landed on top of each other. That was true, and it was never
+           * about the animation: a native stack push runs on the OS side and
+           * cannot be slowed down by JS. What hitched was the *incoming mount* —
+           * the query resolving mid-push and re-rendering a screenful of charts.
+           * `useDeferredFocusEffect` moves that work behind the transition, and
+           * with it gone there is nothing left here to compensate for.
+           *
+           * It stays on the platform default anyway, on its own merits: iOS and
+           * Android disagree about what a push looks like, users of each expect
+           * their own, and the OS knows the current gesture-navigation setting
+           * where a constant in this file would not.
+           */
+
+          /*
+           * No `freezeOnBlur` here, unlike the tab navigator.
+           *
+           * It would be a real saving — a covered screen's live queries re-run
+           * on every write the user cannot see — but the stack is the one place
+           * a blurred screen gets *looked at* before it is focused again: an
+           * iOS back-swipe reveals the screen underneath progressively, under
+           * the user's thumb, for as long as the gesture lasts. Unfreezing is
+           * driven from the transition, so what is revealed at the start of that
+           * drag is a subtree React has not resumed yet.
+           *
+           * That is the same class of artefact this pass exists to remove, and
+           * trading it for query traffic the tab bar's own `freezeOnBlur`
+           * already covers most of is not a trade worth making.
            */
         }}
       >

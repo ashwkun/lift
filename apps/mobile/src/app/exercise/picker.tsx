@@ -1,5 +1,11 @@
 import { FlashList } from '@shopify/flash-list';
-import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
+import { EQUIPMENT_LABELS, type Equipment, type MuscleGroup } from '@lift/shared';
+import {
+  buildTrainingIndex,
+  countExercisesPerMuscle,
+  filterExercises,
+  suggestExercises,
+} from '@lift/shared/exercises';
 import { asc, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
 import { Fragment, useCallback, useDeferredValue, useMemo, useState } from 'react';
@@ -15,15 +21,16 @@ import {
   Screen,
   SearchBar,
   SectionHeader,
+  Text,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
 import { ExerciseRow } from '@/features/exercises/exercise-row';
+import { MuscleFilter } from '@/features/exercises/muscle-filter';
 import {
   exerciseListColumns,
-  filterExercises,
-  recentExercisesQuery,
+  trainingHistoryQuery,
   type ExerciseListItem,
 } from '@/features/exercises/repository';
 import { useExercisePicker } from '@/store/exercise-picker';
@@ -34,28 +41,38 @@ function ListSeparator() {
   return <Divider inset={70} />;
 }
 
-interface RecentExercisesProps {
+interface SuggestionsProps {
   exercises: ExerciseListItem[];
+  /** True when the workout being built is what shaped the order. */
+  fromContext: boolean;
   selected: ReadonlySet<string>;
   onPress: (exercise: ExerciseListItem) => void;
 }
 
 /**
- * The lifts from recent sessions, above the catalog.
+ * The short list, above the catalog.
  *
  * Mid-workout the exercise you are reaching for is nearly always one you have
  * done before, and the catalog answers that with 6,800 rows and a keyboard.
- * Eight rows of history answer it with a thumb.
+ * Eight rows answer it with a thumb.
  *
  * Deliberately the same rows as the list below it, under a plain section
  * header: this is a shortcut into the catalog, not a second, richer way of
  * choosing. A carousel or a card deck here would out-shout the list that
  * actually holds everything.
+ *
+ * The subtitle exists because a ranked list that doesn't say what it ranked on
+ * reads as an arbitrary one — and this one is worth trusting.
  */
-function RecentExercises({ exercises, selected, onPress }: RecentExercisesProps) {
+function Suggestions({ exercises, fromContext, selected, onPress }: SuggestionsProps) {
   return (
     <View>
-      <SectionHeader title="Recent" />
+      <SectionHeader title={fromContext ? 'Suggested' : 'Your lifts'} />
+      <Text variant="caption" color="textTertiary" style={styles.suggestionNote}>
+        {fromContext
+          ? 'What you usually train alongside this session'
+          : 'What you train most often'}
+      </Text>
       {exercises.map((exercise, index) => (
         <Fragment key={exercise.id}>
           {index > 0 && <ListSeparator />}
@@ -85,7 +102,8 @@ export default function ExercisePickerScreen() {
   const insets = useSafeAreaInsets();
 
   const [search, setSearch] = useState('');
-  const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
+  const [muscles, setMuscles] = useState<MuscleGroup[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   // A Set, not an array: `selected.includes(id)` ran once per rendered row on
   // every keystroke and every toggle. This screen opens mid-set, with the
   // keyboard already up — it is the most latency-sensitive list in the app.
@@ -99,27 +117,57 @@ export default function ExercisePickerScreen() {
       .orderBy(asc(exercisesTable.name)),
   );
 
-  const { rows: recent, loaded: recentLoaded } = useRows(recentExercisesQuery());
+  const { rows: history, loaded: historyLoaded } = useRows(trainingHistoryQuery());
 
-  // Deferred for the same reason as the Exercises tab: the field must never
+  // What the opener already has on its list. Read once on mount: the workout
+  // behind this screen cannot change while the picker is up, and re-ranking the
+  // suggestions under the user's thumb is the one thing this block must not do.
+  const [context] = useState(() => useExercisePicker.getState().context);
+
+  const index = useMemo(() => buildTrainingIndex(history), [history]);
+
+  // Deferred for the same reason as the library screen: the field must never
   // wait on a 6,800-row filter. See the note there.
   const deferredSearch = useDeferredValue(search);
 
-  const visible = useMemo(
-    () => filterExercises(allExercises, { search: deferredSearch, muscle }),
-    [allExercises, deferredSearch, muscle],
+  const suggestions = useMemo(
+    () => suggestExercises({ catalog: allExercises, index, context }),
+    [allExercises, index, context],
   );
 
-  const muscles = useMemo(() => {
-    const counts = new Map<MuscleGroup, number>();
+  // The suggestion block belongs to the *deferred* view, so it disappears on the
+  // same frame the list stops being the full catalog. Keyed off `search` it
+  // would vanish one render before the rows it sits above changed.
+  const browsing = deferredSearch.length === 0 && muscles.length === 0 && equipment.length === 0;
+  const suggesting = browsing && suggestions.length > 0;
+
+  const visible = useMemo(
+    () =>
+      filterExercises(
+        allExercises,
+        { search: deferredSearch, muscles, equipment },
+        // Usage ranking is handed to the list only when the block above it is
+        // *not* showing. Both would otherwise open on the same four lifts, one
+        // set under the other, and the shortcut would look like a duplicate of
+        // the first screenful rather than a shortcut past it. Filtered or
+        // searched, the block is gone and the list takes the job back.
+        suggesting ? undefined : index.usage,
+      ),
+    [allExercises, deferredSearch, muscles, equipment, index, suggesting],
+  );
+
+  const equipmentOptions = useMemo(() => {
+    const counts = new Map<Equipment, number>();
     for (const exercise of allExercises) {
       if (exercise.isArchived) continue;
-      counts.set(exercise.primaryMuscle, (counts.get(exercise.primaryMuscle) ?? 0) + 1);
+      counts.set(exercise.equipment, (counts.get(exercise.equipment) ?? 0) + 1);
     }
     return [...counts]
-      .map(([value, count]) => ({ value, label: MUSCLE_GROUP_LABELS[value], count }))
+      .map(([value, count]) => ({ value, label: EQUIPMENT_LABELS[value], count }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [allExercises]);
+
+  const muscleCounts = useMemo(() => countExercisesPerMuscle(allExercises), [allExercises]);
 
   const toggle = useCallback((id: string) => {
     setSelected((current) => {
@@ -133,10 +181,7 @@ export default function ExercisePickerScreen() {
   // One stable handler for every row rather than an arrow per row: `ExerciseRow`
   // hands its own exercise back, and its `memo` can only hold if the callback
   // identity survives a re-render. Toggling then re-renders exactly one row.
-  const handlePress = useCallback(
-    (exercise: ExerciseListItem) => toggle(exercise.id),
-    [toggle],
-  );
+  const handlePress = useCallback((exercise: ExerciseListItem) => toggle(exercise.id), [toggle]);
 
   const renderItem = useCallback(
     ({ item }: { item: ExerciseListItem }) => (
@@ -151,16 +196,12 @@ export default function ExercisePickerScreen() {
   );
 
   // Both queries have to have answered before anything renders. Not for the
-  // catalog's sake — it is empty either way — but so the recent block can't
+  // catalog's sake — it is empty either way — but so the suggestion block can't
   // appear a frame late and shove the first rows of the list down under a
   // thumb already on its way to one of them.
-  const ready = loaded && recentLoaded;
+  const ready = loaded && historyLoaded;
 
-  // The recent block belongs to the *deferred* view, so it disappears on the
-  // same frame the list stops being the full catalog. Keyed off `search` it
-  // would vanish one render before the rows it sits above changed.
-  const browsing = deferredSearch.length === 0 && muscle === null;
-  const showRecent = ready && browsing && recent.length > 0;
+  const showSuggestions = ready && suggesting;
 
   const submit = useExercisePicker((state) => state.submit);
 
@@ -201,7 +242,13 @@ export default function ExercisePickerScreen() {
         />
 
         <View style={styles.filters}>
-          <FilterSelect label="Muscle" value={muscle} options={muscles} onChange={setMuscle} />
+          <MuscleFilter values={muscles} onChange={setMuscles} counts={muscleCounts} />
+          <FilterSelect
+            label="Equipment"
+            values={equipment}
+            options={equipmentOptions}
+            onChange={setEquipment}
+          />
         </View>
       </View>
 
@@ -212,8 +259,13 @@ export default function ExercisePickerScreen() {
         ItemSeparatorComponent={ListSeparator}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          showRecent ? (
-            <RecentExercises exercises={recent} selected={selected} onPress={handlePress} />
+          showSuggestions ? (
+            <Suggestions
+              exercises={suggestions}
+              fromContext={context.length > 0}
+              selected={selected}
+              onPress={handlePress}
+            />
           ) : null
         }
         ListEmptyComponent={
@@ -250,5 +302,6 @@ export default function ExercisePickerScreen() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
   filters: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  suggestionNote: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   footer: { padding: spacing.lg },
 });

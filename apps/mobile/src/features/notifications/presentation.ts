@@ -11,7 +11,7 @@
  * settings and never reaches this function.
  */
 
-import * as Notifications from 'expo-notifications';
+import { getNotifications } from './module';
 
 /** Marks a notification as the persistent workout status, not an alert. */
 export const ONGOING_WORKOUT_TYPE = 'workout-ongoing';
@@ -20,6 +20,12 @@ let configured = false;
 
 export function configureNotificationHandler(): void {
   if (configured) return;
+
+  // Left unset rather than marked configured: if this is ever reached in an
+  // environment that gains the module later, the handler still gets installed.
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+
   configured = true;
 
   Notifications.setNotificationHandler({

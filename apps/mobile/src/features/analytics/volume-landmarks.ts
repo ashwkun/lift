@@ -1,3 +1,4 @@
+import { mix } from '@/theme/color';
 import type { Palette } from '@/theme/tokens';
 
 /**
@@ -49,31 +50,6 @@ export function volumeZone(setsPerWeek: number, t: VolumeThresholds = DEFAULT_VO
 // ---------------------------------------------------------------------------
 // Colour ramp
 // ---------------------------------------------------------------------------
-
-function hexToRgb(hex: string): [number, number, number] {
-  const v = hex.replace('#', '');
-  const full = v.length === 3 ? v.replace(/./g, (c) => c + c) : v;
-  return [
-    parseInt(full.slice(0, 2), 16),
-    parseInt(full.slice(2, 4), 16),
-    parseInt(full.slice(4, 6), 16),
-  ];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return (
-    '#' +
-    [r, g, b].map((n) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0')).join('')
-  );
-}
-
-/** Linear blend in sRGB. Good enough across the short hops between adjacent stops. */
-export function mix(from: string, to: string, factor: number): string {
-  const a = hexToRgb(from);
-  const b = hexToRgb(to);
-  const f = Math.max(0, Math.min(1, factor));
-  return rgbToHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
-}
 
 /**
  * The ramp, anchored to the landmarks rather than to even percentage steps.

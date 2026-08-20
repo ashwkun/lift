@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Svg, { G, Line, Rect } from 'react-native-svg';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { BarChart, type barDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { spacing, useColors } from '@/theme';
+import { font, fontSize, radius, spacing, stroke, useColors } from '@/theme';
 
 export interface ColumnDatum {
   /** Stable identity for selection — the bucket's start timestamp. */
@@ -26,7 +26,18 @@ export interface ColumnChartProps {
   maxLabels?: number;
 }
 
-const PADDING = { top: 14, right: 6, bottom: 6, left: 46 };
+/** The y-axis tick gutter. `formatValue` has to fit inside this. */
+const AXIS_GUTTER = 44;
+/** Headroom above the top gridline, so a peak column is not flush with the card. */
+const TOP_PAD = spacing.md;
+/** The strip below the baseline that the x-axis labels are drawn into. */
+const LABEL_ROW = spacing.lg;
+/** Three ticks — zero, half, ceiling — which is two gaps between them. */
+const SECTIONS = 2;
+/** Floor for a column's height, in px. See the note on empty buckets below. */
+const MIN_BAR = 2;
+/** How far back the columns that are not selected fade. */
+const LOWLIGHT = 0.3;
 
 /**
  * Time-bucketed column chart.
@@ -36,7 +47,9 @@ const PADDING = { top: 14, right: 6, bottom: 6, left: 46 };
  * with an empty one between them is a gap, not a slope through 6,000.
  *
  * Bars always start at zero for the same reason — a truncated baseline makes a
- * 5% week-on-week change look like a doubling.
+ * 5% week-on-week change look like a doubling. `BarChart` measures every column
+ * from zero unless it is handed a `yAxisOffset`, so this amounts to never
+ * setting one.
  */
 export function ColumnChart({
   data,
@@ -51,34 +64,63 @@ export function ColumnChart({
   const colors = useColors();
   const fill = color ?? colors.accent;
 
-  const geometry = useMemo(() => {
+  // The library prints the y-axis ticks itself, so the `caption` variant has to
+  // be restated as a style rather than rendered as a `Text`.
+  const tickText = useMemo(
+    () => ({ fontSize: fontSize.xs, ...font('regular'), color: colors.textTertiary }),
+    [colors],
+  );
+
+  // `width` and `height` are the whole component; the plot is what is left once
+  // the tick gutter and the label strip have taken their share.
+  const plotWidth = Math.max(1, width - AXIS_GUTTER);
+  const plotHeight = Math.max(1, height - TOP_PAD - LABEL_ROW);
+
+  const chart = useMemo(() => {
     if (data.length === 0) return null;
 
     const peak = data.reduce((max, item) => Math.max(max, item.value), 0);
-    const niceMax = niceCeiling(peak);
+    const maxValue = niceCeiling(peak);
 
-    const plotWidth = Math.max(1, width - PADDING.left - PADDING.right);
-    const plotHeight = Math.max(1, height - PADDING.top - PADDING.bottom);
     const slot = plotWidth / data.length;
-    // Cap the bar so a three-bucket range doesn't render three fat slabs.
+    // Cap the bar so a three-bucket range doesn't render three fat slabs. The
+    // leftover is the gap, split in half at each end, which puts every column
+    // dead centre of its slot.
     const barWidth = Math.max(3, Math.min(slot * 0.62, 34));
+    const gap = slot - barWidth;
 
-    const bars = data.map((item, index) => {
-      const barHeight = niceMax === 0 ? 0 : (item.value / niceMax) * plotHeight;
-      return {
-        datum: item,
-        // A non-zero value always gets a visible sliver, otherwise a light week
-        // is indistinguishable from a rest week.
-        height: item.value > 0 ? Math.max(2, barHeight) : 0,
-        x: PADDING.left + slot * index + (slot - barWidth) / 2,
-        slotX: PADDING.left + slot * index,
-      };
-    });
+    // Show every nth label so they never collide; always keep the last bucket,
+    // which is the one the user is actually training in.
+    const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
 
-    return { bars, niceMax, plotHeight, plotWidth, barWidth, slot };
-  }, [data, width, height]);
+    const bars: barDataItem[] = data.map((item, index) => ({
+      value: item.value,
+      label: item.label,
+      // An empty bucket still gets a bar, painted in nothing: `minHeight` would
+      // otherwise draw a rest week and a light week as the same 2px sliver.
+      frontColor: item.value > 0 ? fill : 'transparent',
+      // The library's own label is a bare `Text`, which inherits none of the
+      // app's font stack. Thinned-out buckets render nothing rather than being
+      // dropped, so the label slots stay aligned to the columns.
+      labelComponent:
+        (data.length - 1 - index) % labelStep === 0
+          ? () => (
+              <Text variant="caption" color="textTertiary" align="center" numberOfLines={1}>
+                {item.label}
+              </Text>
+            )
+          : () => null,
+    }));
 
-  if (!geometry) {
+    return { bars, barWidth, gap, maxValue };
+  }, [data, plotWidth, maxLabels, fill]);
+
+  const selectedIndex = useMemo(
+    () => (selectedKey === null ? -1 : data.findIndex((item) => item.key === selectedKey)),
+    [data, selectedKey],
+  );
+
+  if (!chart) {
     return (
       <View style={[styles.empty, { height }]}>
         <Text variant="label" color="textTertiary">
@@ -88,97 +130,93 @@ export function ColumnChart({
     );
   }
 
-  const { bars, niceMax, plotHeight, barWidth } = geometry;
-  const baseline = PADDING.top + plotHeight;
-
-  // Show every nth label so they never collide; always keep the last bucket,
-  // which is the one the user is actually training in.
-  const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
+  // Bottom-up, which is the order `yAxisLabelTexts` is indexed in. The origin is
+  // a literal "0" rather than `formatValue(0)`: the unit is already spelled out
+  // on the ticks above it, and "0 kg" in a 44px gutter is mostly unit.
+  const ticks = ['0'];
+  for (let section = 1; section <= SECTIONS; section += 1) {
+    ticks.push(formatValue((chart.maxValue / SECTIONS) * section));
+  }
 
   return (
-    <View>
-      <Svg width={width} height={height}>
-        {[0, 0.5, 1].map((fraction) => {
-          const y = PADDING.top + plotHeight * fraction;
-          return (
-            <Line
-              key={fraction}
-              x1={PADDING.left}
-              y1={y}
-              x2={width - PADDING.right}
-              y2={y}
-              stroke={colors.border}
-              strokeWidth={fraction === 1 ? 1 : StyleSheet.hairlineWidth * 2}
+    <View style={{ width }}>
+      <BarChart
+        data={chart.bars}
+        width={plotWidth}
+        height={plotHeight}
+        barWidth={chart.barWidth}
+        spacing={chart.gap}
+        initialSpacing={chart.gap / 2}
+        endSpacing={chart.gap / 2}
+        barBorderRadius={Math.min(radius.sm, chart.barWidth / 2)}
+        // A non-zero value always gets a visible sliver, otherwise a light week
+        // is indistinguishable from a rest week.
+        minHeight={MIN_BAR}
+        disableScroll
+        isAnimated={false}
+        // The ceiling is the rounded one, and the ticks are spaced to reach it
+        // exactly. `stepValue` is deliberately left to the library: it derives
+        // `maxValue / noOfSections`, whereas passing both back makes the section
+        // count a float division that can land at 1.9999999999999998.
+        maxValue={chart.maxValue}
+        noOfSections={SECTIONS}
+        yAxisLabelTexts={ticks}
+        // Only reached if a tick text comes back empty, which sends the library
+        // down its own numeric formatting path.
+        formatYLabel={(label) => formatValue(Number(label))}
+        yAxisLabelWidth={AXIS_GUTTER}
+        yAxisLabelContainerStyle={styles.tick}
+        yAxisTextStyle={tickText}
+        yAxisTextNumberOfLines={1}
+        yAxisExtraHeight={TOP_PAD}
+        // No vertical axis: the rules already carry the grid, and a spine down
+        // the left of three ticks is one line more than the chart needs.
+        yAxisThickness={0}
+        rulesColor={colors.border}
+        // Doubled because these are SVG strokes rather than view borders — a
+        // hairline stroke gets antialiased away to almost nothing.
+        rulesThickness={stroke.rule * 2}
+        rulesLength={plotWidth}
+        xAxisColor={colors.border}
+        xAxisThickness={stroke.outline}
+        xAxisLength={plotWidth}
+        xAxisLabelsHeight={LABEL_ROW}
+        // Selection is drawn by fading everything else back. At -1 nothing is
+        // selected and every column stays at full strength.
+        highlightEnabled
+        highlightedBarIndex={selectedIndex}
+        lowlightOpacity={LOWLIGHT}
+        // Selection is handled by the hit row below rather than by the
+        // library's own press handling. See the note there.
+        disablePress
+      />
+
+      {/*
+        A full-height target per bucket, laid over the plot.
+
+        The library sizes each column's `TouchableOpacity` to the column, which
+        makes a rest week — floored at `MIN_BAR` and painted in nothing — a 2px
+        strip of target sitting on the baseline. A rest week is exactly the kind
+        of week worth tapping, so the whole slot is the target instead, as it
+        was before. Equal flex per child reproduces the slot width the bars were
+        laid out against.
+      */}
+      {onSelect && (
+        <View
+          style={[styles.hitRow, { left: AXIS_GUTTER, width: plotWidth, height: TOP_PAD + plotHeight }]}
+        >
+          {data.map((item) => (
+            <Pressable
+              key={item.key}
+              style={styles.hit}
+              onPress={() => onSelect(item.key === selectedKey ? null : item)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: item.key === selectedKey }}
+              accessibilityLabel={`${item.label}, ${formatValue(item.value)}`}
             />
-          );
-        })}
-
-        {bars.map((bar) => {
-          const selected = selectedKey === bar.datum.key;
-          const dimmed = selectedKey !== null && !selected;
-
-          return (
-            <G key={bar.datum.key}>
-              {bar.height > 0 && (
-                <Rect
-                  x={bar.x}
-                  y={baseline - bar.height}
-                  width={barWidth}
-                  height={bar.height}
-                  rx={Math.min(3, barWidth / 2)}
-                  fill={fill}
-                  opacity={dimmed ? 0.3 : 1}
-                />
-              )}
-
-              {/* Full-height transparent target: a 2px bar is untappable, and
-                  reaching for an empty week should still select it. */}
-              {onSelect && (
-                <Rect
-                  x={bar.slotX}
-                  y={PADDING.top}
-                  width={geometry.slot}
-                  height={plotHeight}
-                  fill="transparent"
-                  onPress={() => onSelect(selected ? null : bar.datum)}
-                />
-              )}
-            </G>
-          );
-        })}
-      </Svg>
-
-      {/* Axis text lives outside the SVG so it picks up the app's font stack —
-          react-native-svg's <Text> does not inherit any of it. */}
-      <View
-        style={[styles.yAxis, { top: PADDING.top - 7, height: plotHeight + 14 }]}
-        pointerEvents="none"
-      >
-        <Text variant="caption" color="textTertiary" numberOfLines={1}>
-          {formatValue(niceMax)}
-        </Text>
-        <Text variant="caption" color="textTertiary" numberOfLines={1}>
-          {formatValue(niceMax / 2)}
-        </Text>
-        <Text variant="caption" color="textTertiary" numberOfLines={1}>
-          0
-        </Text>
-      </View>
-
-      <View style={styles.xAxis} pointerEvents="none">
-        {data.map((item, index) => {
-          const show = (data.length - 1 - index) % labelStep === 0;
-          return (
-            <View key={item.key} style={styles.xSlot}>
-              {show && (
-                <Text variant="caption" color="textTertiary" numberOfLines={1}>
-                  {item.label}
-                </Text>
-              )}
-            </View>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -201,18 +239,7 @@ function niceCeiling(value: number): number {
 
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
-  yAxis: {
-    position: 'absolute',
-    left: 0,
-    width: PADDING.left - spacing.sm,
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  xAxis: {
-    flexDirection: 'row',
-    paddingLeft: PADDING.left,
-    paddingRight: PADDING.right,
-    marginTop: spacing.xs,
-  },
-  xSlot: { flex: 1, alignItems: 'center' },
+  tick: { alignItems: 'flex-end', paddingRight: spacing.sm },
+  hitRow: { position: 'absolute', top: 0, flexDirection: 'row' },
+  hit: { flex: 1, height: '100%' },
 });

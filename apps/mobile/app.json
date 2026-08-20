@@ -48,9 +48,12 @@
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/sounds/rest_complete.wav"]
+          "sounds": [
+            "./assets/sounds/rest_complete.wav"
+          ]
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,

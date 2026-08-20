@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
-import { elevation, MIN_TOUCH_SIZE, radius, useTheme } from '@/theme';
+import { elevation, MIN_TOUCH_SIZE, radius, stroke, useTheme } from '@/theme';
 
 const TRACK_WIDTH = 52;
 const TRACK_HEIGHT = 31;
@@ -11,11 +11,11 @@ const THUMB_INSET = 2;
  * How far the thumb slides.
  *
  * The border counts twice over: React Native sizes borders inside `width`, so
- * the usable track is narrower than `TRACK_WIDTH` by a hairline at each end.
+ * the usable track is narrower than `TRACK_WIDTH` by one stroke at each end.
  * Leaving it out lands the thumb a fraction past the padding on the "on" side —
  * not enough to see, enough to make the two ends visibly uneven.
  */
-const BORDER_WIDTH = StyleSheet.hairlineWidth;
+const BORDER_WIDTH = stroke.outline;
 const TRAVEL = TRACK_WIDTH - THUMB_SIZE - (THUMB_INSET + BORDER_WIDTH) * 2;
 
 const DURATION_MS = 180;

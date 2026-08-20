@@ -11,11 +11,11 @@
  * describing something the user is looking at.
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { useTimer } from '@/store/timer';
 
+import { getNotifications } from './module';
 import { configureNotificationHandler } from './presentation';
 
 /**
@@ -53,6 +53,11 @@ const REST_NOTIFICATION_ID = 'rest-timer-complete';
  */
 export async function prepareRestNotifications(): Promise<boolean> {
   configureNotificationHandler();
+
+  // Indistinguishable from a denied permission to every caller, which is the
+  // point: the timer bar already renders the same way when this returns false.
+  const Notifications = getNotifications();
+  if (!Notifications) return false;
 
   if (Platform.OS === 'android') {
     // Android requires a channel before anything can be posted; importance
@@ -97,6 +102,9 @@ export async function scheduleRestNotification(
 ): Promise<void> {
   if (seconds <= 0) return;
 
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+
   await cancelRestNotification();
 
   await Notifications.scheduleNotificationAsync({
@@ -129,6 +137,9 @@ export async function scheduleRestNotification(
  * "there is no rest notification" actually means.
  */
 export async function cancelRestNotification(): Promise<void> {
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+
   try {
     await Notifications.cancelScheduledNotificationAsync(REST_NOTIFICATION_ID);
   } catch {

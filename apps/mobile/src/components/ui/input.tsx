@@ -11,7 +11,16 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { controlHeight, font, fontSize, HIT_SLOP, radius, spacing, useColors } from '@/theme';
+import {
+  controlHeight,
+  font,
+  fontSize,
+  HIT_SLOP,
+  radius,
+  spacing,
+  stroke,
+  useColors,
+} from '@/theme';
 
 import { Text } from './text';
 
@@ -60,7 +69,11 @@ export function SearchBar({ value, onClear, style, onFocus, onBlur, ...rest }: S
         styles.searchContainer,
         {
           backgroundColor: colors.surfaceMuted,
-          borderColor: ring.focused ? colors.accent : 'transparent',
+          // The unfocused ring is the field's own fill, not `transparent`: the
+          // border is drawn either way, so the field cannot change width when
+          // it takes focus, and a see-through stroke around a radius leaves a
+          // seam on Android. See `stroke` in the tokens.
+          borderColor: ring.focused ? colors.accent : colors.surfaceMuted,
         },
         style,
       ]}
@@ -285,8 +298,9 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
           color: colors.text,
           // The ring matters more here than anywhere else: set rows put several
           // of these side by side, and mid-set you need to know at a glance
-          // which box the keyboard is pointed at.
-          borderColor: ring.focused ? colors.accent : 'transparent',
+          // which box the keyboard is pointed at. Unfocused it is the fill
+          // rather than transparent — see the search field above.
+          borderColor: ring.focused ? colors.accent : colors.surfaceMuted,
           textAlign: align,
         },
         style,
@@ -304,7 +318,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     height: controlHeight.sm,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: stroke.outline,
   },
   searchInput: {
     flex: 1,
@@ -317,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.md,
-    borderWidth: 1,
+    borderWidth: stroke.outline,
   },
   numericField: {
     minWidth: 62,
@@ -328,12 +342,11 @@ const styles = StyleSheet.create({
     //
     // An EditText carries its own default vertical padding *and*, with
     // `includeFontPadding`, reserves extra room above the ascender and below
-    // the descender sized from the font's own metrics. Inter's metrics are
-    // generous, so at height 34 the reserved band plus the default padding
-    // exceeds the box and the glyphs get cut off top and bottom — which is
-    // exactly what a weight of "50" looked like. Zeroing the padding and
-    // dropping the font padding lets `textAlignVertical` centre the real
-    // glyph box instead of a padded one.
+    // the descender sized from the font's own metrics. Between that band and
+    // the default padding, height 34 is overspent and the glyphs get cut off
+    // top and bottom — which is exactly what a weight of "50" looked like.
+    // Zeroing the padding and dropping the font padding lets
+    // `textAlignVertical` centre the real glyph box instead of a padded one.
     //
     // Harmless on iOS: it ignores all three.
     paddingVertical: 0,
@@ -342,6 +355,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     ...font('semibold'),
     fontVariant: ['tabular-nums'],
-    borderWidth: 1,
+    borderWidth: stroke.outline,
   },
 });

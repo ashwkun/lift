@@ -1,6 +1,6 @@
 import { formatVolume } from '@lift/shared';
 import Constants from 'expo-constants';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import { getDashboardStats, type DashboardStats } from '@/features/analytics/repository';
 import { SyncCard } from '@/features/sync/sync-card';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
 import { spacing } from '@/theme';
 
@@ -34,7 +35,7 @@ export default function ProfileScreen() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
@@ -110,10 +111,66 @@ export default function ProfileScreen() {
           ]}
         />
 
+        {/*
+         * Everything that looks backwards, directly under the band and above
+         * everything else on this screen.
+         *
+         * The masthead states one number — everything ever lifted — and these
+         * are the three rows that take it apart: as a list, as a grid of days,
+         * and as a set of charts. Anywhere further down and they read as
+         * settings, which is what the rest of this screen is.
+         *
+         * History is first because it used to be a tab, and the person who
+         * goes looking for it after the bar drops to three will look at the top
+         * of this list. It is also the one of the three that answers "what did
+         * I actually do", which is the question asked most often.
+         */}
+        <SectionHeader title="Insights" />
+        <Card padded={false} style={styles.section}>
+          <ListRow
+            icon="time-outline"
+            tone="accent"
+            title="History"
+            subtitle="Every session, with trends and volume"
+            onPress={() => router.push('/history')}
+          />
+          <Divider inset={spacing.lg} />
+          <ListRow
+            icon="calendar-outline"
+            title="Calendar"
+            subtitle="Which days you trained, month by month"
+            onPress={() => router.push('/calendar')}
+          />
+          <Divider inset={spacing.lg} />
+          <ListRow
+            icon="stats-chart-outline"
+            title="Statistics"
+            subtitle="Muscle distribution, main lifts, monthly reports"
+            onPress={() => router.push('/stats')}
+          />
+        </Card>
+
         <SectionHeader title="Account" />
         <View style={styles.section}>
           <SyncCard />
         </View>
+
+        {/*
+         * The exercise library, which used to be the fifth tab.
+         *
+         * A section of its own rather than a row buried under Tracking, where
+         * it would read as a setting: it is the largest thing this screen leads
+         * to, and the one an existing user comes looking for once the tab is
+         * gone.
+         */}
+        <SectionHeader title="Library" />
+        <Card padded={false} style={styles.section}>
+          <ListRow
+            icon="barbell-outline"
+            title="Exercises"
+            onPress={() => router.push('/exercises')}
+          />
+        </Card>
 
         <SectionHeader title="Tracking" />
         <Card padded={false} style={styles.section}>
@@ -149,6 +206,19 @@ export default function ProfileScreen() {
             icon="cloud-upload-outline"
             title="Backup & export"
             onPress={() => router.push('/export')}
+          />
+          <Divider inset={spacing.lg} />
+          {/*
+           * Its own row rather than a button inside Backup & export. Someone
+           * arriving from Hevy is looking for the word "import" on the first
+           * screen they open, and burying it one level down behind a word about
+           * getting data *out* is how a migration ends before it starts.
+           */}
+          <ListRow
+            icon="download-outline"
+            title="Import from another app"
+            subtitle="Hevy, Lyfta, Strong or a Lift backup"
+            onPress={() => router.push('/import')}
           />
         </Card>
 

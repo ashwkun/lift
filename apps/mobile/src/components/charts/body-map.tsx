@@ -1,8 +1,9 @@
-import type { MuscleGroup } from '@lift/shared';
+import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Text } from '@/components/ui';
+import { formatSets } from '@/features/analytics/format';
 import {
   DEFAULT_VOLUME_THRESHOLDS,
   volumeColor,
@@ -32,6 +33,26 @@ const REGION_ALIASES: Partial<Record<MuscleGroup, MuscleGroup>> = {
   upper_back: 'lats',
   abductors: 'glutes',
 };
+
+/**
+ * Every muscle a drawn region stands for, the alias table read backwards.
+ *
+ * Selecting a region has to select everything it covers, or tapping the upper
+ * back would filter to lats and quietly drop every row press — the exact
+ * exercises the tap was reaching for.
+ */
+export const REGION_MUSCLES: Partial<Record<MuscleGroup, MuscleGroup[]>> = (() => {
+  const out: Partial<Record<MuscleGroup, MuscleGroup[]>> = {};
+  for (const [muscle, region] of Object.entries(REGION_ALIASES) as [MuscleGroup, MuscleGroup][]) {
+    (out[region] ??= [region]).push(muscle);
+  }
+  return out;
+})();
+
+/** The muscles a tap on `region` covers, including the region's own. */
+export function musclesInRegion(region: MuscleGroup): MuscleGroup[] {
+  return REGION_MUSCLES[region] ?? [region];
+}
 
 /** Muscles with no place on either figure — they still appear in the list. */
 export const UNMAPPED_MUSCLES: readonly MuscleGroup[] = ['cardio', 'full_body', 'other'];
@@ -68,36 +89,85 @@ export function BodyMap({
   selected = null,
   onSelect,
 }: BodyMapProps) {
-  const figureHeight = Math.min(((width - spacing.md) / 2) * ASPECT, maxHeight);
-  const figureWidth = figureHeight / ASPECT;
+  const colors = useColors();
 
   // Resolved once for both figures so the two sides cannot disagree about what
   // an aliased muscle contributes.
   const regionSets = resolveRegions(setsPerWeek);
+  // Selecting an aliased muscle lights up the region standing in for it.
+  const selectedRegion = selected ? (REGION_ALIASES[selected] ?? selected) : null;
 
   return (
-    <View style={styles.row}>
-      <Figure
-        title="Front"
-        paths={FRONT_PATHS}
-        width={figureWidth}
-        height={figureHeight}
-        regionSets={regionSets}
-        thresholds={thresholds}
-        selected={selected}
-        onSelect={onSelect}
-      />
-      <Figure
-        title="Back"
-        paths={BACK_PATHS}
-        width={figureWidth}
-        height={figureHeight}
-        regionSets={regionSets}
-        thresholds={thresholds}
-        selected={selected}
-        onSelect={onSelect}
-      />
-    </View>
+    <Figures
+      width={width}
+      maxHeight={maxHeight}
+      // A selected muscle keeps its heat colour and gains an outline —
+      // repainting it would hide the one value the tap was asking about.
+      fillFor={(muscle) => volumeColor(regionSets[muscle] ?? 0, colors, thresholds)}
+      isSelected={(muscle) => selectedRegion === muscle}
+      label={(muscle) =>
+        `${MUSCLE_GROUP_LABELS[muscle]}, ${formatSets(regionSets[muscle] ?? 0)} sets per week`
+      }
+      onPress={
+        onSelect ? (muscle) => onSelect(selectedRegion === muscle ? null : muscle) : undefined
+      }
+    />
+  );
+}
+
+export interface MuscleSelectMapProps {
+  /** Every selected muscle, including ones drawn as part of another region. */
+  selected: ReadonlySet<MuscleGroup>;
+  /** Hands back every muscle the tapped region covers. */
+  onToggle: (muscles: MuscleGroup[]) => void;
+  width: number;
+  maxHeight?: number;
+}
+
+/**
+ * The same two figures, used to *choose* muscles rather than to report on them.
+ *
+ * The filter this replaced was an alphabetical list of 21 muscle names, which
+ * asks the reader to translate "the front of my shoulder" into "Shoulders" and
+ * to know that lats and upper back are different rows. Pointing at the body is
+ * how anyone actually holds the question, and the map is already drawn.
+ */
+export function MuscleSelectMap({
+  selected,
+  onToggle,
+  width,
+  maxHeight = 320,
+}: MuscleSelectMapProps) {
+  const colors = useColors();
+
+  // A region counts as on when any muscle it covers is: tapping the upper back
+  // selects lats *and* upper_back, and both have to keep the region lit.
+  const isSelected = (region: MuscleGroup) =>
+    musclesInRegion(region).some((muscle) => selected.has(muscle));
+
+  return (
+    <Figures
+      width={width}
+      maxHeight={maxHeight}
+      // Flat accent rather than a ramp: nothing here is a measurement, so the
+      // only thing colour has to say is on or off.
+      fillFor={(region) => (isSelected(region) ? colors.accent : colors.surfaceMuted)}
+      isSelected={isSelected}
+      // Selection is spelled into the label because a `Path` takes only
+      // `accessible` and `accessibilityLabel` — there is no `accessibilityState`
+      // on an SVG node to carry it.
+      label={(region) =>
+        [
+          musclesInRegion(region)
+            .map((muscle) => MUSCLE_GROUP_LABELS[muscle])
+            .join(' and '),
+          isSelected(region) ? 'selected' : null,
+        ]
+          .filter(Boolean)
+          .join(', ')
+      }
+      onPress={(region) => onToggle(musclesInRegion(region))}
+    />
   );
 }
 
@@ -114,47 +184,69 @@ function resolveRegions(
   return out;
 }
 
+interface FiguresProps {
+  width: number;
+  maxHeight: number;
+  fillFor: (region: MuscleGroup) => string;
+  isSelected: (region: MuscleGroup) => boolean;
+  label: (region: MuscleGroup) => string;
+  onPress?: (region: MuscleGroup) => void;
+}
+
+/**
+ * The pair of figures, with everything the caller decides passed in.
+ *
+ * Shared rather than duplicated because the two callers differ only in what a
+ * region's colour *means* — a second copy of this would be a second place for
+ * the alias table and the aspect-ratio maths to drift.
+ */
+function Figures({ width, maxHeight, ...figure }: FiguresProps) {
+  const height = Math.min(((width - spacing.md) / 2) * ASPECT, maxHeight);
+
+  return (
+    <View style={styles.row}>
+      <Figure title="Front" paths={FRONT_PATHS} width={height / ASPECT} height={height} {...figure} />
+      <Figure title="Back" paths={BACK_PATHS} width={height / ASPECT} height={height} {...figure} />
+    </View>
+  );
+}
+
 function Figure({
   title,
   paths,
   width,
   height,
-  regionSets,
-  thresholds,
-  selected,
-  onSelect,
-}: {
+  fillFor,
+  isSelected,
+  label,
+  onPress,
+}: Omit<FiguresProps, 'width' | 'maxHeight'> & {
   title: string;
   paths: BodyMapPaths;
   width: number;
   height: number;
-  regionSets: Partial<Record<MuscleGroup, number>>;
-  thresholds: VolumeThresholds;
-  selected: MuscleGroup | null;
-  onSelect?: (muscle: MuscleGroup | null) => void;
 }) {
   const colors = useColors();
-  // Selecting an aliased muscle lights up the region standing in for it.
-  const selectedRegion = selected ? (REGION_ALIASES[selected] ?? selected) : null;
 
   return (
     <View style={styles.figure}>
       <Svg width={width} height={height} viewBox={`0 0 ${BODY_VIEW_WIDTH} ${BODY_VIEW_HEIGHT}`}>
         {(Object.entries(paths) as [MuscleGroup, string[]][]).map(([muscle, ds]) => {
-          const sets = regionSets[muscle] ?? 0;
-          // A selected muscle keeps its heat colour and gains an outline —
-          // repainting it would hide the one value the tap was asking about.
-          const isSelected = selectedRegion === muscle;
-          const fill = volumeColor(sets, colors, thresholds);
+          const selected = isSelected(muscle);
+          const fill = fillFor(muscle);
 
           return ds.map((d, index) => (
             <Path
               key={`${muscle}-${index}`}
               d={d}
               fill={fill}
-              stroke={isSelected ? colors.text : colors.border}
-              strokeWidth={isSelected ? 4 : 1}
-              onPress={onSelect ? () => onSelect(isSelected ? null : muscle) : undefined}
+              stroke={selected ? colors.text : colors.border}
+              strokeWidth={selected ? 4 : 1}
+              // Only the first shape of a region is announced, so a muscle
+              // drawn as two mirrored halves reads once rather than twice.
+              accessible={index === 0 && onPress !== undefined}
+              accessibilityLabel={label(muscle)}
+              onPress={onPress ? () => onPress(muscle) : undefined}
             />
           ));
         })}

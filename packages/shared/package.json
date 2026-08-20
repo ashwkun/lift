@@ -16,6 +16,11 @@
       "react-native": "./src/exercises/index.ts",
       "types": "./dist/exercises/index.d.ts",
       "default": "./dist/exercises/index.js"
+    },
+    "./import": {
+      "react-native": "./src/import/index.ts",
+      "types": "./dist/import/index.d.ts",
+      "default": "./dist/import/index.js"
     }
   },
   "scripts": {

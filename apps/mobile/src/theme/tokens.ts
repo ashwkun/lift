@@ -8,7 +8,7 @@
  * of the two themes.
  */
 
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 export interface Palette {
   /** App canvas, behind everything. Pure black in dark mode — see `darkPalette`. */
@@ -242,6 +242,34 @@ export const radius = {
   pill: 999,
 } as const;
 
+/**
+ * Stroke widths. Two, and which one to use is not a matter of taste.
+ *
+ * `rule` is one physical pixel, and it is for **straight** lines only —
+ * dividers, the band above a stat row, the top edge of the tab bar. A vertical
+ * or horizontal line lands square on the pixel grid, so a single device pixel
+ * draws crisp at any density and is the finest an interface can go.
+ *
+ * `outline` is a full point, and it is for **anything that follows a corner
+ * radius**. A hairline is a third of a point on a 3x screen, which is less than
+ * one pixel of ink for the renderer to distribute along a curve: Android's
+ * anti-aliasing then fades the stroke in and out around the arc, and the result
+ * is a corner that looks stepped and speckled rather than drawn. That is what
+ * the accent outline on a selected chip looked like, and no colour or radius
+ * change fixes it — only giving the curve a whole pixel to work with does.
+ *
+ * The corollary, for anything using these: an outline's resting colour should
+ * match the fill it sits on rather than being `transparent`. A transparent
+ * stroke over an opaque background is a hole punched in the shape's edge, which
+ * on Android can leave a faint seam where the two paths meet — and a border
+ * that only exists in one state also changes the control's inner width when it
+ * appears.
+ */
+export const stroke = {
+  rule: StyleSheet.hairlineWidth,
+  outline: 1,
+} as const;
+
 export const fontSize = {
   xs: 11,
   sm: 13,
@@ -254,34 +282,72 @@ export const fontSize = {
 } as const;
 
 /**
- * Inter, one family per weight.
+ * The app's typeface, bundled from `assets/fonts`.
  *
- * This is not a stylistic preference — on Android a custom `fontFamily` ignores
- * `fontWeight` entirely and renders every weight at the loaded face. Asking for
- * `Inter_400Regular` at `fontWeight: '700'` gets you regular text, silently. So
- * weight is selected by *which font is named*, and `fontWeight` is set
- * alongside it only so iOS and the OS accessibility tooling agree.
+ * The files are named for the role they play here rather than for the family
+ * they are, which is Spotify Mix — recorded once, in the one place a maintainer
+ * would look, because the measurements below are only meaningful if you know
+ * what was measured, and because it is not a family this project has a licence
+ * to redistribute.
  *
- * Inter was drawn as a system-UI face in the SF Pro mould: tall x-height, tight
- * apertures, near-vertical terminals. It is the closest freely licensable match
- * to the iOS look — SF Pro itself is Apple-licensed and cannot ship in an
- * Android binary.
+ * Naming a face per weight is not a stylistic preference — on Android a custom
+ * `fontFamily` ignores `fontWeight` entirely and renders every weight at the
+ * loaded face. Asking for `LiftSans-Regular` at `fontWeight: '700'` gets you
+ * regular text, silently. So weight is selected by *which font is named*, and
+ * `fontWeight` is set alongside it only so iOS and the OS accessibility tooling
+ * agree. The names below must match the keys `useFonts` is given in
+ * `app/_layout.tsx`; nothing else in the app names a font.
+ *
+ * The archive ships eight upright cuts, 200 through 1000. Four are loaded, and
+ * the floor is deliberate: **nothing in this app is set below 400.** The
+ * family's Thin and Light are real and usable on paper, and on a true-black
+ * canvas at 11px they are a hairline — which is what the previous family was,
+ * and why it lasted one build. If a role ever needs to feel lighter, take the
+ * colour down a tier (`textSecondary`, `textTertiary`) rather than the weight.
+ *
+ * There is no 600 in the family — it steps 500 → 700 — so `semibold` names
+ * Bold. The role keeps its name because call sites read by intent.
+ *
+ * Two measured things worth knowing:
+ *
+ * Its figures are proportional by default and the spread is wide — a 77% gap
+ * between the narrowest and widest digit in Regular — but it ships a real
+ * `tnum` feature, so the `numeric` and `numericLarge` variants switch tabular
+ * figures on and columns of numbers align. That is what keeps a rest timer from
+ * reflowing on every tick. Digits set through any *other* variant are
+ * proportional and will shift as they change.
+ *
+ * It is wide, and its x-height is low (0.495em) for how much room it takes: on
+ * the row titles this app sets it runs 10–15% past the family it replaced, and
+ * at the same pixel size it looks slightly smaller into the bargain. That is
+ * roughly where Open Sans sat when titles were clamping, so the fixed-width
+ * columns — list rows, the stat band, calendar cells — are the ones to check.
+ * If they truncate, the knob is `fontSize` below, not narrower columns.
  */
 export const fontFamily = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
+  regular: 'LiftSans-Regular',
+  medium: 'LiftSans-Medium',
+  /** No 600 in the family; Bold is the next real cut above Medium. */
+  semibold: 'LiftSans-Bold',
+  bold: 'LiftSans-Bold',
+  /** Headlines: `display`, `title`, `heading`. Black (900) is one line away. */
+  display: 'LiftSans-Extrabold',
 } as const;
 
+/** The roles a call site can ask for, by intent rather than by number. */
 export type FontWeightName = keyof typeof fontFamily;
 
+/**
+ * Mirrors the *loaded* face rather than the name's nominal weight, so iOS is
+ * never asked to synthesise a cut Android would not match. `semibold` reads 700
+ * for exactly that reason — it is Bold, because the family has no 600.
+ */
 export const fontWeight = {
   regular: '400',
   medium: '500',
-  semibold: '600',
+  semibold: '700',
   bold: '700',
-  heavy: '800',
+  display: '800',
 } as const;
 
 /**

@@ -12,13 +12,13 @@
 import { formatDuration } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 
 import { db } from '@/db/client';
 import { exercises, workoutExercises, workoutSets, workouts } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
+import { getNotifications } from '@/features/notifications/module';
 import { ONGOING_WORKOUT_TYPE } from '@/features/notifications/presentation';
 import { clearWorkoutNotice, showWorkoutNotice } from '@/features/notifications/workout';
 import { useTicker } from '@/hooks/use-ticker';
@@ -86,6 +86,11 @@ export function WorkoutNotice() {
   // Tapping the notification returns to the session rather than merely
   // foregrounding whichever screen happened to be open last.
   useEffect(() => {
+    // Nothing can post the notification where the module is unavailable, so
+    // there is no response to listen for either.
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       if (response.notification.request.content.data?.type !== ONGOING_WORKOUT_TYPE) return;
       router.navigate('/workout/active');

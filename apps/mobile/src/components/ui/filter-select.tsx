@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { controlHeight, HIT_SLOP, radius, spacing, useColors } from '@/theme';
+import { controlHeight, HIT_SLOP, radius, spacing, stroke, useColors } from '@/theme';
 
+import { Button } from './button';
 import { Divider } from './surfaces';
 import { Text } from './text';
 
@@ -15,18 +17,185 @@ export interface FilterOption<T extends string> {
   count?: number;
 }
 
-export interface FilterSelectProps<T extends string> {
-  /** Shown when nothing is selected, e.g. "Muscle". */
+// ---------------------------------------------------------------------------
+// Trigger
+// ---------------------------------------------------------------------------
+
+export interface FilterTriggerProps {
+  /** Names the dimension, e.g. "Muscle". Shown when nothing is selected. */
   label: string;
-  value: T | null;
-  options: readonly FilterOption<T>[];
-  onChange: (value: T | null) => void;
-  /** Label for the reset row at the top of the sheet. */
-  allLabel?: string;
+  /** What the trigger reads while something is selected. */
+  summary?: string | null;
+  expanded?: boolean;
+  onPress: () => void;
 }
 
 /**
- * A single filter dimension, as a compact trigger that opens a sheet.
+ * The pill that opens a filter sheet.
+ *
+ * Split out of `FilterSelect` because the muscle filter draws a body map rather
+ * than a list of options, and a filter bar whose two controls didn't match
+ * would read as two unrelated things.
+ */
+export function FilterTrigger({ label, summary, expanded = false, onPress }: FilterTriggerProps) {
+  const colors = useColors();
+  const active = Boolean(summary);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      accessibilityLabel={active ? `${label}: ${summary}` : `Filter by ${label}`}
+      onPress={onPress}
+      style={({ pressed }) => {
+        const fill = active
+          ? colors.accentSurface
+          : pressed
+            ? colors.surfacePressed
+            : colors.surfaceMuted;
+
+        // Inactive, the outline is the fill: the border is drawn in every
+        // state, so the pill holds one width, and a transparent stroke around
+        // a radius seams on Android. See `stroke` in the tokens.
+        return [styles.trigger, { backgroundColor: fill, borderColor: active ? colors.accent : fill }];
+      }}
+    >
+      <Text
+        variant="label"
+        numberOfLines={1}
+        style={{ color: active ? colors.accent : colors.textSecondary }}
+      >
+        {active ? summary : label}
+      </Text>
+      <Ionicons name="chevron-down" size={14} color={active ? colors.accent : colors.textTertiary} />
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sheet
+// ---------------------------------------------------------------------------
+
+export interface FilterSheetProps {
+  visible: boolean;
+  /** The dimension being filtered, shown as the sheet's heading. */
+  label: string;
+  onClose: () => void;
+  /** Clears the dimension. Omitted when nothing is selected. */
+  onClear?: () => void;
+  children: ReactNode;
+}
+
+/**
+ * Bottom sheet chrome shared by every filter dimension.
+ *
+ * Owns the modal, the backdrop, the heading and the two ways out — so a sheet
+ * full of checkboxes and a sheet holding a body map dismiss identically.
+ */
+export function FilterSheet({ visible, label, onClose, onClear, children }: FilterSheetProps) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      {/*
+        `accessible={false}` on both Pressables, deliberately.
+
+        Pressable defaults to `accessible`, which collapses everything under
+        it into one element — so the backdrop announced the entire sheet as a
+        single button reading all 21 muscle groups in a row, and no option
+        inside it could be reached. This is the control that gates every
+        search on the exercise library, so it cannot be a blob.
+      */}
+      <Pressable
+        accessible={false}
+        style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+        onPress={onClose}
+      >
+        <Pressable
+          accessible={false}
+          // Hides the list behind the sheet from VoiceOver, so focus lands on
+          // the sheet's own heading when it opens and a swipe past the last
+          // option comes back to it.
+          accessibilityViewIsModal
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.surfaceElevated,
+              // The sheet is anchored to the bottom edge, so its footer would
+              // otherwise sit under the gesture pill.
+              paddingBottom: spacing.md + insets.bottom,
+            },
+          ]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          {/*
+            The close button is the sheet's only dismissal for anyone not
+            using the backdrop: tapping the dim area has no screen reader
+            equivalent, and it is also the part sighted users have to guess
+            at. It names the dimension it closes, since "Close" alone reads
+            the same on every filter in the bar.
+          */}
+          <View style={styles.sheetHeader}>
+            <Text
+              variant="overline"
+              color="textTertiary"
+              accessibilityRole="header"
+              style={styles.flex}
+            >
+              {label}
+            </Text>
+            {onClear && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
+                onPress={onClear}
+                hitSlop={HIT_SLOP}
+                style={({ pressed }) => [
+                  styles.clear,
+                  pressed && { backgroundColor: colors.surfacePressed },
+                ]}
+              >
+                <Text variant="label" color="accent">
+                  Clear
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Close ${label.toLowerCase()} filter`}
+              onPress={onClose}
+              hitSlop={HIT_SLOP}
+              style={({ pressed }) => [
+                styles.close,
+                pressed && { backgroundColor: colors.surfacePressed },
+              ]}
+            >
+              <Ionicons name="close" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FilterSelect
+// ---------------------------------------------------------------------------
+
+export interface FilterSelectProps<T extends string> {
+  /** Shown when nothing is selected, e.g. "Equipment". */
+  label: string;
+  values: readonly T[];
+  options: readonly FilterOption<T>[];
+  onChange: (values: T[]) => void;
+}
+
+/**
+ * One filter dimension, as a compact trigger that opens a multi-select sheet.
  *
  * This replaced a horizontal strip of chips — one per possible value. That was
  * fine for a curated library, but the catalog populates all 21 muscle groups
@@ -34,139 +203,87 @@ export interface FilterSelectProps<T extends string> {
  * one scrolling run with nothing to distinguish a muscle from a piece of
  * equipment. A trigger per dimension stays one line however many values exist,
  * and names the dimension the value belongs to.
+ *
+ * Selecting is additive: "Barbell **or** Dumbbell" is the question people
+ * actually ask in a gym where half the racks are taken, and a single-value
+ * filter made them run the search twice. Rows therefore toggle in place rather
+ * than dismissing the sheet — the trip is worth making once, not once per
+ * value — and Done is what closes it.
  */
 export function FilterSelect<T extends string>({
   label,
-  value,
+  values,
   options,
   onChange,
-  allLabel = `All ${label.toLowerCase()}`,
 }: FilterSelectProps<T>) {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
-  const selected = options.find((option) => option.value === value);
-  const active = selected !== undefined;
+  const selected = new Set(values);
+  const summary = summarise(label, values, options);
 
-  const choose = (next: T | null) => {
-    onChange(next);
-    setOpen(false);
+  const toggle = (value: T) => {
+    const next = new Set(selected);
+    // `delete` reports whether it was there, so this is one lookup, not two.
+    if (!next.delete(value)) next.add(value);
+    // Ordered by the option list rather than by tap order, so the summary and
+    // the sheet agree about which value is "the" one when exactly one is on.
+    onChange(options.filter((option) => next.has(option.value)).map((option) => option.value));
   };
 
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={active ? `${label}: ${selected.label}` : `Filter by ${label}`}
+      <FilterTrigger
+        label={label}
+        summary={summary}
+        expanded={open}
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [
-          styles.trigger,
-          {
-            backgroundColor: active
-              ? colors.accentSurface
-              : pressed
-                ? colors.surfacePressed
-                : colors.surfaceMuted,
-            borderColor: active ? colors.accent : 'transparent',
-          },
-        ]}
+      />
+
+      <FilterSheet
+        visible={open}
+        label={label}
+        onClose={() => setOpen(false)}
+        onClear={values.length > 0 ? () => onChange([]) : undefined}
       >
-        <Text
-          variant="label"
-          numberOfLines={1}
-          style={{ color: active ? colors.accent : colors.textSecondary }}
-        >
-          {active ? selected.label : label}
-        </Text>
-        <Ionicons
-          name="chevron-down"
-          size={14}
-          color={active ? colors.accent : colors.textTertiary}
-        />
-      </Pressable>
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        {/*
-          `accessible={false}` on both Pressables, deliberately.
-
-          Pressable defaults to `accessible`, which collapses everything under
-          it into one element — so the backdrop announced the entire sheet as a
-          single button reading all 21 muscle groups in a row, and no option
-          inside it could be reached. This is the control that gates every
-          search on the exercise library, so it cannot be a blob.
-        */}
-        <Pressable
-          accessible={false}
-          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
-          onPress={() => setOpen(false)}
-        >
-          <Pressable
-            accessible={false}
-            // Hides the list behind the sheet from VoiceOver, so focus lands on
-            // the sheet's own heading when it opens and a swipe past the last
-            // option comes back to it.
-            accessibilityViewIsModal
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: colors.surfaceElevated,
-                // The sheet is anchored to the bottom edge, so its last option
-                // would otherwise sit under the gesture pill.
-                paddingBottom: spacing.md + insets.bottom,
-              },
-            ]}
-            onPress={(event) => event.stopPropagation()}
-          >
-            {/*
-              The close button is the sheet's only dismissal for anyone not
-              using the backdrop: tapping the dim area has no screen reader
-              equivalent, and it is also the part sighted users have to guess
-              at. It names the dimension it closes, since "Close" alone reads
-              the same on both filters in the bar.
-            */}
-            <View style={styles.sheetHeader}>
-              <Text
-                variant="overline"
-                color="textTertiary"
-                accessibilityRole="header"
-                style={styles.flex}
-              >
-                {label}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Close ${label.toLowerCase()} filter`}
-                onPress={() => setOpen(false)}
-                hitSlop={HIT_SLOP}
-                style={({ pressed }) => [
-                  styles.close,
-                  pressed && { backgroundColor: colors.surfacePressed },
-                ]}
-              >
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </Pressable>
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          {options.map((option, index) => (
+            <View key={option.value}>
+              {index > 0 && <Divider />}
+              <OptionRow
+                label={option.label}
+                count={option.count}
+                selected={selected.has(option.value)}
+                onPress={() => toggle(option.value)}
+              />
             </View>
+          ))}
+        </ScrollView>
 
-            <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-              <OptionRow label={allLabel} selected={!active} onPress={() => choose(null)} />
-              <Divider />
-              {options.map((option) => (
-                <OptionRow
-                  key={option.value}
-                  label={option.label}
-                  count={option.count}
-                  selected={option.value === value}
-                  onPress={() => choose(option.value)}
-                />
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <View style={styles.footer}>
+          <Button title="Done" fullWidth onPress={() => setOpen(false)} />
+        </View>
+      </FilterSheet>
     </>
   );
+}
+
+/**
+ * What the trigger says once something is on.
+ *
+ * A single value names itself — "Barbell" is more useful than "Equipment · 1",
+ * and it is the common case. Past that the pill has no room for a list, so it
+ * falls back to the dimension and a count.
+ */
+function summarise<T extends string>(
+  label: string,
+  values: readonly T[],
+  options: readonly FilterOption<T>[],
+): string | null {
+  if (values.length === 0) return null;
+  if (values.length === 1) {
+    return options.find((option) => option.value === values[0])?.label ?? label;
+  }
+  return `${label} · ${values.length}`;
 }
 
 function OptionRow({
@@ -184,14 +301,16 @@ function OptionRow({
 
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.option,
-        pressed && { backgroundColor: colors.surfacePressed },
-      ]}
+      style={({ pressed }) => [styles.option, pressed && { backgroundColor: colors.surfacePressed }]}
     >
+      <Ionicons
+        name={selected ? 'checkbox' : 'square-outline'}
+        size={20}
+        color={selected ? colors.accent : colors.textTertiary}
+      />
       <Text variant="body" style={[styles.optionLabel, selected && { color: colors.accent }]}>
         {label}
       </Text>
@@ -200,7 +319,6 @@ function OptionRow({
           {count}
         </Text>
       )}
-      {selected && <Ionicons name="checkmark" size={18} color={colors.accent} />}
     </Pressable>
   );
 }
@@ -217,14 +335,14 @@ const styles = StyleSheet.create({
     height: controlHeight.md,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: stroke.outline,
   },
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   sheet: {
     width: '100%',
     // Capped rather than sized to content: 21 muscle groups would otherwise
     // reach the status bar.
-    maxHeight: '70%',
+    maxHeight: '80%',
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingTop: spacing.lg,
@@ -240,6 +358,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   flex: { flex: 1 },
+  clear: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.sm },
   // 32 plus the standard 8pt slop is 48, and there is nothing pressable in any
   // direction for that slop to contest.
   close: {
@@ -250,7 +369,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   list: { flexGrow: 0 },
-  listContent: { paddingBottom: spacing.md },
+  listContent: { paddingBottom: spacing.sm },
+  footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

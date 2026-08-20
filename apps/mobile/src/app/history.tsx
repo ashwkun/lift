@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import {
   formatDurationShort,
   formatVolume,
@@ -7,7 +6,7 @@ import {
   type WeightUnit,
 } from '@lift/shared';
 import { and, desc, isNotNull, isNull } from 'drizzle-orm';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, useWindowDimensions, View } from 'react-native';
 
@@ -18,6 +17,7 @@ import {
   Button,
   Card,
   EmptyState,
+  Reveal,
   Screen,
   SegmentedControl,
   splitMeasure,
@@ -37,15 +37,18 @@ import {
   type MuscleBreakdownEntry,
   type TrendBucket,
 } from '@/features/analytics/repository';
+import { formatSets } from '@/features/analytics/format';
 import {
   DEFAULT_VOLUME_THRESHOLDS,
-  legendSamples,
   volumeColor,
   volumeZone,
   VOLUME_ZONE_LABELS,
 } from '@/features/analytics/volume-landmarks';
+import { VolumeLegend } from '@/features/analytics/volume-legend';
+import { WorkoutCard } from '@/features/workouts/workout-card';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { fontSize, radius, spacing, useColors } from '@/theme';
+import { radius, spacing, stroke, useColors } from '@/theme';
 
 interface MonthSection {
   title: string;
@@ -82,12 +85,12 @@ const METRICS: Record<
   reps: {
     pick: (bucket) => bucket.reps,
     format: (value) => `${Math.round(value).toLocaleString()} reps`,
-    axis: (value) => (value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(Math.round(value))),
+    axis: (value) =>
+      value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(Math.round(value)),
   },
 };
 
 export default function HistoryScreen() {
-  const colors = useColors();
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -108,7 +111,7 @@ export default function HistoryScreen() {
   // Aggregates recompute on focus and on range change rather than live: they
   // only move when a workout is finished, and re-running the muscle join on
   // every set write would be wasteful.
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
@@ -176,19 +179,30 @@ export default function HistoryScreen() {
   );
 
   // The list query answers a tick after mount and seeds `[]` until it does, so
-  // the empty state has to wait for it: otherwise every visit to this tab opens
-  // on "No workouts yet" and corrects itself a frame later.
-  if (!loaded) return <Screen>{null}</Screen>;
+  // the empty state has to wait for it: otherwise every visit to this screen
+  // opens on "No workouts yet" and corrects itself a frame later. The header
+  // stays mounted through all three states so the native title never flashes
+  // the route name.
+  if (!loaded) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: 'History' }} />
+      </Screen>
+    );
+  }
 
   if (completed.length === 0) {
     return (
       <Screen>
-        <EmptyState
-          icon="time-outline"
-          title="No workouts yet"
-          description="Finished sessions show up here with their volume, duration and records."
-          action={<Button title="Go to Workout" onPress={() => router.push('/(tabs)/workout')} />}
-        />
+        <Stack.Screen options={{ title: 'History' }} />
+        <Reveal>
+          <EmptyState
+            icon="time-outline"
+            title="No workouts yet"
+            description="Finished sessions show up here with their volume, duration and records."
+            action={<Button title="Go to Workout" onPress={() => router.push('/(tabs)/workout')} />}
+          />
+        </Reveal>
       </Screen>
     );
   }
@@ -197,134 +211,113 @@ export default function HistoryScreen() {
 
   return (
     <Screen>
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <SegmentedControl
-              options={HISTORY_RANGES}
-              value={range}
-              onChange={(next) => {
-                setRange(next);
-                setSelectedBucket(null);
-              }}
-              label="Time range"
-            />
-
-            <RangeTotals analytics={ranged} weightUnit={weightUnit} />
-
-            <Card style={styles.card}>
+      <Stack.Screen options={{ title: 'History' }} />
+      {/* The list is held behind `loaded` and its analytics are held behind the
+          push transition, so it arrives some way into the screen's life. The
+          `Reveal` is what makes that arrival a settle rather than a flash of
+          bare canvas replaced by a full page of cards. `flex` on the wrapper so
+          the list still measures against the screen and not against itself. */}
+      <Reveal style={styles.flex}>
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            <View style={styles.header}>
               <SegmentedControl
-                options={HISTORY_METRICS}
-                value={metric}
-                onChange={setMetric}
-                size="sm"
-                label="Metric"
-                style={styles.metricTabs}
+                options={HISTORY_RANGES}
+                value={range}
+                onChange={(next) => {
+                  setRange(next);
+                  setSelectedBucket(null);
+                }}
+                label="Time range"
               />
 
-              <ChartReadout
-                bucket={active}
-                analytics={ranged}
-                metric={metric}
-                weightUnit={weightUnit}
-              />
+              <RangeTotals analytics={ranged} weightUnit={weightUnit} />
 
-              <ColumnChart
-                data={columns}
-                width={chartWidth}
-                selectedKey={selectedBucket}
-                onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
-                formatValue={(value) => METRICS[metric].axis(value, weightUnit)}
-              />
-            </Card>
+              <Card style={styles.card}>
+                <SegmentedControl
+                  options={HISTORY_METRICS}
+                  value={metric}
+                  onChange={setMetric}
+                  size="sm"
+                  label="Metric"
+                  style={styles.metricTabs}
+                />
 
-            {/* Written as a plain overline rather than `SectionHeader`, whose
+                <ChartReadout
+                  bucket={active}
+                  analytics={ranged}
+                  metric={metric}
+                  weightUnit={weightUnit}
+                />
+
+                <ColumnChart
+                  data={columns}
+                  width={chartWidth}
+                  selectedKey={selectedBucket}
+                  onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
+                  formatValue={(value) => METRICS[metric].axis(value, weightUnit)}
+                />
+              </Card>
+
+              {/* Written as a plain overline rather than `SectionHeader`, whose
                 own 32px indent is right on the grouped-list screens and wrong
                 here: this list is already inset by `styles.list`, so the shared
                 component put this header 16px to the right of the month rules
                 below it and of every card it sits above. */}
-            <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
-              Muscles trained
-            </Text>
-            <Card style={styles.card}>
-              {/* Nothing at all until the muscles belong to the range on screen:
+              <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
+                Muscles trained
+              </Text>
+              <Card style={styles.card}>
+                {/* Nothing at all until the muscles belong to the range on screen:
                   a map coloured from the last window reads as this one's. */}
-              {!ranged ? null : ranged.muscles.length > 0 ? (
-                <>
-                  <BodyMap
-                    width={chartWidth}
-                    setsPerWeek={muscleSetsPerWeek(ranged)}
-                    selected={selectedMuscle}
-                    onSelect={setSelectedMuscle}
-                  />
+                {!ranged ? null : ranged.muscles.length > 0 ? (
+                  <>
+                    <BodyMap
+                      width={chartWidth}
+                      setsPerWeek={muscleSetsPerWeek(ranged)}
+                      selected={selectedMuscle}
+                      onSelect={setSelectedMuscle}
+                    />
 
-                  <View style={[styles.legend, { borderTopColor: colors.border }]}>
-                    <Text variant="caption" color="textTertiary">
-                      Under
-                    </Text>
-                    <View style={styles.legendSwatches}>
-                      {legendSamples().map((sets) => (
-                        <View
-                          key={sets}
-                          style={[styles.swatch, { backgroundColor: volumeColor(sets, colors) }]}
+                    <VolumeLegend />
+
+                    <View style={styles.breakdown}>
+                      {ranged.muscles.map((entry) => (
+                        <MuscleRow
+                          key={entry.muscle}
+                          entry={entry}
+                          totalSets={totalMuscleSets}
+                          weightUnit={weightUnit}
+                          selected={selectedMuscle === entry.muscle}
+                          onPress={() =>
+                            setSelectedMuscle(selectedMuscle === entry.muscle ? null : entry.muscle)
+                          }
                         />
                       ))}
                     </View>
-                    <Text variant="caption" color="textTertiary">
-                      Over
-                    </Text>
-                  </View>
-
-                  <Text variant="caption" color="textTertiary" align="center">
-                    Weekly sets against a {DEFAULT_VOLUME_THRESHOLDS.mev}–
-                    {DEFAULT_VOLUME_THRESHOLDS.mrv} set target
+                  </>
+                ) : (
+                  <Text variant="label" color="textTertiary" align="center" style={styles.noData}>
+                    No completed sets in this range
                   </Text>
-
-                  <View style={styles.breakdown}>
-                    {ranged.muscles.map((entry) => (
-                      <MuscleRow
-                        key={entry.muscle}
-                        entry={entry}
-                        totalSets={totalMuscleSets}
-                        weightUnit={weightUnit}
-                        selected={selectedMuscle === entry.muscle}
-                        onPress={() =>
-                          setSelectedMuscle(selectedMuscle === entry.muscle ? null : entry.muscle)
-                        }
-                      />
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <Text variant="label" color="textTertiary" align="center" style={styles.noData}>
-                  No completed sets in this range
-                </Text>
-              )}
-            </Card>
-          </View>
-        }
-        renderSectionHeader={({ section }) => (
-          <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
-            {section.title}
-          </Text>
-        )}
-        renderItem={({ item }) => <WorkoutCard workout={item} weightUnit={weightUnit} />}
-      />
+                )}
+              </Card>
+            </View>
+          }
+          renderSectionHeader={({ section }) => (
+            <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
+              {section.title}
+            </Text>
+          )}
+          renderItem={({ item }) => <WorkoutCard workout={item} weightUnit={weightUnit} />}
+        />
+      </Reveal>
     </Screen>
   );
-}
-
-/**
- * Weekly sets are an average and a half-set is meaningful at these volumes, so
- * one decimal — but not a trailing `.0` on the whole numbers most rows land on.
- */
-function formatWeeklySets(setsPerWeek: number): string {
-  const rounded = Math.round(setsPerWeek * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 function muscleSetsPerWeek(analytics: HistoryAnalytics): Partial<Record<MuscleGroup, number>> {
@@ -475,7 +468,7 @@ function MuscleRow({
   const share = totalSets === 0 ? 0 : Math.round((entry.sets / totalSets) * 100);
   const unmapped = UNMAPPED_MUSCLES.includes(entry.muscle);
   const zone = volumeZone(entry.setsPerWeek);
-  const weekly = formatWeeklySets(entry.setsPerWeek);
+  const weekly = formatSets(entry.setsPerWeek);
 
   // The bar tracks the target range rather than the busiest muscle, so a row
   // that is short of MEV looks short even in a week where nothing hit it.
@@ -490,11 +483,15 @@ function MuscleRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.muscleRow,
+        // The resting outline is the card fill this row sits on rather than
+        // `transparent`: the border is drawn in every state, so selecting one
+        // cannot reflow the row, and a see-through stroke around a radius
+        // seams on Android. See `stroke` in the tokens.
         selected
           ? { backgroundColor: colors.accentSurface, borderColor: colors.accent }
           : pressed
-            ? { backgroundColor: colors.surfacePressed }
-            : null,
+            ? { backgroundColor: colors.surfacePressed, borderColor: colors.surfacePressed }
+            : { borderColor: colors.surface },
       ]}
     >
       <View style={styles.muscleHeader}>
@@ -528,65 +525,8 @@ function MuscleRow({
   );
 }
 
-function WorkoutCard({ workout, weightUnit }: { workout: Workout; weightUnit: WeightUnit }) {
-  return (
-    <Card
-      style={styles.workoutCard}
-      onPress={() => router.push({ pathname: '/workout/[id]', params: { id: workout.id } })}
-    >
-      <View style={styles.cardHeader}>
-        <Text variant="bodyMedium" numberOfLines={1} style={styles.cardTitle}>
-          {workout.name}
-        </Text>
-        {workout.prCount > 0 && (
-          <Badge
-            tone="record"
-            icon="trophy"
-            label={workout.prCount === 1 ? '1 PR' : `${workout.prCount} PRs`}
-          />
-        )}
-      </View>
-
-      {/* Date only. Nobody scans a training log by clock time, and the hour it
-          cost was the width that truncated the session name. */}
-      <Text variant="caption" color="textTertiary">
-        {workout.startedAt.toLocaleDateString(undefined, {
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-        })}
-      </Text>
-
-      <View style={styles.metrics}>
-        <Metric icon="time-outline" value={formatDurationShort(workout.durationSeconds ?? 0)} />
-        <Metric icon="barbell-outline" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
-        <Metric icon="layers-outline" value={`${workout.totalSets} sets`} />
-      </View>
-    </Card>
-  );
-}
-
-/**
- * One figure from a session, with its kind carried by the icon.
- *
- * `numeric` rather than `label`: these three columns are read down the list, and
- * `label` has no tabular figures — a 1 is narrower than a 4 in Inter's
- * proportional set, so "48:12" and "1:05:30" put their colons in different
- * places and the column visibly jitters as you scroll.
- */
-function Metric({ icon, value }: { icon: keyof typeof Ionicons.glyphMap; value: string }) {
-  const colors = useColors();
-  return (
-    <View style={styles.metric}>
-      <Ionicons name={icon} size={13} color={colors.textTertiary} />
-      <Text variant="numeric" color="textSecondary" style={styles.metricValue}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   list: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
   header: { gap: spacing.md, marginBottom: spacing.xs },
   // The two bands stack directly, so the lower one drops its top rule rather
@@ -596,36 +536,16 @@ const styles = StyleSheet.create({
   metricTabs: { marginBottom: spacing.xs },
   readout: { gap: 2 },
   noData: { paddingVertical: spacing.xl },
-  legend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  legendSwatches: { flexDirection: 'row', gap: 3 },
-  swatch: { width: 18, height: 8, borderRadius: 2 },
   breakdown: { gap: spacing.xs },
   muscleRow: {
     gap: spacing.xs,
     padding: spacing.sm,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'transparent',
+    borderWidth: stroke.outline,
   },
   muscleHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   muscleName: { flex: 1 },
   muscleTrack: { height: 6, borderRadius: radius.pill, overflow: 'hidden' },
   muscleFill: { height: '100%', borderRadius: radius.pill },
   sectionHeader: { paddingTop: spacing.md, paddingBottom: spacing.sm },
-  workoutCard: { gap: spacing.xs },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  cardTitle: { flex: 1 },
-  metrics: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.xs },
-  metric: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  // `numeric` for the tabular figures, stepped back down to the label size it
-  // replaced: at its own 15px semibold these three secondary numbers would sit
-  // heavier than the session name above them.
-  metricValue: { fontSize: fontSize.sm },
 });

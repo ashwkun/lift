@@ -1,9 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, type PressableProps, type ViewStyle } from 'react-native';
+import { StyleSheet, type PressableProps, type ViewStyle } from 'react-native';
 
-import { controlHeight, MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
+import {
+  controlHeight,
+  MIN_TOUCH_SIZE,
+  PRESS_SCALE_SMALL,
+  spacing,
+  useColors,
+} from '@/theme';
 
+import { PressableScale } from './motion';
 import { Text } from './text';
+
+/** How far a header action fades under the thumb. Matches `IconButton`. */
+const PRESSED_OPACITY = 0.6;
 
 /** Role colours a header action is allowed to take. */
 export type HeaderActionTone = 'accent' | 'danger' | 'success';
@@ -66,17 +76,18 @@ export function HeaderAction({
   const color = disabled ? colors.textTertiary : colors[tone];
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      style={({ pressed }) => [
-        styles.action,
-        side === 'right' ? styles.growLeft : styles.growRight,
-        pressed && styles.pressed,
-        style,
-      ]}
+      // Header actions have no fill to darken, so they dim like the other
+      // unfilled controls (see `IconButton`) rather than stepping to a pressed
+      // surface, and they take the deeper scale for the same reason: a header
+      // button is a word or a glyph with no box around it to watch shrink.
+      dimTo={PRESSED_OPACITY}
+      scaleTo={PRESS_SCALE_SMALL}
+      style={[styles.action, side === 'right' ? styles.growLeft : styles.growRight, style]}
       {...rest}
     >
       {icon && <Ionicons name={icon} size={iconSize} color={color} />}
@@ -85,7 +96,7 @@ export function HeaderAction({
           {title}
         </Text>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -112,7 +123,4 @@ const styles = StyleSheet.create({
   // outward end leaves it exactly where it renders today.
   growLeft: { paddingLeft: spacing.lg, justifyContent: 'flex-end' },
   growRight: { paddingRight: spacing.lg, justifyContent: 'flex-start' },
-  // Header actions have no fill to darken, so they dim like the other unfilled
-  // controls (see IconButton) rather than stepping to a pressed surface.
-  pressed: { opacity: 0.6 },
 });

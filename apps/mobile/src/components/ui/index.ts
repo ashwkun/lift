@@ -1,6 +1,16 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
-export { FilterSelect, type FilterOption, type FilterSelectProps } from './filter-select';
+export {
+  FilterSelect,
+  FilterSheet,
+  FilterTrigger,
+  type FilterOption,
+  type FilterSelectProps,
+  type FilterSheetProps,
+  type FilterTriggerProps,
+} from './filter-select';
 export { HeaderAction, type HeaderActionProps, type HeaderActionTone } from './header-action';
+export { ListPicker, type ListPickerOption, type ListPickerProps } from './list-picker';
+export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
 export { Screen, type ScreenProps } from './screen';
 export {
   SegmentedControl,

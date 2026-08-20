@@ -19,7 +19,7 @@ import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
 import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { spacing, stroke, useColors } from '@/theme';
 
 interface PrSummary {
   kind: PrKind;
@@ -247,9 +247,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     gap: spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: stroke.rule,
   },
-  prCard: { gap: spacing.sm, borderWidth: 1 },
+  prCard: { gap: spacing.sm, borderWidth: stroke.outline },
   prHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   prRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   prName: { flex: 1 },

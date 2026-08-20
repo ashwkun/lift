@@ -218,7 +218,14 @@ const CHUNK_SIZE = 50;
  * a workout recovered from a backup lived on the device and never reached the
  * account, and nothing anywhere said so.
  */
-export async function restoreBackup(json: string): Promise<ImportResult> {
+/**
+ * Reads and vets a backup without writing anything.
+ *
+ * Split out so the import screen can show what a file holds before the user
+ * commits to it, and so the two paths can never disagree about whether a file
+ * is acceptable — the confirmation and the restore run the same checks.
+ */
+export function inspectBackup(json: string): BackupFile {
   let parsed: BackupFile;
   try {
     parsed = JSON.parse(json) as BackupFile;
@@ -228,7 +235,7 @@ export async function restoreBackup(json: string): Promise<ImportResult> {
     throw new Error('That file is not readable. Nothing on this device changed.');
   }
 
-  if (!ACCEPTED_FORMATS.includes(parsed.format)) {
+  if (!parsed || typeof parsed !== 'object' || !ACCEPTED_FORMATS.includes(parsed.format)) {
     throw new Error('Not a Lift backup file.');
   }
   if (parsed.version > BACKUP_FORMAT_VERSION) {
@@ -236,6 +243,12 @@ export async function restoreBackup(json: string): Promise<ImportResult> {
       `This backup was made by a newer version of Lift (format ${parsed.version}). Update the app first.`,
     );
   }
+
+  return parsed;
+}
+
+export async function restoreBackup(json: string): Promise<ImportResult> {
+  const parsed = inspectBackup(json);
 
   // The same signal the sync client authenticates with, so "queued" means the
   // rows have somewhere to go rather than merely somewhere to sit.

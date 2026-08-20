@@ -43,6 +43,37 @@ export async function trackUpsert(table: SyncableTable, row: TrackedRow): Promis
   });
 }
 
+/**
+ * The same record, for many rows of one table at once.
+ *
+ * Bulk restores are the only caller: an import of three years of training is
+ * tens of thousands of rows, and one `INSERT` per oplog entry doubles the
+ * statement count of the whole operation for no benefit — these entries are
+ * written together, drained together, and none of them can be coalesced with
+ * anything, because each row is seen for the first time.
+ *
+ * Chunked at the same 50 the seeder and the backup restore use, which keeps the
+ * bound-parameter count comfortably under SQLite's per-statement limit.
+ */
+export async function trackUpsertMany(table: SyncableTable, rows: TrackedRow[]): Promise<void> {
+  const entries = rows.map((row) => {
+    const { syncState: _ignored, ...payload } = row;
+    return {
+      tableName: table,
+      rowId: row.id,
+      op: 'upsert' as const,
+      payload: JSON.stringify(payload),
+      updatedAt: row.updatedAt,
+    };
+  });
+
+  for (let i = 0; i < entries.length; i += OPLOG_CHUNK) {
+    await db.insert(syncOplog).values(entries.slice(i, i + OPLOG_CHUNK));
+  }
+}
+
+const OPLOG_CHUNK = 50;
+
 export async function trackDelete(
   table: SyncableTable,
   rowId: string,

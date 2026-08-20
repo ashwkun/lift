@@ -11,13 +11,22 @@ import {
   type WeightUnit,
 } from '@lift/shared';
 import { desc, eq, isNull } from 'drizzle-orm';
-import { router, Stack, useFocusEffect } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Divider, EmptyState, Screen, splitMeasure, Text } from '@/components/ui';
+import {
+  Divider,
+  EmptyState,
+  PressableScale,
+  Reveal,
+  Screen,
+  splitMeasure,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises, personalRecords } from '@/db/schema';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
@@ -34,7 +43,7 @@ export default function RecordsScreen() {
   const [grouped, setGrouped] = useState<ExerciseRecords[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
@@ -118,11 +127,13 @@ export default function RecordsScreen() {
     return (
       <Screen>
         <Stack.Screen options={{ title: 'Personal records' }} />
-        <EmptyState
-          icon="trending-up-outline"
-          title="No records yet"
-          description="A record is filed when a completed set beats your best on that exercise."
-        />
+        <Reveal>
+          <EmptyState
+            icon="trending-up-outline"
+            title="No records yet"
+            description="A record is filed when a completed set beats your best on that exercise."
+          />
+        </Reveal>
       </Screen>
     );
   }
@@ -135,75 +146,90 @@ export default function RecordsScreen() {
     <Screen>
       <Stack.Screen options={{ title: 'Personal records' }} />
 
-      {/*
-        The record is the largest thing on the row, and everything that
-        qualifies it — which record, which day — is set beneath it at caption
-        size. This used to be a label-left / value-right list row, identical in
-        weight to a settings toggle: the one screen in the app whose entire
-        contents are worth being proud of read as a table of preferences. No
-        badge and no medal either; the number is the achievement, and dressing
-        it up would say the number is not enough.
-      */}
-      <ScrollView contentContainerStyle={styles.content}>
-        {showsEstimated1rm && (
-          <Text variant="caption" color="textTertiary" style={styles.note}>
-            An estimated 1RM is calculated from a set you completed, not a max you have tested.
-          </Text>
-        )}
+      {/* Both branches above hold a bare header until the query answers, so
+          whichever one wins arrives some way into the screen's life rather than
+          with the push. The `Reveal` is what turns that into the page settling
+          instead of a page appearing. */}
+      <Reveal style={styles.flex}>
+        {/*
+          The record is the largest thing on the row, and everything that
+          qualifies it — which record, which day — is set beneath it at caption
+          size. This used to be a label-left / value-right list row, identical in
+          weight to a settings toggle: the one screen in the app whose entire
+          contents are worth being proud of read as a table of preferences. No
+          badge and no medal either; the number is the achievement, and dressing
+          it up would say the number is not enough.
+        */}
+        <ScrollView contentContainerStyle={styles.content}>
+          {showsEstimated1rm && (
+            <Text variant="caption" color="textTertiary" style={styles.note}>
+              An estimated 1RM is calculated from a set you completed, not a max you have tested.
+            </Text>
+          )}
 
-        {grouped.map((entry, index) => (
-          <View key={entry.exerciseId}>
-            {index > 0 && <Divider inset={spacing.lg} />}
+          {grouped.map((entry, index) => (
+            <View key={entry.exerciseId}>
+              {index > 0 && <Divider inset={spacing.lg} />}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${entry.exerciseName}, exercise detail`}
-              onPress={() =>
-                router.push({ pathname: '/exercise/[id]', params: { id: entry.exerciseId } })
-              }
-              style={({ pressed }) => [
-                styles.header,
-                pressed && { backgroundColor: colors.surfacePressed },
-              ]}
-            >
-              <Text variant="overline" color="textSecondary" numberOfLines={1} style={styles.flex}>
-                {entry.exerciseName}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-            </Pressable>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`${entry.exerciseName}, exercise detail`}
+                onPress={() =>
+                  router.push({ pathname: '/exercise/[id]', params: { id: entry.exerciseId } })
+                }
+                // Full-bleed, so it highlights rather than scales — the same rule
+                // `ListRow` follows. It crossfades from the canvas rather than
+                // from `surface` because this list is unboxed: the records are
+                // ruled off from each other, not carded.
+                fill={colors.background}
+                fillPressed={colors.surfacePressed}
+                scaleTo={1}
+                style={styles.header}
+              >
+                <Text
+                  variant="overline"
+                  color="textSecondary"
+                  numberOfLines={1}
+                  style={styles.flex}
+                >
+                  {entry.exerciseName}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+              </PressableScale>
 
-            <View style={styles.records}>
-              {entry.records.map((record) => {
-                const measure = formatRecord(record.kind, record.value, weightUnit, distanceUnit);
-                const [figure, unit] = splitMeasure(measure);
-                const day = record.achievedAt.toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                });
+              <View style={styles.records}>
+                {entry.records.map((record) => {
+                  const measure = formatRecord(record.kind, record.value, weightUnit, distanceUnit);
+                  const [figure, unit] = splitMeasure(measure);
+                  const day = record.achievedAt.toLocaleDateString(undefined, {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  });
 
-                return (
-                  <View
-                    key={record.kind}
-                    accessible
-                    accessibilityLabel={`${PR_KIND_LABELS[record.kind]}, ${measure}, ${day}`}
-                  >
-                    <Text variant="numericLarge" color="record" numberOfLines={1}>
-                      {figure}
-                      {unit ? (
-                        <Text variant="label" color="textTertiary">{` ${unit}`}</Text>
-                      ) : null}
-                    </Text>
-                    <Text variant="caption" color="textTertiary">
-                      {`${PR_KIND_LABELS[record.kind]} · ${day}`}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+                  return (
+                    <View
+                      key={record.kind}
+                      accessible
+                      accessibilityLabel={`${PR_KIND_LABELS[record.kind]}, ${measure}, ${day}`}
+                    >
+                      <Text variant="numericLarge" color="record" numberOfLines={1}>
+                        {figure}
+                        {unit ? (
+                          <Text variant="label" color="textTertiary">{` ${unit}`}</Text>
+                        ) : null}
+                      </Text>
+                      <Text variant="caption" color="textTertiary">
+                        {`${PR_KIND_LABELS[record.kind]} · ${day}`}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              </View>
+            ))}
+        </ScrollView>
+      </Reveal>
     </Screen>
   );
 }

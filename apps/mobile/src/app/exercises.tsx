@@ -5,6 +5,11 @@ import {
   type Equipment,
   type MuscleGroup,
 } from '@lift/shared';
+import {
+  buildTrainingIndex,
+  countExercisesPerMuscle,
+  filterExercises,
+} from '@lift/shared/exercises';
 import { asc, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
@@ -24,9 +29,10 @@ import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
 import { ExerciseRow } from '@/features/exercises/exercise-row';
+import { MuscleFilter } from '@/features/exercises/muscle-filter';
 import {
   exerciseListColumns,
-  filterExercises,
+  trainingHistoryQuery,
   type ExerciseListItem,
 } from '@/features/exercises/repository';
 import { spacing } from '@/theme';
@@ -39,8 +45,8 @@ function ListSeparator() {
 
 export default function ExercisesScreen() {
   const [search, setSearch] = useState('');
-  const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
-  const [equipment, setEquipment] = useState<Equipment | null>(null);
+  const [muscles, setMuscles] = useState<MuscleGroup[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
 
   // Live query: the list re-renders whenever the exercises table changes, so a
   // newly created custom exercise appears without any manual refetch. Only the
@@ -54,6 +60,10 @@ export default function ExercisesScreen() {
       .where(isNull(exercisesTable.deletedAt))
       .orderBy(asc(exercisesTable.name)),
   );
+
+  // What this person actually trains, which is what decides the order below.
+  const { rows: history } = useRows(trainingHistoryQuery());
+  const index = useMemo(() => buildTrainingIndex(history), [history]);
 
   /*
    * Filtering runs against the *deferred* query, not the live one.
@@ -69,66 +79,69 @@ export default function ExercisesScreen() {
   const deferredSearch = useDeferredValue(search);
 
   const visible = useMemo(
-    () => filterExercises(allExercises, { search: deferredSearch, muscle, equipment }),
-    [allExercises, deferredSearch, muscle, equipment],
+    () =>
+      filterExercises(
+        allExercises,
+        { search: deferredSearch, muscles, equipment },
+        // Browsing then opens on the lifts this person actually trains rather
+        // than on whatever the catalog files under "A".
+        index.usage,
+      ),
+    [allExercises, deferredSearch, muscles, equipment, index],
   );
 
   // Facets come from the full library rather than the filtered view, so
   // choosing a muscle doesn't cause the equipment options to vanish. Counts
-  // ride along because with ~6,800 exercises "Neck (9)" is worth knowing
-  // before you tap into it. The library total falls out of the same pass, and
-  // is the number the count line compares against.
-  const facets = useMemo(() => {
-    const muscles = new Map<MuscleGroup, number>();
-    const equipmentTypes = new Map<Equipment, number>();
-    let total = 0;
-
+  // ride along because "Kettlebell (78)" is worth knowing before you tap into
+  // it.
+  const equipmentOptions = useMemo(() => {
+    const counts = new Map<Equipment, number>();
     for (const exercise of allExercises) {
       if (exercise.isArchived) continue;
-      total += 1;
-      muscles.set(exercise.primaryMuscle, (muscles.get(exercise.primaryMuscle) ?? 0) + 1);
-      equipmentTypes.set(exercise.equipment, (equipmentTypes.get(exercise.equipment) ?? 0) + 1);
+      counts.set(exercise.equipment, (counts.get(exercise.equipment) ?? 0) + 1);
     }
-
-    return {
-      total,
-      muscles: [...muscles]
-        .map(([value, count]) => ({ value, label: MUSCLE_GROUP_LABELS[value], count }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-      equipment: [...equipmentTypes]
-        .map(([value, count]) => ({ value, label: EQUIPMENT_LABELS[value], count }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    };
+    return [...counts]
+      .map(([value, count]) => ({ value, label: EQUIPMENT_LABELS[value], count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [allExercises]);
 
-  // Named off the *deferred* search, so the count line and the list always
+  const muscleCounts = useMemo(() => countExercisesPerMuscle(allExercises), [allExercises]);
+
+  // Named off the *deferred* search, so the status line and the list always
   // describe the same set of rows.
   const criteria = useMemo(() => {
     const parts: string[] = [];
     const term = deferredSearch.trim();
     if (term.length > 0) parts.push(`"${term}"`);
-    if (muscle) parts.push(MUSCLE_GROUP_LABELS[muscle]);
-    if (equipment) parts.push(EQUIPMENT_LABELS[equipment]);
+    for (const muscle of muscles) parts.push(MUSCLE_GROUP_LABELS[muscle]);
+    for (const item of equipment) parts.push(EQUIPMENT_LABELS[item]);
     return parts;
-  }, [deferredSearch, muscle, equipment]);
+  }, [deferredSearch, muscles, equipment]);
 
   const hasFilters = criteria.length > 0;
 
   /*
-   * The count line is the only place the app confirms that a chip or a
+   * The status line is the only place the app confirms that a filter or a
    * keystroke did anything — the list below just quietly becomes shorter.
-   * Unfiltered it is inventory and stays at the quietest tier; filtered it
-   * names what it filtered on and steps up one level of contrast, because at
-   * that point it is an answer rather than a label.
+   *
+   * What it no longer says is how many exercises exist. "6,847 exercises" is
+   * the catalog's fact, not the reader's: nobody opens this screen to find out
+   * how big it is, and the number mostly announced how much scrolling stood
+   * between them and one lift. Unfiltered, the line explains the ordering
+   * instead — the one non-obvious thing about this list. Filtered, it names
+   * what it filtered on and steps up a level of contrast, because at that point
+   * it is an answer rather than a label.
    */
-  const countLine = hasFilters
-    ? [`${visible.length} of ${facets.total.toLocaleString()}`, ...criteria].join(' · ')
-    : `${facets.total.toLocaleString()} exercises`;
+  const statusLine = hasFilters
+    ? [`${visible.length} ${visible.length === 1 ? 'result' : 'results'}`, ...criteria].join(' · ')
+    : index.usage.size > 0
+      ? 'Your most-trained lifts first'
+      : null;
 
   const clearFilters = () => {
     setSearch('');
-    setMuscle(null);
-    setEquipment(null);
+    setMuscles([]);
+    setEquipment([]);
   };
 
   // Stable identity, so `ExerciseRow`'s `memo` actually holds. A fresh arrow
@@ -149,6 +162,7 @@ export default function ExercisesScreen() {
     <Screen>
       <Stack.Screen
         options={{
+          title: 'Exercises',
           headerRight: () => (
             <HeaderAction
               icon="add"
@@ -169,16 +183,11 @@ export default function ExercisesScreen() {
         />
 
         <View style={styles.filterRow}>
-          <FilterSelect
-            label="Muscle"
-            value={muscle}
-            options={facets.muscles}
-            onChange={setMuscle}
-          />
+          <MuscleFilter values={muscles} onChange={setMuscles} counts={muscleCounts} />
           <FilterSelect
             label="Equipment"
-            value={equipment}
-            options={facets.equipment}
+            values={equipment}
+            options={equipmentOptions}
             onChange={setEquipment}
           />
         </View>
@@ -189,15 +198,15 @@ export default function ExercisesScreen() {
           controls that caused the filtering. The row holds its height whether
           or not the chip is in it, so the list doesn't step down the screen
           when a filter is applied. */}
-      <View style={styles.countRow}>
-        {loaded && (
+      <View style={styles.statusRow}>
+        {loaded && statusLine !== null && (
           <Text
             variant={hasFilters ? 'label' : 'caption'}
             color={hasFilters ? 'textSecondary' : 'textTertiary'}
             numberOfLines={1}
-            style={styles.countText}
+            style={styles.statusText}
           >
-            {countLine}
+            {statusLine}
           </Text>
         )}
         {hasFilters && (
@@ -249,8 +258,8 @@ const styles = StyleSheet.create({
   },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   // A long search term truncates rather than pushing Clear off the row.
-  countText: { flexShrink: 1, marginRight: spacing.sm },
-  countRow: {
+  statusText: { flexShrink: 1, marginRight: spacing.sm },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

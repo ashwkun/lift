@@ -9,6 +9,8 @@ import { useSettings } from '@/store/settings';
 
 import { darkPalette, lightPalette, type Palette } from './tokens';
 
+export * from './color';
+export * from './motion';
 export * from './tokens';
 
 export type ColorScheme = 'light' | 'dark';

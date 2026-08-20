@@ -273,8 +273,12 @@ export async function repeatWorkout(sourceWorkoutId: string): Promise<Workout> {
  * Sentence case like every other string the app authors: these are rendered as
  * screen titles, and Title Case there would sit oddly beside the workout names
  * the user types themselves.
+ *
+ * Exported for the importer, which meets the same problem from the other end:
+ * plenty of exports carry no workout title at all, and those sessions should
+ * land in the log named the way the app names its own.
  */
-function defaultWorkoutName(date: Date): string {
+export function defaultWorkoutName(date: Date): string {
   const hour = date.getHours();
   if (hour < 12) return 'Morning workout';
   if (hour < 17) return 'Afternoon workout';

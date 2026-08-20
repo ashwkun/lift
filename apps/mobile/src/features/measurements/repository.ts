@@ -3,14 +3,16 @@
  *
  * Values are stored canonically — kilograms for bodyweight, percent for body
  * fat, centimetres for every circumference — so switching display units never
- * rewrites history.
+ * rewrites history. What each kind *is*, and the arithmetic over a series of
+ * them, lives in `@lift/shared`'s `measurements` module; this file is only the
+ * table.
  */
 
-import { uuidv7, type MeasurementKind } from '@lift/shared';
+import { uuidv7, type MeasurementKind, type MeasurementPoint } from '@lift/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { trackDelete, trackUpsert } from '@/db/mutations';
+import { trackDelete, trackUpsert, trackUpsertCoalesced } from '@/db/mutations';
 import { bodyMeasurements, type BodyMeasurement } from '@/db/schema';
 import { useSettings } from '@/store/settings';
 
@@ -49,6 +51,39 @@ export async function recordBodyweight(kg: number): Promise<BodyMeasurement> {
 }
 
 /**
+ * Corrects an entry already filed.
+ *
+ * A tape read wrong, or a weigh-in filed on the wrong day, used to be
+ * uncorrectable — the log was append-only from the UI's point of view, so the
+ * only way out was to delete the row and lose its date. The oplog entry is
+ * coalesced because editing the same reading twice before a sync is one
+ * correction, not two.
+ */
+export async function updateMeasurement(
+  id: string,
+  patch: { value?: number; measuredAt?: Date; notes?: string | null },
+): Promise<void> {
+  const updatedAt = Date.now();
+
+  const [updated] = await db
+    .update(bodyMeasurements)
+    .set({ ...patch, updatedAt, syncState: 'pending' })
+    .where(eq(bodyMeasurements.id, id))
+    .returning();
+
+  if (!updated) return;
+
+  await trackUpsertCoalesced('body_measurements', {
+    ...updated,
+    measuredAt: updated.measuredAt.getTime(),
+  });
+
+  // The edit may have moved which reading is newest, or changed the value of
+  // the one that already was.
+  if (updated.kind === 'bodyweight') await mirrorBodyweightToSettings();
+}
+
+/**
  * Copies the newest bodyweight into the settings store.
  *
  * Volume for push-ups, pull-ups and dips is computed from
@@ -78,20 +113,45 @@ export async function getMeasurementHistory(kind: MeasurementKind): Promise<Body
     .orderBy(bodyMeasurements.measuredAt);
 }
 
-/** Most recent value for each kind that has ever been recorded. */
-export async function getLatestMeasurements(): Promise<Map<MeasurementKind, BodyMeasurement>> {
+/** Every kind's history, oldest first, keyed by kind. */
+export type MeasurementLog = Map<MeasurementKind, BodyMeasurement[]>;
+
+/**
+ * The whole log in one query.
+ *
+ * The overview screen shows a figure, a delta and a sparkline for fifteen
+ * kinds. Fetching that per kind is fifteen round trips to open one screen, and
+ * this replaces a query that returned only each kind's newest row — which is
+ * why the trend used to be hidden behind a tap. The table is small (one row per
+ * reading per kind, so hundreds after years of use), so reading it whole and
+ * grouping in memory is both simpler and faster than any arrangement of
+ * per-kind queries.
+ */
+export async function getMeasurementLog(): Promise<MeasurementLog> {
   const rows = await db
     .select()
     .from(bodyMeasurements)
     .where(isNull(bodyMeasurements.deletedAt))
-    .orderBy(desc(bodyMeasurements.measuredAt));
+    .orderBy(bodyMeasurements.measuredAt);
 
-  const latest = new Map<MeasurementKind, BodyMeasurement>();
-  // Rows arrive newest-first, so the first sighting of a kind is its latest.
+  const log: MeasurementLog = new Map();
   for (const row of rows) {
-    if (!latest.has(row.kind)) latest.set(row.kind, row);
+    const existing = log.get(row.kind);
+    if (existing) existing.push(row);
+    else log.set(row.kind, [row]);
   }
-  return latest;
+  return log;
+}
+
+/**
+ * Database rows in the shape the shared series maths takes.
+ *
+ * That module is deliberately ignorant of Drizzle and of `Date`, so the
+ * conversion happens once here rather than inline at every call site that wants
+ * a trend.
+ */
+export function toMeasurementPoints(rows: readonly BodyMeasurement[]): MeasurementPoint[] {
+  return rows.map((row) => ({ at: row.measuredAt.getTime(), value: row.value }));
 }
 
 export async function deleteMeasurement(id: string): Promise<void> {

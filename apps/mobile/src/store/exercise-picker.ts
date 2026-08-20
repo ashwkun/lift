@@ -35,8 +35,17 @@ interface ExercisePickerState {
   requestedBy: PickerRequester | null;
   /** Ids awaiting collection, in the order the user tapped them. */
   pending: string[];
+  /**
+   * What the opener already has on its list.
+   *
+   * The picker suggests from this and hides what is already there. It travels
+   * on the same channel as the answer rather than as a route param: the ids of
+   * a full session would be hundreds of characters of href, re-serialised on
+   * every navigation, and the picker still learns nothing about *who* sent them.
+   */
+  context: string[];
   /** Called by the opener immediately before it navigates to the picker. */
-  open: (requestedBy: PickerRequester) => void;
+  open: (requestedBy: PickerRequester, context?: readonly string[]) => void;
   /** Called by the picker just before it dismisses. */
   submit: (ids: string[]) => void;
   /** Called by the addressee once it has written the rows. */
@@ -48,14 +57,19 @@ const NO_IDS: string[] = [];
 export const useExercisePicker = create<ExercisePickerState>((set) => ({
   requestedBy: null,
   pending: [],
+  context: NO_IDS,
   // Opening also drops anything uncollected. A previous delivery can only still
   // be sitting here if its addressee was unmounted before it read the channel,
   // and handing those ids to the next opener would be the exact misdelivery the
   // addressee exists to prevent.
-  open: (requestedBy) => set({ requestedBy, pending: [] }),
+  open: (requestedBy, context) => set({ requestedBy, pending: [], context: [...(context ?? [])] }),
   submit: (ids) => set({ pending: ids }),
   clear: (requestedBy) =>
-    set((state) => (state.requestedBy === requestedBy ? { requestedBy: null, pending: [] } : state)),
+    set((state) =>
+      state.requestedBy === requestedBy
+        ? { requestedBy: null, pending: [], context: NO_IDS }
+        : state,
+    ),
 }));
 
 /**

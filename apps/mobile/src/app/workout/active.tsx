@@ -669,7 +669,10 @@ export default function ActiveWorkoutScreen() {
                 }}
                 onReplaceExercise={() => {
                   replacingLinkId.current = detail.workoutExercise.id;
-                  openPicker(PICKER_ADDRESS);
+                  openPicker(
+                    PICKER_ADDRESS,
+                    details.map((entry) => entry.exercise.id),
+                  );
                   router.push('/exercise/picker');
                 }}
                 onEditNotes={(seed) => {
@@ -704,7 +707,13 @@ export default function ActiveWorkoutScreen() {
               // and the next trip would silently swap an exercise instead of
               // adding one. Opening the picker plainly cancels it.
               replacingLinkId.current = null;
-              openPicker(PICKER_ADDRESS);
+              // What is already on the list travels with the request, so the
+              // picker can offer what usually goes with it — and leave out what
+              // is already there.
+              openPicker(
+                PICKER_ADDRESS,
+                details.map((entry) => entry.exercise.id),
+              );
               router.push('/exercise/picker');
             }}
           />

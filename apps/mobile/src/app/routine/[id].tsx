@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { fromDisplayWeight, toDisplayWeight } from '@lift/shared';
 import { and, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -31,6 +31,7 @@ import {
 } from '@/features/routines/repository';
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
@@ -84,7 +85,7 @@ export default function RoutineEditorScreen() {
   // when the editor was first opened; running it on focus also keeps the
   // setState off the render path, where it forces a second pass before the
   // first frame.
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       void reload();
     }, [reload]),
@@ -311,7 +312,12 @@ export default function RoutineEditorScreen() {
             icon="add"
             fullWidth
             onPress={() => {
-              openPicker(pickerAddress);
+              // The routine's current exercises travel with the request, so the
+              // picker suggests what usually trains alongside them.
+              openPicker(
+                pickerAddress,
+                detail.exercises.map((entry) => entry.exercise.id),
+              );
               router.push('/exercise/picker');
             }}
           />

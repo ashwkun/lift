@@ -23,7 +23,7 @@ import {
   type RestKind,
   type RestSnapshot,
 } from '@/store/timer';
-import { radius, spacing, useColors, type Palette } from '@/theme';
+import { radius, spacing, stroke, useColors, type Palette } from '@/theme';
 
 /** Below this the readout turns amber — the "get back under the bar" window. */
 const WARNING_SECONDS = 10;
@@ -376,8 +376,10 @@ export function RestTimerBar({ targetSeconds, onEditRest }: RestTimerBarProps) {
               </Text>
             </Pressable>
 
-            {/* `numericLarge` is tabular, so the digits don't jitter as the seconds
-                roll over — at this size a shifting colon is very hard to ignore. */}
+            {/* `numericLarge` asks for tabular figures so the digits don't jitter
+                as the seconds roll over — at this size a shifting colon is very
+                hard to ignore, which makes this the screen where a family
+                without them shows up worst. */}
             <Text
               variant="numericLarge"
               style={[styles.readout, { color: frame.tone }]}
@@ -510,7 +512,7 @@ const styles = StyleSheet.create({
     right: 0,
     overflow: 'hidden',
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: stroke.outline,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,

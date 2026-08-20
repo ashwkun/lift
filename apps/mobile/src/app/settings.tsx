@@ -3,11 +3,18 @@ import {
   MEASUREMENT_UNITS,
   ONE_REP_MAX_FORMULAS,
   ONE_REP_MAX_FORMULA_LABELS,
+  SEXES,
+  SEX_LABELS,
   THEME_PREFERENCES,
   WEIGHT_UNITS,
   formatDurationShort,
+  formatMeasurement,
   formatWeight,
+  fromDisplayMeasurement,
   fromDisplayWeight,
+  toDisplayMeasurement,
+  trimZeros,
+  type Sex,
 } from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
@@ -20,14 +27,32 @@ import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
 const REST_PRESETS = [60, 90, 120, 150, 180, 240];
 
+/**
+ * Sunday and Monday only.
+ *
+ * These are the two the world actually splits on, and `firstDayOfWeek` is typed
+ * to match. A Saturday start exists in parts of the Middle East and North
+ * Africa; it is not offered here because nothing else in the app — the weekly
+ * streak, the history buckets — would honour it, and a preference that only
+ * half the screens obey is worse than one that isn't offered.
+ */
+const FIRST_DAY_OPTIONS: { value: 0 | 1; label: string }[] = [
+  { value: 1, label: 'Monday' },
+  { value: 0, label: 'Sunday' },
+];
+
 const THEME_LABELS: Record<(typeof THEME_PREFERENCES)[number], string> = {
   system: 'System',
   light: 'Light',
   dark: 'Dark',
 };
 
-/** The two numbers on this screen that are typed rather than chosen. */
-type NumberField = 'bodyweight' | 'barWeight';
+/** The numbers on this screen that are typed rather than chosen. */
+type NumberField = 'bodyweight' | 'barWeight' | 'height';
+
+/** `null` is a real choice here, so it needs a value the chip row can hold. */
+const UNSET = 'unset';
+type SexChoice = Sex | typeof UNSET;
 
 export default function SettingsScreen() {
   const settings = useSettings();
@@ -36,17 +61,28 @@ export default function SettingsScreen() {
   const [editing, setEditing] = useState<NumberField | null>(null);
 
   const weightUnit = settings.weightUnit;
+  const measurementUnit = settings.measurementUnit;
   const asField = (kg: number) => formatWeight(kg, weightUnit, { withUnit: false });
 
   const prompt =
     editing === 'bodyweight'
       ? {
           title: 'Bodyweight',
+          unit: weightUnit,
           initialValue: settings.bodyweightKg == null ? '' : asField(settings.bodyweightKg),
         }
       : editing === 'barWeight'
-        ? { title: 'Bar weight', initialValue: asField(settings.barWeightKg) }
-        : null;
+        ? { title: 'Bar weight', unit: weightUnit, initialValue: asField(settings.barWeightKg) }
+        : editing === 'height'
+          ? {
+              title: 'Height',
+              unit: measurementUnit,
+              initialValue:
+                settings.heightCm == null
+                  ? ''
+                  : trimZeros(toDisplayMeasurement(settings.heightCm, measurementUnit).toFixed(1)),
+            }
+          : null;
 
   const restOff = !settings.restTimerEnabled;
 
@@ -88,6 +124,15 @@ export default function SettingsScreen() {
             options={THEME_PREFERENCES.map((value) => ({ value, label: THEME_LABELS[value] }))}
             selected={settings.themePreference}
             onSelect={(value) => update('themePreference', value)}
+          />
+          {/* Which column the calendar's grid opens on. Stored as a number
+              because that is what `Date.getDay()` returns and what the grid
+              rotates by; the two labels are the only forms a user ever sees. */}
+          <ChoiceRow
+            label="Week starts on"
+            options={FIRST_DAY_OPTIONS}
+            selected={settings.firstDayOfWeek}
+            onSelect={(value) => update('firstDayOfWeek', value)}
           />
         </Card>
 
@@ -171,11 +216,36 @@ export default function SettingsScreen() {
             hint="Opens a field to enter your bodyweight."
             onPress={() => setEditing('bodyweight')}
           />
+          <ValueRow
+            label="Height"
+            value={
+              settings.heightCm == null
+                ? 'Not set'
+                : formatMeasurement(settings.heightCm, measurementUnit)
+            }
+            hint="Opens a field to enter your height."
+            onPress={() => setEditing('height')}
+          />
+          <ChoiceRow
+            label="Sex"
+            options={[
+              ...SEXES.map((value) => ({ value: value as SexChoice, label: SEX_LABELS[value] })),
+              { value: UNSET as SexChoice, label: 'Not set' },
+            ]}
+            selected={settings.sex ?? UNSET}
+            onSelect={(value) => update('sex', value === UNSET ? null : value)}
+          />
         </Card>
         <Text variant="caption" color="textTertiary" style={styles.hint}>
           Push-ups, pull-ups and dips are valued at your bodyweight. Without it they count as zero
           volume. Logging a bodyweight under Measurements sets this too, and entering it here files
           it there.
+        </Text>
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          Height and sex are read by two estimates on the measurements screen and nothing else: BMI
+          and waist-to-height need the height, and the body-fat estimate is a regression fitted
+          separately for each sex. Leave either blank and only those figures go quiet. Both stay on
+          this device unless you turn on sync.
         </Text>
 
         <SectionHeader title="Calculations" />
@@ -211,7 +281,7 @@ export default function SettingsScreen() {
       <PromptModal
         visible={prompt !== null}
         title={prompt?.title ?? ''}
-        message={`Entered in ${weightUnit}`}
+        message={prompt ? `Entered in ${prompt.unit}` : undefined}
         initialValue={prompt?.initialValue ?? ''}
         placeholder="0"
         confirmLabel="Save"
@@ -223,6 +293,12 @@ export default function SettingsScreen() {
 
           const parsed = Number(raw.replace(',', '.'));
           if (!Number.isFinite(parsed) || parsed <= 0) return;
+
+          if (field === 'height') {
+            update('heightCm', fromDisplayMeasurement(parsed, measurementUnit));
+            return;
+          }
+
           const kg = fromDisplayWeight(parsed, weightUnit);
 
           if (field === 'barWeight') {

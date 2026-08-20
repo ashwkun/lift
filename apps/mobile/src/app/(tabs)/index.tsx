@@ -1,5 +1,5 @@
 import { formatDurationShort, formatVolume } from '@lift/shared';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import {
   Card,
   Divider,
   ListRow,
+  Reveal,
   Screen,
   SectionHeader,
   splitMeasure,
@@ -26,6 +27,7 @@ import {
 } from '@/features/analytics/repository';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
 import { spacing } from '@/theme';
 
@@ -51,7 +53,7 @@ export default function HomeScreen() {
   // Aggregates are recomputed on focus rather than live — they only change when
   // a workout is finished, and re-running them on every set write would be
   // wasteful.
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
@@ -113,45 +115,62 @@ export default function HomeScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         {/*
-         * One block where there were two.
+         * Four blocks, revealed in the order they are read.
          *
-         * This screen used to open with a row of three tiles — streak,
-         * workouts, active days — and then, immediately below, a card headed
-         * "This week" carrying workouts and volume. Two stat blocks stacked,
-         * with "workouts" appearing in both at two different scopes and no
-         * indication of which was which. Home now answers exactly one
-         * question — how is this week going — and the lifetime totals live on
-         * Profile, where "lifetime" is the whole point.
+         * Everything below this point is gated on `stats`, so none of it exists
+         * until the aggregates land — and they now land deliberately late, held
+         * behind the tab transition by `useDeferredFocusEffect`. Without the
+         * `Reveal`s that arrival is a pop: an empty canvas one frame, a full
+         * dashboard the next. With them it is the screen resolving, which is
+         * the same delay described honestly.
          *
-         * The figure is plain text and the kicker above it carries the accent,
-         * which is the opposite of the obvious pairing. In the light palette
-         * the accent is a dark olive chosen to be legible as text, so accenting
-         * the 40px number made the loudest thing on the screen quieter than the
-         * label under it. Colouring the small word instead holds in both
-         * schemes with no branching on the colour scheme — do not swap these
-         * back.
+         * The stagger is per *block*, not per element. The masthead and the
+         * band are one thought — this week, in a word and then in figures — so
+         * they arrive together; each chart is its own, and the recent list is
+         * last because it is the one thing here you can act on.
          */}
-        <View style={styles.masthead}>
-          <Text variant="overline" color="accent">
-            Volume this week
-          </Text>
-          <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
-            {weekVolume}
-            {weekVolumeUnit ? (
-              <Text variant="subheading" color="textTertiary">
-                {` ${weekVolumeUnit}`}
-              </Text>
-            ) : null}
-          </Text>
-        </View>
+        <Reveal index={0}>
+          {/*
+           * One block where there were two.
+           *
+           * This screen used to open with a row of three tiles — streak,
+           * workouts, active days — and then, immediately below, a card headed
+           * "This week" carrying workouts and volume. Two stat blocks stacked,
+           * with "workouts" appearing in both at two different scopes and no
+           * indication of which was which. Home now answers exactly one
+           * question — how is this week going — and the lifetime totals live on
+           * Profile, where "lifetime" is the whole point.
+           *
+           * The figure is plain text and the kicker above it carries the accent,
+           * which is the opposite of the obvious pairing. In the light palette
+           * the accent is a dark olive chosen to be legible as text, so
+           * accenting the 40px number made the loudest thing on the screen
+           * quieter than the label under it. Colouring the small word instead
+           * holds in both schemes with no branching on the colour scheme — do
+           * not swap these back.
+           */}
+          <View style={styles.masthead}>
+            <Text variant="overline" color="accent">
+              Volume this week
+            </Text>
+            <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
+              {weekVolume}
+              {weekVolumeUnit ? (
+                <Text variant="subheading" color="textTertiary">
+                  {` ${weekVolumeUnit}`}
+                </Text>
+              ) : null}
+            </Text>
+          </View>
 
-        <StatBand
-          style={styles.band}
-          items={[
-            { label: 'Sessions', value: String(stats.thisWeekWorkouts) },
-            { label: 'Week streak', value: String(stats.weekStreak) },
-          ]}
-        />
+          <StatBand
+            style={styles.band}
+            items={[
+              { label: 'Sessions', value: String(stats.thisWeekWorkouts) },
+              { label: 'Week streak', value: String(stats.weekStreak) },
+            ]}
+          />
+        </Reveal>
 
         {/*
          * The charts are not boxed.
@@ -163,25 +182,29 @@ export default function HomeScreen() {
          * states a rule you can say out loud: boxed means you can touch it. The
          * recent-workouts list below keeps its Card because its rows are taps.
          */}
-        <SectionHeader title="Volume · last 12 weeks" />
-        <View style={styles.chart}>
-          <LineChart
-            data={volumeData}
-            width={chartWidth}
-            formatValue={(value) => formatVolume(value, weightUnit).replace(` ${weightUnit}`, '')}
-            formatLabel={(x) =>
-              new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-            }
-          />
-        </View>
+        <Reveal index={1}>
+          <SectionHeader title="Volume · last 12 weeks" />
+          <View style={styles.chart}>
+            <LineChart
+              data={volumeData}
+              width={chartWidth}
+              formatValue={(value) => formatVolume(value, weightUnit).replace(` ${weightUnit}`, '')}
+              formatLabel={(x) =>
+                new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+              }
+            />
+          </View>
+        </Reveal>
 
-        <SectionHeader title="Sets by body part · 30 days" />
-        <View style={styles.chart}>
-          <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
-        </View>
+        <Reveal index={2}>
+          <SectionHeader title="Sets by body part · 30 days" />
+          <View style={styles.chart}>
+            <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
+          </View>
+        </Reveal>
 
         {recent.length > 0 ? (
-          <>
+          <Reveal index={3}>
             <SectionHeader
               title="Recent workouts"
               action={
@@ -189,7 +212,7 @@ export default function HomeScreen() {
                   title="History"
                   variant="ghost"
                   size="sm"
-                  onPress={() => router.push('/(tabs)/history')}
+                  onPress={() => router.push('/history')}
                 />
               }
             />
@@ -209,7 +232,7 @@ export default function HomeScreen() {
                 </View>
               ))}
             </Card>
-          </>
+          </Reveal>
         ) : null}
       </ScrollView>
     </Screen>

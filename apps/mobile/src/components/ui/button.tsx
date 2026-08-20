@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   View,
   type PressableProps,
@@ -14,10 +13,12 @@ import {
   fontSize,
   radius,
   spacing,
+  stroke,
   useColors,
   type Palette,
 } from '@/theme';
 
+import { PressableScale } from './motion';
 import { Text } from './text';
 
 export type ButtonVariant =
@@ -133,19 +134,25 @@ export function Button({
   const isDisabled = disabled || loading;
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
-      style={({ pressed }) => [
+      // The fill crossfade and the scale are one gesture read two ways: colour
+      // says the control acknowledged the touch, size says it moved under it.
+      // Neither can fire while disabled — the press handlers are not wired at
+      // all then — so the 40% in `styles.disabled` is the whole story there.
+      fill={bg}
+      fillPressed={bgPressed}
+      style={[
         styles.base,
         {
           height: dimensions.height,
           paddingHorizontal: dimensions.paddingHorizontal,
           borderRadius: dimensions.radius,
-          backgroundColor: pressed ? bgPressed : bg,
+          backgroundColor: bg,
           borderColor: border ?? 'transparent',
-          borderWidth: border ? StyleSheet.hairlineWidth : 0,
+          borderWidth: border ? stroke.outline : 0,
         },
         fullWidth && styles.fullWidth,
         isDisabled && styles.disabled,
@@ -178,7 +185,7 @@ export function Button({
           <ActivityIndicator color={fg} size="small" />
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

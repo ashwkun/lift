@@ -7,7 +7,7 @@ import {
   SET_TYPE_BADGE,
 } from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
-import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -32,6 +32,7 @@ import {
   type WorkoutDetail,
 } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
 import { spacing, useColors } from '@/theme';
 
@@ -69,7 +70,7 @@ export default function WorkoutDetailScreen() {
   // live query, so a mount-only read would go on showing whatever storage held
   // when it was first opened; running it on focus also keeps the setState off
   // the render path, where it forces a second pass before the first frame.
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       void reload();
     }, [reload]),

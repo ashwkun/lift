@@ -236,8 +236,8 @@ export function ExerciseBlock({
            being retyped from memory. Dimmer than a note written today, and it
            stays a quotation until the user accepts it: tapping seeds the editor
            rather than writing it onto this session behind their back. Upright,
-           not italic; only the four upright Inter statics are loaded, so an
-           italic style would synthesise or fall back. */
+           not italic; only upright cuts are loaded, so an italic
+           style would synthesise or fall back. */
         <Pressable
           onPress={() => onEditNotes(previousNote)}
           style={({ pressed }) => [styles.notes, pressed && styles.pressed]}

@@ -12,6 +12,7 @@ import {
   type DistanceUnit,
   type MeasurementUnit,
   type OneRepMaxFormula,
+  type Sex,
   type ThemePreference,
   type TrackingType,
   type WeightUnit,
@@ -44,7 +45,13 @@ export interface Settings {
   oneRepMaxFormula: OneRepMaxFormula;
   /** Default barbell weight for the plate calculator, in kg. */
   barWeightKg: number;
-  /** 0 = Sunday, 1 = Monday. Affects the calendar and weekly stats. */
+  /**
+   * 0 = Sunday, 1 = Monday. Which column the calendar's grid starts on.
+   *
+   * The weekly streak and the history buckets are Monday-based regardless —
+   * see `weekKey` in `@lift/shared` — so this is deliberately described to the
+   * user as a calendar setting and nothing more.
+   */
   firstDayOfWeek: 0 | 1;
 
   /**
@@ -53,6 +60,18 @@ export interface Settings {
    * Measurements rather than being a second number the user has to maintain.
    */
   bodyweightKg: number | null;
+
+  /**
+   * Height in centimetres, and the sex the body-fat regression is fitted for.
+   *
+   * Both exist for the derived figures on the measurements screen — BMI and
+   * waist-to-height need the height, the US Navy body-fat estimate needs both —
+   * and for nothing else. Null is a supported state throughout: leaving either
+   * blank costs only the estimates that depend on it, so neither is ever asked
+   * for as a condition of logging a measurement.
+   */
+  heightCm: number | null;
+  sex: Sex | null;
 
   /** Prompts the routine to update when sets change mid-workout. */
   promptRoutineUpdate: boolean;
@@ -78,6 +97,8 @@ export const DEFAULT_SETTINGS: Settings = {
   firstDayOfWeek: 1,
 
   bodyweightKg: null,
+  heightCm: null,
+  sex: null,
 
   promptRoutineUpdate: true,
 };
@@ -199,6 +220,8 @@ async function persist(state: Settings): Promise<void> {
     barWeightKg: state.barWeightKg,
     firstDayOfWeek: state.firstDayOfWeek,
     bodyweightKg: state.bodyweightKg,
+    heightCm: state.heightCm,
+    sex: state.sex,
     promptRoutineUpdate: state.promptRoutineUpdate,
   };
 

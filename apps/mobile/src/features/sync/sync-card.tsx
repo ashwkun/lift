@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Card, IconButton, Text } from '@/components/ui';
+import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSync, type SyncStatus } from '@/store/sync';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -36,7 +37,7 @@ export function SyncCard() {
   // after its first visit, and the only other writer of these counts is a
   // finished sync run — so a card that read them once went on saying "All
   // changes synced" over a session logged two taps away.
-  useFocusEffect(
+  useDeferredFocusEffect(
     useCallback(() => {
       void refreshPending();
     }, [refreshPending]),

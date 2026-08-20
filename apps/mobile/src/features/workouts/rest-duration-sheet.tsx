@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
 
 import { Button, Text } from '@/components/ui';
-import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, radius, spacing, stroke, useColors } from '@/theme';
 
 /** Common working ranges: short for isolation, long for heavy compounds. */
 const PRESETS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
@@ -173,17 +173,20 @@ export function RestDurationSheet({
                   accessibilityRole="button"
                   accessibilityLabel={`${spokenDuration(preset)} rest`}
                   accessibilityState={{ selected }}
-                  style={({ pressed }) => [
-                    styles.preset,
-                    {
-                      backgroundColor: selected
-                        ? colors.accentSurface
-                        : pressed
-                          ? colors.surfacePressed
-                          : colors.surfaceMuted,
-                      borderColor: selected ? colors.accent : 'transparent',
-                    },
-                  ]}
+                  style={({ pressed }) => {
+                    const fill = selected
+                      ? colors.accentSurface
+                      : pressed
+                        ? colors.surfacePressed
+                        : colors.surfaceMuted;
+
+                    // Unselected, the outline is the fill rather than
+                    // transparent — same reasoning as `Chip`.
+                    return [
+                      styles.preset,
+                      { backgroundColor: fill, borderColor: selected ? colors.accent : fill },
+                    ];
+                  }}
                 >
                   <Text
                     variant="label"
@@ -320,7 +323,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: stroke.outline,
   },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },

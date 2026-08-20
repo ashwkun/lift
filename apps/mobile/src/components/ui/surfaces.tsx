@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import {
-  Pressable,
   StyleSheet,
   View,
   type AccessibilityActionEvent,
@@ -16,16 +15,22 @@ import {
   fontSize,
   HIT_SLOP,
   MIN_TOUCH_SIZE,
+  PRESS_SCALE_SMALL,
   radius,
   spacing,
+  stroke,
   useColors,
   type Palette,
 } from '@/theme';
 
+import { PressableScale } from './motion';
 import { Text } from './text';
 
 /** Role colours that a tinted surface can be built from. */
 export type Tone = 'accent' | 'success' | 'warning' | 'danger' | 'record' | 'neutral';
+
+/** How far a control with no fill of its own fades under the thumb. */
+const PRESSED_OPACITY = 0.6;
 
 /**
  * Maps a tone to its foreground and its tinted background.
@@ -66,27 +71,26 @@ export interface CardProps extends ViewProps {
 export function Card({ padded = true, elevated = false, onPress, style, ...rest }: CardProps) {
   const colors = useColors();
 
-  const base: ViewStyle = {
-    backgroundColor: elevated ? colors.surfaceElevated : colors.surface,
-    borderColor: colors.border,
-  };
+  const surface = elevated ? colors.surfaceElevated : colors.surface;
+  const base: ViewStyle = { backgroundColor: surface, borderColor: colors.border };
 
   // A tappable card gets a real pressed surface rather than a dimmed one. On
   // AMOLED a card is already close to the canvas, so dropping its opacity moves
   // it *towards* the background — the press reads as the card disappearing.
+  //
+  // The fill crossfades and the card takes a small step back under the thumb,
+  // both on the UI thread. A card is a discrete object sitting on the canvas
+  // with margin on every side, so it is exactly the shape that can afford to
+  // scale — see `PRESS_SCALE`.
   if (onPress) {
     return (
-      <Pressable
+      <PressableScale
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [
-          styles.card,
-          base,
-          pressed && { backgroundColor: colors.surfacePressed },
-          padded && styles.cardPadded,
-          style,
-        ]}
-        {...(rest as PressableProps)}
+        fill={surface}
+        fillPressed={colors.surfacePressed}
+        style={[styles.card, base, padded && styles.cardPadded, style]}
+        {...(rest as Omit<PressableProps, 'style'>)}
       />
     );
   }
@@ -119,28 +123,38 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
   const colors = useColors();
   const fg = selected ? colors.accent : colors.textSecondary;
 
+  // A selected chip is already carrying the accent, so it has nowhere quieter
+  // to step to on press and holds its fill; an unselected one steps to the
+  // pressed surface. Both scale, which is what keeps the two reading as one
+  // control in two states rather than one live chip beside a dead one.
+  const fill = selected ? colors.accentSurface : colors.surfaceMuted;
+  const fillPressed = selected ? fill : colors.surfacePressed;
+
+  // Unselected, the outline is the fill rather than `transparent`: the border
+  // is always drawn, so the chip keeps one width, and a transparent stroke
+  // around a pill leaves a seam where the border path meets the background
+  // path. See `stroke` in the tokens. It follows the fill through the press
+  // for the same reason — an outline left behind at the resting colour is a
+  // ring around a pressed centre, which is that seam by another route.
+  const border = selected ? colors.accent : fill;
+  const borderPressed = selected ? border : fillPressed;
+
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={({ pressed }) => [
-        styles.chip,
-        {
-          backgroundColor: selected
-            ? colors.accentSurface
-            : pressed
-              ? colors.surfacePressed
-              : colors.surfaceMuted,
-          borderColor: selected ? colors.accent : 'transparent',
-        },
-      ]}
+      fill={fill}
+      fillPressed={fillPressed}
+      border={border}
+      borderPressed={borderPressed}
+      style={[styles.chip, { backgroundColor: fill, borderColor: border }]}
       {...rest}
     >
       {icon && <Ionicons name={icon} size={14} color={fg} />}
       <Text variant="label" style={{ color: fg }}>
         {label}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -194,22 +208,24 @@ export function IconButton({
   const colors = useColors();
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       hitSlop={HIT_SLOP}
-      style={({ pressed }) => [
-        styles.iconButton,
-        filled && { backgroundColor: colors.surfaceMuted },
-        // Unfilled icon buttons have no background to darken, so they keep the
-        // opacity dip; filled ones step to the pressed surface like everything
-        // else that has a fill.
-        pressed && (filled ? { backgroundColor: colors.surfacePressed } : styles.pressed),
-        style,
-      ]}
+      // Unfilled icon buttons have no background to darken, so they keep the
+      // opacity dip; filled ones crossfade to the pressed surface like
+      // everything else that has a fill.
+      fill={filled ? colors.surfaceMuted : undefined}
+      fillPressed={filled ? colors.surfacePressed : undefined}
+      dimTo={filled ? 1 : PRESSED_OPACITY}
+      // A deeper press than the shared scale. These are the smallest targets in
+      // the app — a bare 22pt glyph in a 44pt circle — and 3% of that is a
+      // couple of pixels, which is not a response anyone can see.
+      scaleTo={PRESS_SCALE_SMALL}
+      style={[styles.iconButton, filled && { backgroundColor: colors.surfaceMuted }, style]}
       {...rest}
     >
       <Ionicons name={name} size={size} color={color ?? colors.textSecondary} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -338,6 +354,11 @@ export interface ListRowProps {
  * The standard tappable row: optional leading icon, title over subtitle, and a
  * trailing chevron. Settings rows, recent workouts and routine entries were
  * three separate hand-rolled versions of this with three different paddings.
+ *
+ * The press highlight crossfades from `surface`, which assumes what every call
+ * site in the app already does: rows live inside a plain `Card`. A row dropped
+ * straight onto the canvas would crossfade from the wrong colour — put it in a
+ * card, which is also the only way its dividers and corners come out right.
  */
 export function ListRow({
   title,
@@ -354,16 +375,19 @@ export function ListRow({
   const { fg, bg } = toneColors(colors, tone);
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
       disabled={!onPress}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.listRow,
-        pressed && onPress ? { backgroundColor: colors.surfacePressed } : null,
-      ]}
+      fill={colors.surface}
+      fillPressed={onPress ? colors.surfacePressed : colors.surface}
+      // No scale. A row runs the full width of its card, so shrinking it pulls
+      // both edges off the margin at once and reads as the row lifting away
+      // from the page rather than being pressed into it. See `PRESS_SCALE`.
+      scaleTo={1}
+      style={styles.listRow}
     >
       {icon && (
         <View
@@ -391,7 +415,7 @@ export function ListRow({
         (showChevron && onPress ? (
           <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
         ) : null)}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -455,11 +479,14 @@ export function SectionHeader({ title, action }: { title: string; action?: React
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    // `outline`, not `rule`: the corners are rounded, and the card is the
+    // shape this app draws most often, so a stepped 14pt corner is the most
+    // repeated artefact on screen even though its border colour is quiet.
+    borderWidth: stroke.outline,
     overflow: 'hidden',
   },
   cardPadded: { padding: spacing.lg },
-  divider: { height: StyleSheet.hairlineWidth },
+  divider: { height: stroke.rule },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -467,7 +494,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: stroke.outline,
   },
   badge: {
     flexDirection: 'row',
@@ -478,7 +505,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
   },
-  badgeLabel: { fontWeight: '600' },
+  // Both halves of the weight, not a bare `fontWeight` — that alone would bold
+  // the badge on iOS and leave it regular on Android, which is where the family
+  // decides the weight.
+  badgeLabel: font('semibold'),
   iconButton: {
     minWidth: MIN_TOUCH_SIZE,
     minHeight: MIN_TOUCH_SIZE,
@@ -486,23 +516,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  pressed: { opacity: 0.6 },
   statBand: {
     flexDirection: 'row',
     alignItems: 'stretch',
     paddingVertical: spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: stroke.rule,
+    borderBottomWidth: stroke.rule,
   },
   // Equal columns, with the first flush to the screen margin so the band sits
   // on the same grid as the section headers above and below it.
   statColumn: { flex: 1, gap: spacing.xs, paddingRight: spacing.lg },
   statColumnInner: { paddingLeft: spacing.lg },
-  statRule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
+  statRule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: stroke.rule },
   statValue: {
     ...font('bold'),
+    // A row of figures read across is the case this exists for: without it the
+    // columns set to different widths as the numbers change.
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.8,
+    // See the tracking note above `VARIANTS` in `ui/text.tsx`.
+    letterSpacing: -0.4,
   },
   statUnit: {
     fontSize: fontSize.sm,

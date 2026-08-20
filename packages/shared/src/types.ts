@@ -64,6 +64,16 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
 export const BODY_PARTS = ['chest', 'back', 'shoulders', 'arms', 'core', 'legs', 'other'] as const;
 export type BodyPart = (typeof BODY_PARTS)[number];
 
+export const BODY_PART_LABELS: Record<BodyPart, string> = {
+  chest: 'Chest',
+  back: 'Back',
+  shoulders: 'Shoulders',
+  arms: 'Arms',
+  core: 'Core',
+  legs: 'Legs',
+  other: 'Other',
+};
+
 export const MUSCLE_TO_BODY_PART: Record<MuscleGroup, BodyPart> = {
   chest: 'chest',
   lats: 'back',

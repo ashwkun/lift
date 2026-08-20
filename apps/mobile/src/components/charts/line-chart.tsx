@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import { PanResponder, StyleSheet, View } from 'react-native';
+import { LineChart as GiftedLineChart, type lineDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { spacing, useColors } from '@/theme';
+import { font, fontSize, spacing, stroke, useColors } from '@/theme';
 
 export interface DataPoint {
   /** Epoch ms, or any monotonic numeric axis. */
@@ -22,16 +22,47 @@ export interface LineChartProps {
   /** Fills the area under the line with a fading gradient. */
   filled?: boolean;
   showDots?: boolean;
+  /**
+   * A second series drawn dashed and quiet behind the first — a smoothed trend
+   * against the raw readings it was computed from. Scaled against the same
+   * domain as `data`, so the two only line up if they describe the same thing.
+   */
+  overlay?: DataPoint[];
+  /**
+   * Turns the plot into a readout: dragging across it reports the nearest
+   * reading, and releasing reports null. The caller renders the value — only it
+   * knows the unit and the date format — and passes the point back as
+   * `highlight` so this can mark it.
+   */
+  onScrub?: (point: DataPoint | null) => void;
+  highlight?: DataPoint | null;
 }
 
-const PADDING = { top: 12, right: 8, bottom: 22, left: 44 };
+/** The gutter the y-axis labels sit in, and the strip the x labels sit under. */
+const Y_AXIS_WIDTH = spacing.xxl + spacing.xl;
+const X_AXIS_HEIGHT = spacing.xl;
 
 /**
- * Minimal time-series line chart.
+ * Slack above the top rule. A reading on the maximum lands exactly on that
+ * rule, and gifted-charts draws the plot inside a scroll view that clips it, so
+ * without this the top half of that dot is shaved off.
+ */
+const TOP_OVERFLOW = spacing.md;
+
+const DOT_RADIUS = 3;
+const MARKER_RADIUS = 5;
+
+/** Past this many readings the dots merge into a caterpillar and are dropped. */
+const MAX_DOTS = 40;
+
+/**
+ * Minimal time-series line chart, drawn by react-native-gifted-charts.
  *
- * Hand-rolled on react-native-svg rather than pulling in a charting library:
- * the app needs exactly this one shape, and the alternatives either bundle Skia
- * (heavy) or impose their own theming.
+ * The library plots by *index*, and always measures its y-axis from zero. Both
+ * are worked around here rather than lived with: the series is sorted and each
+ * value is shifted down by the domain minimum, with `maxValue` set to the span,
+ * which makes the plot cover exactly [min, max] the way a trend line has to. A
+ * chart of body weight that starts at zero shows a flat line near the top.
  */
 export function LineChart({
   data,
@@ -42,20 +73,19 @@ export function LineChart({
   color,
   filled = true,
   showDots = true,
+  overlay,
+  onScrub,
+  highlight,
 }: LineChartProps) {
   const colors = useColors();
-  const stroke = color ?? colors.accent;
+  const lineColor = color ?? colors.accent;
 
   const geometry = useMemo(() => {
     if (data.length === 0) return null;
 
     const sorted = [...data].sort((a, b) => a.x - b.x);
 
-    const xs = sorted.map((point) => point.x);
     const ys = sorted.map((point) => point.y);
-
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
     let minY = Math.min(...ys);
     let maxY = Math.max(...ys);
 
@@ -67,34 +97,96 @@ export function LineChart({
       maxY += pad;
     }
 
-    const plotWidth = Math.max(1, width - PADDING.left - PADDING.right);
-    const plotHeight = Math.max(1, height - PADDING.top - PADDING.bottom);
+    const plotWidth = Math.max(1, width - Y_AXIS_WIDTH);
+    const plotHeight = Math.max(1, height - TOP_OVERFLOW - X_AXIS_HEIGHT);
 
-    const scaleX = (x: number) =>
-      PADDING.left + (maxX === minX ? plotWidth / 2 : ((x - minX) / (maxX - minX)) * plotWidth);
+    // Points are laid out from `initialSpacing` at a fixed step, so a lone
+    // reading is centred by shifting the whole series in rather than by
+    // scaling x. Both ends keep a dot's radius of room so the outermost
+    // markers are not cut in half by the edge of the plot.
+    const initialSpacing = sorted.length === 1 ? plotWidth / 2 : DOT_RADIUS;
+    const step = Math.max(
+      1,
+      (plotWidth - initialSpacing - DOT_RADIUS) / Math.max(sorted.length - 1, 1),
+    );
 
-    const scaleY = (y: number) =>
-      PADDING.top + plotHeight - ((y - minY) / (maxY - minY)) * plotHeight;
-
-    const points = sorted.map((point) => ({
-      cx: scaleX(point.x),
-      cy: scaleY(point.y),
-      raw: point,
-    }));
-
-    const linePath = points
-      .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.cx},${point.cy}`)
-      .join(' ');
-
-    const areaPath =
-      points.length > 1
-        ? `${linePath} L${points[points.length - 1]!.cx},${PADDING.top + plotHeight} L${
-            points[0]!.cx
-          },${PADDING.top + plotHeight} Z`
-        : '';
-
-    return { points, linePath, areaPath, minY, maxY, plotHeight, sorted };
+    return { sorted, minY, maxY, plotWidth, plotHeight, initialSpacing, step };
   }, [data, width, height]);
+
+  const series = useMemo<lineDataItem[]>(() => {
+    if (!geometry) return [];
+
+    const { sorted, minY, plotHeight } = geometry;
+    const dotsFit = showDots && sorted.length <= MAX_DOTS;
+
+    // Matched by x rather than by identity: the caller round-trips the point
+    // this chart handed it, but nothing obliges it to hand back the same
+    // object.
+    const marked = highlight ? sorted.findIndex((point) => point.x === highlight.x) : -1;
+
+    return sorted.map((point, index) => {
+      if (index !== marked) return { value: point.y - minY, hideDataPoint: !dotsFit };
+
+      // The marker's rule runs the full plot height so the reading can be
+      // lined up against the axis even when the dot sits mid-chart.
+      return {
+        value: point.y - minY,
+        dataPointColor: lineColor,
+        dataPointRadius: MARKER_RADIUS,
+        showVerticalLine: true,
+        verticalLineHeight: plotHeight,
+        verticalLineColor: colors.borderStrong,
+        verticalLineThickness: stroke.outline,
+      };
+    });
+  }, [geometry, showDots, highlight, lineColor, colors.borderStrong]);
+
+  // Resampled onto the main series' x positions, because gifted-charts pairs
+  // the two lines by index and would otherwise stretch a shorter trend across
+  // the whole plot. Clamped rather than dropped: a smoothed series can start
+  // outside the raw range at either end, and a stray pixel over the axis
+  // labels reads as a rendering fault.
+  const overlaySeries = useMemo<lineDataItem[] | undefined>(() => {
+    if (!geometry || !overlay || overlay.length < 2) return undefined;
+
+    const { sorted, minY, maxY } = geometry;
+    const trend = [...overlay].sort((a, b) => a.x - b.x);
+
+    return sorted.map((point) => ({
+      value: clamp(valueAt(trend, point.x), minY, maxY) - minY,
+    }));
+  }, [geometry, overlay]);
+
+  // Rebuilt whenever the plot or the handler changes, closing over both
+  // directly rather than reading them through refs. In practice it is created
+  // once: neither dependency moves while a finger is down, since the only thing
+  // a scrub changes is `highlight`.
+  const responder = useMemo(() => {
+    /** Nearest reading to where the finger is, horizontally. */
+    const report = (x: number) => {
+      if (!geometry) return;
+
+      const { sorted, initialSpacing, step } = geometry;
+      const nearest = Math.round((x - Y_AXIS_WIDTH - initialSpacing) / step);
+
+      onScrub?.(sorted[Math.min(sorted.length - 1, Math.max(0, nearest))]!);
+    };
+
+    return PanResponder.create({
+      // Claimed on touch-down so a tap reads a value, and handed straight back
+      // if the ScrollView above asks for it — which is what happens the moment
+      // the gesture turns out to be a vertical scroll. Without the termination
+      // request the chart would swallow every scroll that began on top of it.
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => true,
+
+      onPanResponderGrant: (event) => report(event.nativeEvent.locationX),
+      onPanResponderMove: (event) => report(event.nativeEvent.locationX),
+      onPanResponderRelease: () => onScrub?.(null),
+      onPanResponderTerminate: () => onScrub?.(null),
+    });
+  }, [geometry, onScrub]);
 
   if (!geometry) {
     return (
@@ -106,77 +198,73 @@ export function LineChart({
     );
   }
 
-  const { points, linePath, areaPath, minY, maxY } = geometry;
+  const { sorted, minY, maxY, plotWidth, plotHeight, initialSpacing, step } = geometry;
   const midY = (minY + maxY) / 2;
 
   return (
-    <View>
-      <Svg width={width} height={height}>
-        <Defs>
-          <LinearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={stroke} stopOpacity={0.28} />
-            <Stop offset="1" stopColor={stroke} stopOpacity={0} />
-          </LinearGradient>
-        </Defs>
+    <View style={[styles.root, { width, height }]} {...(onScrub ? responder.panHandlers : null)}>
+      <GiftedLineChart
+        data={series}
+        data2={overlaySeries}
+        width={plotWidth}
+        height={plotHeight}
+        // The series was shifted down by `minY`, so the top of the plot is the
+        // span rather than the maximum.
+        maxValue={maxY - minY}
+        noOfSections={2}
+        initialSpacing={initialSpacing}
+        endSpacing={DOT_RADIUS}
+        spacing={step}
+        // The plot is already sized to the space it was given, and a scroll
+        // view here would compete with the one the screen is inside.
+        disableScroll
+        overflowTop={TOP_OVERFLOW}
+        color1={lineColor}
+        thickness1={2}
+        strokeLinecap1="round"
+        areaChart1={filled}
+        startFillColor={lineColor}
+        endFillColor={lineColor}
+        startOpacity={0.28}
+        endOpacity={0}
+        dataPointsColor={lineColor}
+        dataPointsRadius={DOT_RADIUS}
+        // Behind the main line and quieter than it, so the raw readings stay
+        // the subject and the trend stays an annotation on them.
+        zIndex1={2}
+        zIndex2={1}
+        color2={colors.textTertiary}
+        thickness2={1.5}
+        strokeDashArray2={[5, 4]}
+        strokeLinecap2="round"
+        hideDataPoints2
+        rulesType="solid"
+        rulesColor={colors.border}
+        rulesThickness={stroke.outline}
+        xAxisColor={colors.border}
+        xAxisThickness={stroke.outline}
+        // The x labels are drawn below instead — see the note on that row.
+        xAxisLabelsHeight={0}
+        yAxisThickness={0}
+        yAxisExtraHeight={0}
+        yAxisLabelWidth={Y_AXIS_WIDTH}
+        // Bottom-up, one per rule. Given as text because the axis is in the
+        // caller's unit, which the chart is never told.
+        yAxisLabelTexts={[formatValue(minY), formatValue(midY), formatValue(maxY)]}
+        yAxisTextStyle={[styles.axisText, { color: colors.textTertiary }]}
+        yAxisLabelContainerStyle={styles.yAxisLabel}
+      />
 
-        {/* Horizontal guides at min / mid / max */}
-        {[maxY, midY, minY].map((value, index) => {
-          const y = PADDING.top + (index / 2) * (height - PADDING.top - PADDING.bottom);
-          return (
-            <Line
-              key={value}
-              x1={PADDING.left}
-              y1={y}
-              x2={width - PADDING.right}
-              y2={y}
-              stroke={colors.border}
-              strokeWidth={StyleSheet.hairlineWidth * 2}
-            />
-          );
-        })}
-
-        {filled && areaPath ? <Path d={areaPath} fill="url(#area)" /> : null}
-
-        <Path
-          d={linePath}
-          stroke={stroke}
-          strokeWidth={2}
-          fill="none"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-
-        {showDots &&
-          points.map((point) => (
-            <Circle
-              key={point.raw.x}
-              cx={point.cx}
-              cy={point.cy}
-              r={3}
-              fill={colors.background}
-              stroke={stroke}
-              strokeWidth={2}
-            />
-          ))}
-      </Svg>
-
-      {/* Axis labels sit outside the SVG so they inherit app typography. */}
-      <View style={[styles.yAxis, { height: height - PADDING.bottom }]} pointerEvents="none">
-        <Text variant="caption" color="textTertiary">
-          {formatValue(maxY)}
-        </Text>
-        <Text variant="caption" color="textTertiary">
-          {formatValue(minY)}
-        </Text>
-      </View>
-
-      {formatLabel && points.length > 1 && (
-        <View style={styles.xAxis}>
+      {/* Outside the chart because gifted-charts centres every x label in a box
+          one step wide: at a dozen readings that box is too narrow for a date,
+          and these two have to sit flush with the ends of the plot anyway. */}
+      {formatLabel && sorted.length > 1 && (
+        <View style={styles.xAxis} pointerEvents="none">
           <Text variant="caption" color="textTertiary">
-            {formatLabel(points[0]!.raw.x)}
+            {formatLabel(sorted[0]!.x)}
           </Text>
           <Text variant="caption" color="textTertiary">
-            {formatLabel(points[points.length - 1]!.raw.x)}
+            {formatLabel(sorted[sorted.length - 1]!.x)}
           </Text>
         </View>
       )}
@@ -184,21 +272,42 @@ export function LineChart({
   );
 }
 
+/** The series' value at `x`, holding its end values beyond either end. */
+function valueAt(series: readonly DataPoint[], x: number): number {
+  const first = series[0]!;
+  if (x <= first.x) return first.y;
+
+  for (let index = 1; index < series.length; index++) {
+    const point = series[index]!;
+    if (x > point.x) continue;
+
+    const previous = series[index - 1]!;
+    const span = point.x - previous.x;
+    return span === 0 ? point.y : previous.y + ((x - previous.x) / span) * (point.y - previous.y);
+  }
+
+  return series[series.length - 1]!.y;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
-  yAxis: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: PADDING.left - spacing.xs,
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
+  // Clipped because gifted-charts reserves a block of empty space below its
+  // plot for labels this chart does not use, and that space would otherwise
+  // paint over whatever the screen puts underneath.
+  root: { paddingTop: TOP_OVERFLOW, overflow: 'hidden' },
+  axisText: { fontSize: fontSize.xs, ...font('regular') },
+  yAxisLabel: { alignItems: 'flex-end', paddingRight: spacing.xs },
   xAxis: {
+    position: 'absolute',
+    left: Y_AXIS_WIDTH,
+    right: 0,
+    bottom: 0,
+    height: X_AXIS_HEIGHT,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingLeft: PADDING.left,
-    paddingRight: PADDING.right,
-    marginTop: -spacing.md,
   },
 });
