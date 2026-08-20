@@ -270,12 +270,6 @@ export interface StatBandProps {
 export function StatBand({ items, style }: StatBandProps) {
   const colors = useColors();
 
-  // Three figures across a phone at 32px overflows the moment a volume reaches
-  // six digits, so the type steps down as the band fills up rather than each
-  // figure independently shrinking itself to fit — that is what made the old
-  // tiles render their three numbers at three different sizes.
-  const figureSize = items.length > 2 ? fontSize.xxl : fontSize.xxxl;
-
   return (
     <View style={[styles.statBand, { borderColor: colors.border }, style]}>
       {items.map((item, index) => (
@@ -290,10 +284,7 @@ export function StatBand({ items, style }: StatBandProps) {
           </Text>
           <Text
             numberOfLines={1}
-            style={[
-              styles.statValue,
-              { fontSize: figureSize, color: item.lead ? colors.accent : colors.text },
-            ]}
+            style={[styles.statValue, item.lead ? { color: colors.accent } : null]}
           >
             {item.value}
             {item.unit ? (
@@ -529,15 +520,26 @@ const styles = StyleSheet.create({
   statColumnInner: { paddingLeft: spacing.lg },
   statRule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: stroke.rule },
   statValue: {
+    // One size, whether the band holds two figures or four.
+    //
+    // It used to be 32px, stepping down to 24 once a third column arrived —
+    // logic that existed because three six-digit volumes at 32 overflowed a
+    // phone. At 17 the overflow case cannot arise, so the step-down goes with
+    // it, and a band no longer changes type size depending on how many things
+    // it happens to be reporting. This is a row that supports the sentence
+    // above it, not the headline; `lead` is still there to promote one figure
+    // when a band genuinely has a subject.
+    fontSize: fontSize.lg,
     ...font('bold'),
     // A row of figures read across is the case this exists for: without it the
     // columns set to different widths as the numbers change.
     fontVariant: ['tabular-nums'],
-    // See the tracking note above `VARIANTS` in `ui/text.tsx`.
-    letterSpacing: -0.4,
+    // Nearly spent at this size — see the tracking note above `VARIANTS` in
+    // `ui/text.tsx`. It was -0.4 when the figures were twice as big.
+    letterSpacing: -0.1,
   },
   statUnit: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     ...font('medium'),
     letterSpacing: 0,
   },

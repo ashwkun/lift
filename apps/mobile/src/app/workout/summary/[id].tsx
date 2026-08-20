@@ -237,9 +237,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.lg },
   hero: { gap: spacing.xs, paddingTop: spacing.xl, paddingBottom: spacing.sm },
-  // Two columns rather than four across: at `numericLarge` a four-up row makes
-  // every figure shrink to fit, which is how four numbers end up at four
-  // different sizes. The rules meet in the middle and read as a table.
+  // Two columns rather than four across. A four-up row leaves each figure a
+  // quarter of the width, which `adjustsFontSizeToFit` then resolves per tile —
+  // and four numbers at four different sizes is not a table. The rules meet in
+  // the middle and read as one.
   stats: { flexDirection: 'row', flexWrap: 'wrap' },
   stat: {
     width: '50%',

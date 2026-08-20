@@ -3,7 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { BarChart as GiftedBarChart, type barDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { mix, radius, spacing, stroke, useColors } from '@/theme';
+import { radius, spacing, stroke, useColors } from '@/theme';
 
 export interface BarDatum {
   label: string;
@@ -50,9 +50,6 @@ const CAPTION_BAND = LABEL_GUTTER + LABEL_STRIP;
  * proportion against a 40-set peak it would round away to nothing.
  */
 const MIN_FILL = 0.02;
-
-/** How far the gradient's far end fades towards the canvas. */
-const GRADIENT_FADE = 0.32;
 
 /**
  * How much room the library leaves below the baseline for axis labels before it
@@ -137,11 +134,16 @@ export function BarChart({
     );
   }
 
-  // A datum's own colour overrides the accent, and carries the gradient with it.
-  const paint = (item: BarDatum) => {
-    const fill = item.color ?? colors.accent;
-    return { frontColor: fill, showGradient: true, gradientColor: fade(fill, colors.background) };
-  };
+  /**
+   * One flat fill per bar, and a datum's own colour overrides the accent.
+   *
+   * Bars used to fade towards the canvas along their length. A gradient on a
+   * proportional bar is a second encoding of the same quantity laid over the
+   * first, and a worse one: the far end of a long bar reads as *less* than its
+   * base, so a muscle with the most sets ended up with the faintest tip on the
+   * chart. Length already says everything this chart has to say.
+   */
+  const paint = (item: BarDatum) => ({ frontColor: item.color ?? colors.accent });
 
   if (horizontal) {
     const plotLength = width - PLOT_INSET - VALUE_HEADROOM;
@@ -260,17 +262,6 @@ export function BarChart({
       ) : null}
     </View>
   );
-}
-
-/**
- * The far end of a bar's gradient.
- *
- * `mix` only speaks hex, and a datum may hand us any colour string, so an
- * override the palette did not produce keeps a flat fill rather than blending
- * to `#NaNNaNNaN`.
- */
-function fade(color: string, towards: string): string {
-  return color.startsWith('#') ? mix(color, towards, GRADIENT_FADE) : color;
 }
 
 const styles = StyleSheet.create({

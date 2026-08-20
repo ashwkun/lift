@@ -144,19 +144,26 @@ export default function HomeScreen() {
            * The figure is plain text and the kicker above it carries the accent,
            * which is the opposite of the obvious pairing. In the light palette
            * the accent is a dark olive chosen to be legible as text, so
-           * accenting the 40px number made the loudest thing on the screen
-           * quieter than the label under it. Colouring the small word instead
-           * holds in both schemes with no branching on the colour scheme — do
-           * not swap these back.
+           * accenting the number made the loudest thing on the screen quieter
+           * than the label under it. Colouring the small word instead holds in
+           * both schemes with no branching on the colour scheme — do not swap
+           * these back.
+           *
+           * `heading` rather than `display`: the figure came down from 40px to
+           * 24 along with every other statistic in the app. A number that fills
+           * the width of a phone reads as a scoreboard, and this one is context
+           * for the week rather than a score — the kicker names it, the band
+           * below breaks it down, and the charts under that are what a training
+           * log is actually for. It still opens the screen; it no longer shouts.
            */}
           <View style={styles.masthead}>
             <Text variant="overline" color="accent">
               Volume this week
             </Text>
-            <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
+            <Text variant="heading" color="text" numberOfLines={1} adjustsFontSizeToFit>
               {weekVolume}
               {weekVolumeUnit ? (
-                <Text variant="subheading" color="textTertiary">
+                <Text variant="label" color="textTertiary">
                   {` ${weekVolumeUnit}`}
                 </Text>
               ) : null}

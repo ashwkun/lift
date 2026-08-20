@@ -19,7 +19,7 @@ export interface LineChartProps {
   formatValue?: (value: number) => string;
   formatLabel?: (x: number) => string;
   color?: string;
-  /** Fills the area under the line with a fading gradient. */
+  /** Tints the area under the line. Flat — see `AREA_OPACITY`. */
   filled?: boolean;
   showDots?: boolean;
   /**
@@ -51,6 +51,15 @@ const TOP_OVERFLOW = spacing.md;
 
 const DOT_RADIUS = 3;
 const MARKER_RADIUS = 5;
+
+/**
+ * The area under the line, as a flat tint of the line's own colour.
+ *
+ * Low enough that the rules behind it stay readable through the fill, which is
+ * what stops the plot from turning into a solid block on a series that spends
+ * most of its time near the top.
+ */
+const AREA_OPACITY = 0.1;
 
 /** Past this many readings the dots merge into a caterpillar and are dropped. */
 const MAX_DOTS = 40;
@@ -225,8 +234,13 @@ export function LineChart({
         areaChart1={filled}
         startFillColor={lineColor}
         endFillColor={lineColor}
-        startOpacity={0.28}
-        endOpacity={0}
+        // Flat, not faded. The fill used to ramp 0.28 → 0 down the plot, which
+        // put a soft edge across the chart at no fixed value — a horizontal
+        // boundary the eye reads as data and the axis cannot explain. One low
+        // tint says "under the line" and stops there. Both ends are set because
+        // the library interpolates between them whether or not it is asked to.
+        startOpacity={AREA_OPACITY}
+        endOpacity={AREA_OPACITY}
         dataPointsColor={lineColor}
         dataPointsRadius={DOT_RADIUS}
         // Behind the main line and quieter than it, so the raw readings stay

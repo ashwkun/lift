@@ -77,25 +77,29 @@ export default function ProfileScreen() {
          * Everything under it is navigation — settings, exports, measurements —
          * so the top of this screen is the only place it says anything, and
          * what it has to say is one number: everything this person has ever
-         * lifted. Giving that the display size, and demoting sessions and
-         * streak to a ruled band beneath, states the hierarchy that three
-         * identical tiles flattened.
+         * lifted. Keeping it a step above the ruled band beneath states the
+         * hierarchy that three identical tiles flattened.
+         *
+         * That step is now 24px against the band's 17, where it used to be 40
+         * against 24. A lifetime volume is a number you look up, not one you
+         * monitor, and at the display size it was the loudest thing in the app
+         * on a screen whose actual job is to get you to settings and exports.
          *
          * The accent goes on the kicker, not on the figure. In the light
          * palette the accent is a dark olive chosen to be legible as text, so
-         * accenting the 40px number made the loudest thing on the screen
-         * quieter than the label above it. Colouring the small word instead
-         * holds in both schemes with no branching on the colour scheme — do
-         * not swap these back.
+         * accenting the number made the loudest thing on the screen quieter
+         * than the label above it. Colouring the small word instead holds in
+         * both schemes with no branching on the colour scheme — do not swap
+         * these back.
          */}
         <View style={styles.masthead}>
           <Text variant="overline" color="accent">
             Lifetime volume
           </Text>
-          <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
+          <Text variant="heading" color="text" numberOfLines={1} adjustsFontSizeToFit>
             {volume}
             {volumeUnit ? (
-              <Text variant="subheading" color="textTertiary">
+              <Text variant="label" color="textTertiary">
                 {` ${volumeUnit}`}
               </Text>
             ) : null}

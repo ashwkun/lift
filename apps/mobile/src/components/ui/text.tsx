@@ -79,11 +79,27 @@ const VARIANTS: Record<TextVariant, TextStyle> = {
     ...font('semibold'),
     fontVariant: ['tabular-nums'],
   },
+  /**
+   * A figure that is being read rather than announced: 20px, which is one step
+   * above body and the same size as `subheading`.
+   *
+   * It was 32px, and every stat surface in the app inherited that — the history
+   * tiles, the workout summary, the monthly report, the muscle-set breakdown.
+   * Four numbers at 32 on one screen is not a hierarchy, it is four things all
+   * shouting, and it made a volume total look like the point of the app when
+   * the point is the training underneath it. Nothing here needs to be legible
+   * across a room; what needs that asks for a size explicitly, and there are
+   * exactly two — the rest timer and the plate calculator.
+   *
+   * Tracking comes back from -0.6 to -0.2 with the size. The negative values on
+   * the headline variants correct for type spaced for running text looking
+   * loose above ~20px, and at 20 that correction is nearly spent.
+   */
   numericLarge: {
-    fontSize: fontSize.xxxl,
+    fontSize: fontSize.xl,
     ...font('bold'),
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.6,
+    letterSpacing: -0.2,
   },
 };
 

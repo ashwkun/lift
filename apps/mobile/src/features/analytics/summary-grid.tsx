@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import { Card, Text } from '@/components/ui';
-import { fontSize, spacing, useColors } from '@/theme';
+import { spacing, useColors } from '@/theme';
 
 export type DeltaDirection = 'up' | 'down' | 'flat';
 
@@ -92,10 +92,10 @@ function SummaryTile({ figure }: { figure: SummaryFigure }) {
         {figure.label}
       </Text>
 
-      <Text variant="numericLarge" numberOfLines={1} adjustsFontSizeToFit style={styles.value}>
+      <Text variant="numericLarge" numberOfLines={1} adjustsFontSizeToFit>
         {figure.value}
         {figure.unit ? (
-          <Text variant="label" color="textTertiary">{` ${figure.unit}`}</Text>
+          <Text variant="caption" color="textTertiary">{` ${figure.unit}`}</Text>
         ) : null}
       </Text>
 
@@ -138,9 +138,9 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   // Two per row on every phone width: half the row minus half the gap.
   tile: { flexBasis: '47%', flexGrow: 1, gap: spacing.xs, padding: spacing.md },
-  // A touch below `numericLarge`'s own 32px — four of these stacked two-up is a
-  // lot of display type, and the labels above them are what makes the grid
-  // scannable.
-  value: { fontSize: fontSize.xxl },
+  // No size override any more. This used to pull `numericLarge` down from 32 to
+  // 24 because four of them stacked two-up was a lot of display type; the
+  // variant is now 20 for that same reason everywhere, so the tile can take it
+  // as it comes and the grid stops being a special case.
   delta: { flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 16 },
 });

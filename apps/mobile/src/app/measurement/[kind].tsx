@@ -272,10 +272,10 @@ export default function MeasurementDetailScreen() {
           <Text variant="overline" color="accent">
             Latest
           </Text>
-          <Text variant="display" numberOfLines={1} adjustsFontSizeToFit>
+          <Text variant="heading" numberOfLines={1} adjustsFontSizeToFit>
             {figure}
             {unit ? (
-              <Text variant="subheading" color="textTertiary">
+              <Text variant="label" color="textTertiary">
                 {` ${unit}`}
               </Text>
             ) : null}

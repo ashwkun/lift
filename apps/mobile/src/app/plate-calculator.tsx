@@ -195,12 +195,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   // The denominations are the answer, and the question gets asked with the
-  // phone on the floor and chalk on both hands, so they are set at the display
-  // size — larger than anything else on the screen, including the field they
-  // were derived from. Ruled rather than boxed: elsewhere in the app a box
-  // means the thing inside it can be pressed, and these are read, not touched.
-  // `numericLarge` supplies the tabular figures that keep the column aligned.
-  plateFigure: { fontSize: fontSize.display },
+  // phone on the floor and chalk on both hands, so they stay large — larger
+  // than anything else on this screen, including the field they were derived
+  // from. Ruled rather than boxed: elsewhere in the app a box means the thing
+  // inside it can be pressed, and these are read, not touched. `numericLarge`
+  // supplies the tabular figures that keep the column aligned.
+  //
+  // 32 rather than the 40 it was. This and the rest timer are the app's two
+  // deliberately large readouts and they now agree on a size, which matters
+  // because a lone 40px figure in an app whose next-largest number is 24 reads
+  // as an oversight rather than as emphasis. Still legible at arm's length off
+  // the floor, which is the only thing this size has to buy.
+  plateFigure: { fontSize: fontSize.xxxl },
   summary: { gap: spacing.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

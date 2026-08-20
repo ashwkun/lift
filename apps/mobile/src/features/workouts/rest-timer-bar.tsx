@@ -23,7 +23,7 @@ import {
   type RestKind,
   type RestSnapshot,
 } from '@/store/timer';
-import { radius, spacing, stroke, useColors, type Palette } from '@/theme';
+import { fontSize, radius, spacing, stroke, useColors, type Palette } from '@/theme';
 
 /** Below this the readout turns amber — the "get back under the bar" window. */
 const WARNING_SECONDS = 10;
@@ -565,5 +565,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
   },
-  readout: { flex: 1, textAlign: 'center' },
+  /**
+   * One of the two figures in the app that stays big, and it asks explicitly
+   * rather than inheriting it.
+   *
+   * `numericLarge` came down to 20px when the stat surfaces stopped announcing
+   * themselves, and this is not a stat — it is a countdown read from wherever
+   * the phone was put down between sets, which is usually the floor. The
+   * argument that quietened the dashboards does not reach it: nobody glances at
+   * a volume total mid-set with 40 seconds left. The other exception is the
+   * plate calculator, for the same reason and with the same explicitness.
+   */
+  readout: { flex: 1, textAlign: 'center', fontSize: fontSize.xxxl, letterSpacing: -0.6 },
 });

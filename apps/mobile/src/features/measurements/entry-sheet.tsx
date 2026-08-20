@@ -280,7 +280,7 @@ export function MeasurementEntrySheet({
                     onSubmitEditing={submit}
                     returnKeyType="done"
                   />
-                  <Text variant="subheading" color="textTertiary">
+                  <Text variant="label" color="textTertiary">
                     {unit}
                   </Text>
                 </View>
@@ -538,11 +538,17 @@ const styles = StyleSheet.create({
   valueField: {
     minWidth: 96,
     textAlign: 'right',
-    fontSize: fontSize.xxxl,
+    // A step above the figures this sheet writes, and a step below what it was.
+    //
+    // This is the one number on screen being *typed*, between two stepper
+    // buttons, so it keeps more size than a stat that is only read — you are
+    // checking a digit you just entered against a scale you are standing on.
+    // 32 was matching `numericLarge` back when that meant display type; it is
+    // not a dashboard figure and does not follow it all the way down.
+    fontSize: fontSize.xxl,
     ...font('bold'),
     fontVariant: ['tabular-nums'],
-    // Matches `numericLarge`. See the tracking note in `ui/text.tsx`.
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
     // Android reserves extra room above the ascender and below the descender
     // from the font's own metrics, which at this size pushes the digits off the
     // baseline the unit beside them sits on. Harmless on iOS, which ignores it.
