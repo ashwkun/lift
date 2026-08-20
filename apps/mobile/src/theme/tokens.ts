@@ -8,7 +8,7 @@
  * of the two themes.
  */
 
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, type TextStyle } from 'react-native';
 
 export interface Palette {
   /** App canvas, behind everything. Pure black in dark mode — see `darkPalette`. */
@@ -290,13 +290,15 @@ export const fontSize = {
  * what was measured, and because it is not a family this project has a licence
  * to redistribute.
  *
- * Naming a face per weight is not a stylistic preference — on Android a custom
- * `fontFamily` ignores `fontWeight` entirely and renders every weight at the
- * loaded face. Asking for `LiftSans-Regular` at `fontWeight: '700'` gets you
- * regular text, silently. So weight is selected by *which font is named*, and
- * `fontWeight` is set alongside it only so iOS and the OS accessibility tooling
- * agree. The names below must match the keys `useFonts` is given in
- * `app/_layout.tsx`; nothing else in the app names a font.
+ * Naming a face per weight is not a stylistic preference. Weight is selected by
+ * *which font is named*, because on Android asking a runtime-loaded family for
+ * a weight it was not registered under does not fall back to the loaded face —
+ * it falls back to the *system* one. `font()` below carries the mechanism and
+ * the consequence in full; the short version is that these four names are the
+ * only lever there is, and `fontWeight` is an iOS-side detail.
+ *
+ * The names below must match the keys `useFonts` is given in `app/_layout.tsx`;
+ * nothing else in the app names a font.
  *
  * The archive ships eight upright cuts, 200 through 1000. Four are loaded, and
  * the floor is deliberate: **nothing in this app is set below 400.** The
@@ -339,8 +341,10 @@ export type FontWeightName = keyof typeof fontFamily;
 
 /**
  * Mirrors the *loaded* face rather than the name's nominal weight, so iOS is
- * never asked to synthesise a cut Android would not match. `semibold` reads 700
- * for exactly that reason — it is Bold, because the family has no 600.
+ * never asked to synthesise a cut the file does not contain. `semibold` reads
+ * 700 for exactly that reason — it is Bold, because the family has no 600.
+ *
+ * Read on iOS only. See `font()` for why Android is never told a weight.
  */
 export const fontWeight = {
   regular: '400',
@@ -351,11 +355,43 @@ export const fontWeight = {
 } as const;
 
 /**
- * Pairs a weight name with both properties every time, so no call site can set
- * one without the other and quietly lose the weight on Android.
+ * The style that renders text in a given weight of the bundled family.
+ *
+ * **On Android it deliberately does not set `fontWeight`, and that is not a
+ * simplification — naming a weight there is what makes the font disappear.**
+ *
+ * The chain, because it is not guessable and it cost a release to find. Fonts
+ * loaded at runtime are registered by `expo-font` with
+ * `ReactFontManager.setTypeface(family, Typeface.NORMAL, typeface)` — one entry,
+ * under the *normal* style. When a `Text` also carries a weight, RN resolves it
+ * through `TypefaceStyle.nearestStyle`, which is `BOLD` for anything ≥ 700. It
+ * looks up the family's BOLD slot, finds nothing there, and falls back to
+ * `createAssetTypeface`, which hunts the APK for `assets/fonts/<family>_bold.ttf`
+ * — a file that only exists when fonts are shipped natively rather than loaded.
+ * That misses too, and the last line of that function is
+ * `Typeface.create(fontFamilyName, style)`: an unknown family name, which
+ * Android answers with the *system* face.
+ *
+ * So every 700 and 800 role in the app — page titles, section headings, button
+ * labels, every figure set in `numeric` — rendered in Roboto, while 400 and 500
+ * came out correct because their `nearestStyle` is NORMAL and hits the one slot
+ * that was registered. That is exactly the half-right rendering this looked
+ * like: the app appeared to be using its own font for body copy and the
+ * system's for everything that mattered.
+ *
+ * Dropping the weight leaves `nearestStyle` at NORMAL, which hits the
+ * registered typeface — and the weight is not lost, because it never came from
+ * this property in the first place. Each role names its own *face*
+ * (`LiftSans-Bold`, `LiftSans-Extrabold`), which is the whole reason
+ * `fontFamily` above is per weight rather than one family name.
+ *
+ * iOS keeps the weight. There it resolves within the family rather than
+ * indexing a style slot, and it is what the OS accessibility tooling reads.
  */
-export function font(weight: FontWeightName) {
-  return { fontFamily: fontFamily[weight], fontWeight: fontWeight[weight] } as const;
+export function font(weight: FontWeightName): Pick<TextStyle, 'fontFamily' | 'fontWeight'> {
+  if (Platform.OS === 'android') return { fontFamily: fontFamily[weight] };
+
+  return { fontFamily: fontFamily[weight], fontWeight: fontWeight[weight] };
 }
 
 /**

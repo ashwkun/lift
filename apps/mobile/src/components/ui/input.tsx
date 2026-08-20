@@ -320,9 +320,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: stroke.outline,
   },
+  /*
+   * Both of these name the family, and it is not optional.
+   *
+   * A `TextInput` inherits nothing: `Text` gets the bundled face because the
+   * `Text` component puts it there per variant, and an input is a different
+   * primitive that RN renders in the platform's own UI font unless told
+   * otherwise. So every typed field in the app — the search bars, a workout
+   * name, an exercise name, a note, a routine title — was set in Roboto or SF
+   * while the label directly above it was set in the bundled family. The
+   * numeric field already knew this; these two were the ones that did not.
+   *
+   * `regular` because these are body text being composed rather than figures
+   * being read — the same weight `Text`'s `body` variant uses, so a field and
+   * the copy beside it are the same voice. The placeholder inherits it too.
+   */
   searchInput: {
     flex: 1,
     fontSize: fontSize.md,
+    ...font('regular'),
     padding: 0,
   },
   fieldContainer: { gap: spacing.xs },
@@ -331,6 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.md,
+    ...font('regular'),
     borderWidth: stroke.outline,
   },
   numericField: {
