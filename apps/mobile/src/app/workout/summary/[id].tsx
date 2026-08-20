@@ -79,6 +79,13 @@ export default function WorkoutSummaryScreen() {
         title: 'Workout complete',
         // Back would return to the now-finished logging screen, so the only
         // way out is forward.
+        //
+        // And forward is the full-width Done at the foot of the content, not a
+        // second copy of it up here. The consistency pass that filled Save,
+        // Done and Log elsewhere deliberately left this header empty: a summary
+        // is read top to bottom and ends on its own exit, so a header action
+        // would be the same destination offered twice on one screen — and the
+        // one in the content is the larger, more obvious target of the two.
         headerBackVisible: false,
       }}
     />

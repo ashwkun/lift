@@ -219,8 +219,17 @@ export default function ExercisePickerScreen() {
       <Stack.Screen
         options={{
           title: 'Add exercise',
+          // Both stay plain, and the pair is the reason why. The action this
+          // screen exists to complete is the confirm bar at its foot — it is
+          // the one that carries the count of what you picked — so filling
+          // either of these would put the emphasis on leaving or on a detour.
           headerLeft: () => (
-            <HeaderAction side="left" label="Cancel" title="Cancel" onPress={() => router.back()} />
+            <HeaderAction
+              side="left"
+              label="Cancel adding exercises"
+              title="Cancel"
+              onPress={() => router.back()}
+            />
           ),
           headerRight: () => (
             <HeaderAction

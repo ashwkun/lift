@@ -118,10 +118,15 @@ export default function NewExerciseScreen() {
       <Stack.Screen
         options={{
           title: 'New exercise',
+          // Filled: this screen exists to produce one exercise, and Save is the
+          // only way to leave it having done that — everything else on it is a
+          // field or a chip. It is also the only action in this header, so the
+          // pill has nothing to shout over.
           headerRight: () => (
             <HeaderAction
               label="Save exercise"
               title="Save"
+              variant="filled"
               disabled={saving}
               onPress={() => void save()}
             />

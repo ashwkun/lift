@@ -169,8 +169,18 @@ export default function MeasurementDetailScreen() {
     <Stack.Screen
       options={{
         title: label,
+        // Filled: everything below the header is a readout — a chart and the
+        // list of past readings — so adding one is the only thing the screen
+        // can be visited to *do*, and the rest of it is what you look at
+        // afterwards. Editing and deleting a reading are reached from the rows
+        // themselves, which keeps this the header's only action.
         headerRight: () => (
-          <HeaderAction label={`Log ${label}`} title="Log" onPress={() => setSheet({ mode: 'add' })} />
+          <HeaderAction
+            label={`Log ${label}`}
+            title="Log"
+            variant="filled"
+            onPress={() => setSheet({ mode: 'add' })}
+          />
         ),
       }}
     />

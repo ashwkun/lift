@@ -162,7 +162,17 @@ export default function ExerciseNotesScreen() {
           headerRight: () => (
             // "Done", not "Save": the text is already written by the time this
             // is reachable, so a Save label would promise work that is finished.
-            <HeaderAction label="Done editing note" title="Done" onPress={handleDone} />
+            //
+            // Filled all the same. The screen is a single autofocused field with
+            // the keyboard over the bottom half of it, so the header is the only
+            // chrome on it and Done is the only thing in the header — and it is
+            // the act that adopts a recalled cue, which backing out does not do.
+            <HeaderAction
+              label="Done editing note"
+              title="Done"
+              variant="filled"
+              onPress={handleDone}
+            />
           ),
         }}
       />

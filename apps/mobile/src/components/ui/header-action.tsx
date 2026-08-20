@@ -1,12 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, type PressableProps, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type PressableProps, type ViewStyle } from 'react-native';
 
 import {
   controlHeight,
+  font,
+  fontSize,
   MIN_TOUCH_SIZE,
   PRESS_SCALE_SMALL,
+  radius,
   spacing,
   useColors,
+  type Palette,
 } from '@/theme';
 
 import { PressableScale } from './motion';
@@ -17,6 +21,24 @@ const PRESSED_OPACITY = 0.6;
 
 /** Role colours a header action is allowed to take. */
 export type HeaderActionTone = 'accent' | 'danger' | 'success';
+
+/**
+ * How a header action is drawn.
+ *
+ * `plain` is a word or a glyph in the role colour — the right weight for
+ * anything the user might do, and for everything destructive. `filled` is a
+ * pill in the role colour, and it is reserved for the one action a screen
+ * exists to complete: Finish on the logging screen, Save on the one in front of
+ * it. One per header, or the emphasis stops meaning anything.
+ */
+export type HeaderActionVariant = 'plain' | 'filled';
+
+/** The foreground a filled pill takes, per role. See `textOnAccent` in the tokens. */
+const PILL_FOREGROUND: Record<HeaderActionTone, keyof Palette> = {
+  accent: 'textOnAccent',
+  danger: 'textOnDanger',
+  success: 'textOnSuccess',
+};
 
 export interface HeaderActionProps
   extends Omit<PressableProps, 'style' | 'children' | 'accessibilityLabel' | 'disabled'> {
@@ -34,6 +56,8 @@ export interface HeaderActionProps
   icon?: keyof typeof Ionicons.glyphMap;
   iconSize?: number;
   tone?: HeaderActionTone;
+  /** Plain word or filled pill. See `HeaderActionVariant`. */
+  variant?: HeaderActionVariant;
   /**
    * Which end of the header this sits at. The target grows towards the middle
    * of the header, so the label keeps the margin the native stack gave it.
@@ -67,13 +91,31 @@ export function HeaderAction({
   icon,
   iconSize = 20,
   tone = 'accent',
+  variant = 'plain',
   side = 'right',
   disabled = false,
   style,
   ...rest
 }: HeaderActionProps) {
   const colors = useColors();
-  const color = disabled ? colors.textTertiary : colors[tone];
+  const filled = variant === 'filled';
+
+  const color = disabled
+    ? colors.textTertiary
+    : filled
+      ? colors[PILL_FOREGROUND[tone]]
+      : colors[tone];
+
+  const content = (
+    <>
+      {icon && <Ionicons name={icon} size={iconSize} color={color} />}
+      {title !== undefined && (
+        <Text variant="bodyMedium" numberOfLines={1} style={{ color }}>
+          {title}
+        </Text>
+      )}
+    </>
+  );
 
   return (
     <PressableScale
@@ -84,20 +126,66 @@ export function HeaderAction({
       // Header actions have no fill to darken, so they dim like the other
       // unfilled controls (see `IconButton`) rather than stepping to a pressed
       // surface, and they take the deeper scale for the same reason: a header
-      // button is a word or a glyph with no box around it to watch shrink.
+      // button is a word or a glyph with no box around it to watch shrink. A
+      // filled pill has a fill, but it dims too: the press has to read at a
+      // glance from a 32pt shape at the edge of the screen, and a colour step
+      // that small is easy to miss where a dim is not.
       dimTo={PRESSED_OPACITY}
       scaleTo={PRESS_SCALE_SMALL}
-      style={[styles.action, side === 'right' ? styles.growLeft : styles.growRight, style]}
+      style={[
+        styles.action,
+        filled && styles.filledFrame,
+        side === 'right' ? styles.growLeft : styles.growRight,
+        style,
+      ]}
       {...rest}
     >
-      {icon && <Ionicons name={icon} size={iconSize} color={color} />}
-      {title !== undefined && (
-        <Text variant="bodyMedium" numberOfLines={1} style={{ color }}>
-          {title}
-        </Text>
+      {filled ? (
+        /*
+         * The pill is an inner view rather than the pressable's own frame.
+         * The frame is 44pt so a thumb can find it, and a 44pt pill in a 44pt
+         * header touches both edges — so the target keeps its height and the
+         * shape sits inside it at 32.
+         */
+        <View
+          style={[
+            styles.pill,
+            { backgroundColor: disabled ? colors.surfaceMuted : colors[tone] },
+          ]}
+        >
+          {content}
+        </View>
+      ) : (
+        content
       )}
     </PressableScale>
   );
+}
+
+/**
+ * The header options every navigator in the app shares.
+ *
+ * Both navigators used to set these separately and disagreed: the stack titled
+ * its screens at 17/semibold and the tab bar titled its own at 20/bold, so
+ * pushing from Home visibly shrank the title. Alignment disagreed too, because
+ * the two platforms disagree — a native-stack title is centred on iOS and
+ * left-aligned on Android — which meant the same screen looked like two
+ * different apps depending on the phone.
+ *
+ * One title style, centred on both platforms, and the back control reduced to
+ * its chevron: iOS otherwise labels it with the previous screen's title, so
+ * "Personal records" turned into a back button wider than the title it sat
+ * next to. Stack-only options (`contentStyle`, gestures) stay at the call site
+ * — this is the set both navigators can take.
+ */
+export function headerOptions(colors: Palette) {
+  return {
+    headerStyle: { backgroundColor: colors.background },
+    headerTintColor: colors.text,
+    headerTitleStyle: { fontSize: fontSize.lg, ...font('bold'), color: colors.text },
+    headerTitleAlign: 'center' as const,
+    headerShadowVisible: false,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -116,6 +204,18 @@ const styles = StyleSheet.create({
     // The native header container is 44pt, so a taller frame overflows it
     // rather than growing it — `iconSize={24}` alone would ask for 48.
     maxHeight: controlHeight.md,
+  },
+  // A filled action carries its own 32pt shape, so the frame's padding drops to
+  // what is left of 44 around it. `minHeight` above still holds the target.
+  filledFrame: { paddingVertical: spacing.xs },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    height: 32,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
   },
   // These carry the alignment as well as the padding, because it has to face
   // the same way. `center` would put a 20pt glyph in the middle of the new 28pt

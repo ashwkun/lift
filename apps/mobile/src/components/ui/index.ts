@@ -9,7 +9,13 @@ export {
   type FilterSheetProps,
   type FilterTriggerProps,
 } from './filter-select';
-export { HeaderAction, type HeaderActionProps, type HeaderActionTone } from './header-action';
+export {
+  HeaderAction,
+  headerOptions,
+  type HeaderActionProps,
+  type HeaderActionTone,
+  type HeaderActionVariant,
+} from './header-action';
 export { ListPicker, type ListPickerOption, type ListPickerProps } from './list-picker';
 export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
 export { Screen, type ScreenProps } from './screen';

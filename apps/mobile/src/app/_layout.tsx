@@ -11,7 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import migrations from '../../drizzle/migrations';
 
-import { Button, DialogHost, Text } from '@/components/ui';
+import { Button, DialogHost, headerOptions, Text } from '@/components/ui';
 import { db } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
@@ -21,7 +21,7 @@ import { WorkoutNotice } from '@/features/workouts/workout-notice';
 import { showAlert } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { loadPersistedRest } from '@/store/timer-persistence';
-import { AppThemeProvider, font, spacing, useColors, useTheme } from '@/theme';
+import { AppThemeProvider, spacing, useColors, useTheme } from '@/theme';
 
 // Held until migrations, seeding, settings hydration and the stored rest period
 // all finish, so the first frame the user sees is real content rather than an
@@ -170,10 +170,26 @@ function AppNavigator() {
       <WorkoutNotice />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerTitleStyle: font('semibold'),
-          headerShadowVisible: false,
+          // The shared set, spread rather than restated. This stack and the tab
+          // navigator each used to declare their own and drifted apart — see
+          // `headerOptions` for what that cost and what it now fixes.
+          ...headerOptions(colors),
+          /*
+           * The stack half of the same decision, and it can only live here: a
+           * back button exists on pushed screens and nowhere else, so this is
+           * not an option the tab navigator can take.
+           *
+           * `minimal` keeps the chevron and drops the word beside it. iOS
+           * otherwise labels the control with the previous screen's title,
+           * which on a stack whose titles are sentences — "Personal records",
+           * "Set count per muscle" — puts a back button wider than the title it
+           * sits next to, and pushes a centred title off centre to make room.
+           * `headerBackTitleVisible` is the older spelling of this and still
+           * typechecks, but react-native-screens now drives the native
+           * `UINavigationItemBackButtonDisplayMode` directly, so the newer name
+           * is the one that maps onto what the platform actually does.
+           */
+          headerBackButtonDisplayMode: 'minimal',
           contentStyle: { backgroundColor: colors.background },
           /**
            * The platform's own push, with no override.

@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { headerOptions } from '@/components/ui';
 import { db } from '@/db/client';
 import { workouts } from '@/db/schema';
 import { font, fontSize, spacing, spring, stroke, timing, useColors } from '@/theme';
@@ -161,10 +162,11 @@ export default function TabLayout() {
         // Inactive tabs stop re-rendering while blurred. Without it, every tab's
         // live query re-runs on each other tab's writes.
         freezeOnBlur: true,
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        headerTitleStyle: { fontSize: fontSize.xl, ...font('bold') },
+        // The same set the root stack spreads. This navigator titled its own
+        // screens at 20/bold against the stack's 17/semibold, so pushing from
+        // Home visibly shrank the title — `headerOptions` is where that lives
+        // now, and neither navigator gets to disagree with it.
+        ...headerOptions(colors),
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
