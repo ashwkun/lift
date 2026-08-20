@@ -21,7 +21,7 @@ import { useRows } from '@/db/use-rows';
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
 import { useTicker } from '@/hooks/use-ticker';
-import { radius, spacing, stroke, useColors } from '@/theme';
+import { radius, spacing, useColors } from '@/theme';
 
 /** Latch key for the ad-hoc Start, which has no routine id to be keyed by. */
 const EMPTY_START = 'empty';
@@ -111,15 +111,14 @@ export default function WorkoutScreen() {
               styles.resume,
               {
                 backgroundColor: colors.accentSurface,
-                borderColor: colors.border,
                 opacity: pressed ? 0.85 : 1,
               },
             ]}
           >
             <View style={styles.resumeBody}>
               {/* The tint and the running clock are one accent object; the
-                  kicker, the border and the chevron are reinforcements that
-                  only spread the accent thinner. */}
+                  kicker and the chevron are reinforcements that only spread
+                  the accent thinner. */}
               <Text variant="overline" color="textSecondary">
                 In progress
               </Text>
@@ -226,7 +225,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     padding: spacing.lg,
     borderRadius: radius.lg,
-    borderWidth: stroke.outline,
   },
   resumeBody: { flex: 1, gap: 2 },
   quickStart: { padding: spacing.lg },

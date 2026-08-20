@@ -85,7 +85,7 @@ function Bootstrap({ onRetry }: { onRetry: () => void }) {
   // for which role gets which, and why no italic is loaded.
   //
   // Required relatively rather than through the `@/assets` alias, matching the
-  // app's one other bundled asset (`notifications/bell.ts`): the alias is
+  // app's other bundled assets (`notifications/sounds.ts`): the alias is
   // configured for module imports, and an asset `require` is not worth finding
   // out about at runtime.
   const [fontsLoaded, fontError] = useFonts({

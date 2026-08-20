@@ -16,6 +16,26 @@ Note AGPL §13: if you run a modified version of this software so that users
 interact with it over a network — which includes the sync API in `apps/api` —
 you must offer those users the corresponding source.
 
+## Bundled audio
+
+Both rest-timer cues in `apps/mobile/assets/sounds/` came from Freesound, whose
+download filenames encode the sound id and the uploader:
+
+| File | Freesound id | Uploader |
+| --- | --- | --- |
+| `rest_complete.wav` | [276954](https://freesound.org/s/276954/) | `rjz7584` |
+| `countdown_beep.wav` | [536422](https://freesound.org/s/536422/) | `rudmer_rotteveel` |
+
+Both were downmixed to mono 44.1 kHz 16-bit PCM and renamed for their role here;
+neither was otherwise edited.
+
+**The licence on each is not recorded yet and needs to be.** Freesound assigns a
+licence per sound rather than per site — CC0, CC-BY 4.0, CC-BY-NC and Sampling+
+are all in use there — and the three that are not CC0 place real conditions on a
+distributed binary: CC-BY needs the attribution above carried into the app, and
+CC-BY-NC cannot be shipped in anything commercial at all. Check both sound pages
+and record what they say before this leaves sideloading.
+
 ### What was changed
 
 - Path data was extracted from LiftShift's React DOM components and regenerated

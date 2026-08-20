@@ -161,6 +161,7 @@ export default function SettingsScreen() {
           />
           <ToggleRow
             label="Alert sound"
+            description="Beeps through the last ten seconds, then the bell."
             value={settings.soundEnabled}
             onChange={(value) => update('soundEnabled', value)}
             disabled={restOff}

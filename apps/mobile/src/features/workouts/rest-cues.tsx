@@ -12,13 +12,40 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, AppState } from 'react-native';
 
 import { haptics } from '@/features/feedback/haptics';
-import { playRestBell, releaseRestBell } from '@/features/notifications/bell';
+import {
+  playCountdownBeep,
+  playRestBell,
+  primeRestSounds,
+  releaseRestSounds,
+} from '@/features/notifications/sounds';
 import { useTicker } from '@/hooks/use-ticker';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
 
-/** Seconds before zero that get a tick. */
+/** Seconds before zero that get a haptic tick. */
 const TICK_FROM = 3;
+
+/**
+ * The audible countdown: where it starts, and where it doubles in rate.
+ *
+ * Ten seconds out the beeps come every other second; from four they come every
+ * second, so the run is 10, 8, 6, 4, 3, 2, 1 and then the bell. The gap halving
+ * is the whole point — a fixed cadence tells you rest is ending, an
+ * accelerating one tells you *how close* without anyone having to look at the
+ * phone, which is the only reason to make noise in a gym at all.
+ *
+ * The odd seconds above four are silent by construction rather than by
+ * accident: at one beep a second for ten seconds the cue stops being
+ * information and starts being an alarm you learn to ignore.
+ */
+const BEEP_FROM = 10;
+const BEEP_EVERY_SECOND_FROM = 4;
+
+/** Whether the countdown beeps on this second. See `BEEP_FROM`. */
+function beepsAt(remaining: number): boolean {
+  if (remaining <= 0 || remaining > BEEP_FROM) return false;
+  return remaining <= BEEP_EVERY_SECOND_FROM || remaining % 2 === 0;
+}
 
 /**
  * Seconds left at which the countdown is spoken.
@@ -62,8 +89,15 @@ export function RestCues() {
     return () => subscription.remove();
   }, []);
 
-  // The decoded bell outlives any one workout, but not the app being torn down.
-  useEffect(() => releaseRestBell, []);
+  // The decoded cues outlive any one workout, but not the app being torn down.
+  useEffect(() => releaseRestSounds, []);
+
+  // Decoded when the period starts rather than when the first beep is due — see
+  // `primeRestSounds`. Keyed on `running` so it costs one call per rest period
+  // instead of one per tick.
+  useEffect(() => {
+    if (running) primeRestSounds();
+  }, [running]);
 
   useEffect(() => {
     if (restEndsAt === null) {
@@ -99,8 +133,20 @@ export function RestCues() {
       AccessibilityInfo.announceForAccessibility(`${remaining} ${unit} of rest left`);
     }
 
+    // `remaining < prior` on both cues below, so that −15 and +15 can move the
+    // clock without either of them firing on a second the countdown is walking
+    // backwards through.
     if (remaining <= TICK_FROM && remaining < prior && countdownCues) {
       haptics.countdownTick();
+    }
+
+    // Gated on the same preference as the bell. "Alert sound" is the rest
+    // timer's sound switch, and someone who turned it off did not mean "keep
+    // the seven beeps and drop the one at the end". The haptic countdown has
+    // its own toggle because it is felt rather than heard, and one of the two
+    // is usable in a quiet gym where the other is not.
+    if (remaining < prior && soundEnabled && beepsAt(remaining)) {
+      void playCountdownBeep();
     }
   }, [restEndsAt, now, soundEnabled, countdownCues]);
 

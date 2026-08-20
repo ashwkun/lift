@@ -72,7 +72,7 @@ export function Card({ padded = true, elevated = false, onPress, style, ...rest 
   const colors = useColors();
 
   const surface = elevated ? colors.surfaceElevated : colors.surface;
-  const base: ViewStyle = { backgroundColor: surface, borderColor: colors.border };
+  const base: ViewStyle = { backgroundColor: surface };
 
   // A tappable card gets a real pressed surface rather than a dimmed one. On
   // AMOLED a card is already close to the canvas, so dropping its opacity moves
@@ -470,10 +470,12 @@ export function SectionHeader({ title, action }: { title: string; action?: React
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.lg,
-    // `outline`, not `rule`: the corners are rounded, and the card is the
-    // shape this app draws most often, so a stepped 14pt corner is the most
-    // repeated artefact on screen even though its border colour is quiet.
-    borderWidth: stroke.outline,
+    // No outline. The fill is the card: `surface` is a full step off the canvas
+    // in both palettes (#0C0C0F on black, white on #F4F4F6), so the edge is
+    // already legible and a stroke on top of it was drawing the same boundary
+    // twice. A card that needs to be marked out — the PR card on the summary
+    // screen — asks for its own border in a role colour, which now reads as a
+    // signal rather than as one card among many wearing a slightly louder edge.
     overflow: 'hidden',
   },
   cardPadded: { padding: spacing.lg },
