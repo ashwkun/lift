@@ -1,6 +1,8 @@
-# Local development stack. For Dokploy, point it at apps/api/Dockerfile and
-# supply the same environment variables through the dashboard — Dokploy manages
-# its own Postgres service and Traefik routing.
+# Local development stack. Publishes both services on host ports, which is what
+# you want on a laptop and never what you want on a server.
+#
+# Do not deploy this file. `docker-compose.dokploy.yml` is the production stack:
+# same two services, nothing published, Traefik in front.
 
 services:
   postgres:
