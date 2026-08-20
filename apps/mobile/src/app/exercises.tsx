@@ -24,6 +24,7 @@ import {
   Screen,
   SearchBar,
   Text,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
@@ -44,6 +45,8 @@ function ListSeparator() {
 }
 
 export default function ExercisesScreen() {
+  const scrollEdge = useScrollEdge();
+
   const [search, setSearch] = useState('');
   const [muscles, setMuscles] = useState<MuscleGroup[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -159,7 +162,7 @@ export default function ExercisesScreen() {
   );
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: 'Exercises',
@@ -223,6 +226,7 @@ export default function ExercisesScreen() {
       </View>
 
       <FlashList
+        {...scrollEdge.list}
         data={visible}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}

@@ -10,9 +10,10 @@ import {
   ListRow,
   Screen,
   SectionHeader,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { getDashboardStats, type DashboardStats } from '@/features/analytics/repository';
 import { SyncCard } from '@/features/sync/sync-card';
@@ -31,6 +32,8 @@ const APP_VERSION = Constants.expoConfig?.version;
 const UNKNOWN = '—';
 
 export default function ProfileScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -69,8 +72,8 @@ export default function ProfileScreen() {
     : ([UNKNOWN, undefined] as [string, string | undefined]);
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
+    <Screen scrolled={scrollEdge.progress}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
          * A masthead rather than a dashboard.
          *

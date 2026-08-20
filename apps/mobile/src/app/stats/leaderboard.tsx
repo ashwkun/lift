@@ -4,7 +4,15 @@ import { router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Badge, Card, EmptyState, Screen, splitMeasure, Text } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Screen,
+  Text,
+  splitMeasure,
+  useScrollEdge,
+} from '@/components/ui';
 import { pluralSessions } from '@/features/analytics/format';
 import {
   getLeaderboardExercises,
@@ -19,6 +27,8 @@ import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
 export default function LeaderboardScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
   const formula = useSettings((state) => state.oneRepMaxFormula);
@@ -48,7 +58,7 @@ export default function LeaderboardScreen() {
 
   if (!loaded) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Leaderboard exercises' }} />
       </Screen>
     );
@@ -58,10 +68,10 @@ export default function LeaderboardScreen() {
   const pending = board?.pending ?? [];
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Leaderboard exercises' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {qualified.length === 0 && pending.length === 0 ? (
           <EmptyState
             icon="trophy-outline"

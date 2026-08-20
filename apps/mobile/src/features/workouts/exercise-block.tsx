@@ -9,6 +9,7 @@ import {
   nearestLoadable,
   TRACKING_FIELDS,
   WEIGHT_UNITS,
+  type DistanceUnit,
   type SetType,
   type WeightUnit,
 } from '@lift/shared';
@@ -18,6 +19,7 @@ import Animated, { FadeIn, FadeOut, ReduceMotion } from 'react-native-reanimated
 
 import { Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
+import { useExerciseUnits } from '@/features/exercises/units';
 import { haptics } from '@/features/feedback/haptics';
 import { showConfirm, showDialog } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
@@ -42,9 +44,24 @@ export interface ExerciseBlockProps {
   onRemoveExercise: () => void;
   /** Swaps this slot for another exercise — the bench is taken, the pin is missing. */
   onReplaceExercise: () => void;
+  /**
+   * Opens the reorder sheet for the whole session.
+   *
+   * A list-level action reached from a per-exercise menu, deliberately: the
+   * moment you want it is the moment you are looking at the block that is in
+   * the wrong place, and that block's menu is already under your thumb.
+   */
+  onReorder: () => void;
   /** `seed` prefills the editor; recalling last session's note must not overwrite it in place. */
   onEditNotes: (seed?: string) => void;
   onEditRest: () => void;
+  /**
+   * Changes the units this exercise is read in — see `setExerciseUnits`. It
+   * goes out through the screen rather than being written from here, so the
+   * write joins every other one on the logging screen in the guard that
+   * notices when the disk stops accepting them.
+   */
+  onChangeUnits: (units: { weightUnit?: WeightUnit; distanceUnit?: DistanceUnit }) => void;
   /** Opens the exercise's own page — history, records and charts. */
   onOpenExercise: () => void;
 }
@@ -73,14 +90,15 @@ export function ExerciseBlock({
   onChangeSetType,
   onRemoveExercise,
   onReplaceExercise,
+  onReorder,
   onEditNotes,
   onEditRest,
+  onChangeUnits,
   onOpenExercise,
 }: ExerciseBlockProps) {
   const colors = useColors();
-  const weightUnit = useSettings((state) => state.weightUnit);
-  const distanceUnit = useSettings((state) => state.distanceUnit);
-  const updateSetting = useSettings((state) => state.update);
+  // This exercise's units, which are the app's until the user says otherwise.
+  const { weightUnit, distanceUnit } = useExerciseUnits(detail.exercise);
   const barWeightKg = useSettings((state) => state.barWeightKg);
   const defaultRestSeconds = useSettings((state) => state.defaultRestSeconds);
   const restTimerEnabled = useSettings((state) => state.restTimerEnabled);
@@ -140,6 +158,7 @@ export function ExerciseBlock({
     void showDialog({
       title: detail.exercise.name,
       actions: [
+        { label: 'Reorder exercises', onPress: onReorder },
         { label: 'Replace exercise', onPress: onReplaceExercise },
         {
           label: detail.workoutExercise.notes ? 'Edit note' : 'Add note',
@@ -280,7 +299,7 @@ export function ExerciseBlock({
             name="Weight"
             value={weightUnit}
             options={WEIGHT_UNITS}
-            onChange={(next) => updateSetting('weightUnit', next)}
+            onChange={(next) => onChangeUnits({ weightUnit: next })}
           />
         )}
         {fields.duration && (
@@ -293,7 +312,7 @@ export function ExerciseBlock({
             name="Distance"
             value={distanceUnit}
             options={DISTANCE_UNITS}
-            onChange={(next) => updateSetting('distanceUnit', next)}
+            onChange={(next) => onChangeUnits({ distanceUnit: next })}
           />
         )}
         {fields.reps && (
@@ -321,6 +340,11 @@ export function ExerciseBlock({
           set={set}
           workingIndex={workingIndex}
           trackingType={detail.exercise.trackingType}
+          // Handed down rather than read from settings inside the row: the row
+          // has to agree with the heading directly above it, and the heading is
+          // this exercise's, not the app's.
+          weightUnit={weightUnit}
+          distanceUnit={distanceUnit}
           previous={previous}
           onChange={(patch) => onUpdateSet(set.id, patch)}
           onToggleComplete={() => onToggleSet(set)}
@@ -386,11 +410,18 @@ interface SetRowModel {
  * screen converts instantly, nothing is written to the sets themselves, and
  * tapping again puts it back.
  *
- * It changes the app-wide preference, not this exercise's. Storage is kilograms
- * and kilometres either way (`packages/shared/src/units.ts`), so a unit is a
- * lens over the same numbers and having one per exercise would mean asking
- * which lens a given row was under — a question the data cannot answer and the
- * user should never have to.
+ * It changes **this exercise's** unit and nothing else's. It used to write the
+ * app-wide preference, on the argument that a unit is only a lens over numbers
+ * stored in kilograms either way (`packages/shared/src/units.ts`), and that a
+ * per-exercise lens would leave "which unit was this row under?" unanswerable.
+ * The second half was the real objection and it is gone: the exercise row
+ * carries the answer now (`exercises.weight_unit`), so every set under this
+ * heading is read in the unit the heading names.
+ *
+ * The first half was never the user's problem. Switching the dumbbell press to
+ * pounds re-labelled the squat, the leg press and every figure on the history
+ * screen with it — a whole-app decision taken from a heading that sits above
+ * one exercise's four rows. What was meant was "this rack is in pounds".
  */
 function UnitHeader<T extends string>({
   name,

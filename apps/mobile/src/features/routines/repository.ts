@@ -6,7 +6,7 @@
  * separate tables: editing a routine must never rewrite history.
  */
 
-import { uuidv7, type SetType } from '@lift/shared';
+import { uuidv7, type PositionedRow, type SetType } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
@@ -127,6 +127,37 @@ export async function getRoutineDetail(routineId: string): Promise<RoutineDetail
       return [{ routineExercise: link, exercise, sets: setsByParent.get(link.id) ?? [] }];
     }),
   };
+}
+
+/**
+ * Applies the writes a reorder produced.
+ *
+ * Takes the rows rather than a from/to pair because the caller has already done
+ * the arithmetic — `reorder()` in `@lift/shared` decides whether a move is one
+ * midpoint or a full renumber, and this only has to write whatever it handed
+ * back. Usually that is a single row.
+ *
+ * Sequential rather than batched: each write also emits an oplog entry, and the
+ * sync layer's coalescing is per row. A renumber of ten exercises is ten
+ * statements, which happens roughly never — see `MIN_GAP` in `ordering.ts`.
+ */
+export async function applyRoutineExerciseOrder(updates: PositionedRow[]): Promise<void> {
+  if (updates.length === 0) return;
+
+  for (const { id, position } of updates) {
+    await db
+      .update(routineExercises)
+      .set({ position, ...touch() })
+      .where(eq(routineExercises.id, id));
+
+    const [updated] = await db
+      .select()
+      .from(routineExercises)
+      .where(eq(routineExercises.id, id))
+      .limit(1);
+
+    if (updated) await trackUpsertCoalesced('routine_exercises', updated);
+  }
 }
 
 export async function addExerciseToRoutine(

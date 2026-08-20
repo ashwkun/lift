@@ -14,6 +14,7 @@ import {
   Screen,
   SectionHeader,
   Text,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { routines as routinesTable, workouts } from '@/db/schema';
@@ -27,6 +28,8 @@ import { radius, spacing, useColors } from '@/theme';
 const EMPTY_START = 'empty';
 
 export default function WorkoutScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
 
   // Newest first and capped at one: two open sessions should be impossible, but
@@ -93,11 +96,13 @@ export default function WorkoutScreen() {
    * and a tap inside that window reaches `begin` with `resumes` false, which
    * silently discards the open workout.
    */
-  if (!activeLoaded || !routinesLoaded) return <Screen>{null}</Screen>;
+  if (!activeLoaded || !routinesLoaded) {
+    return <Screen scrolled={scrollEdge.progress}>{null}</Screen>;
+  }
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
+    <Screen scrolled={scrollEdge.progress}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {active && (
           <Pressable
             onPress={openActive}

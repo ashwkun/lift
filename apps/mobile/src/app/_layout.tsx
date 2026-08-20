@@ -183,7 +183,7 @@ function AppNavigator() {
            * otherwise labels the control with the previous screen's title,
            * which on a stack whose titles are sentences — "Personal records",
            * "Set count per muscle" — puts a back button wider than the title it
-           * sits next to, and pushes a centred title off centre to make room.
+           * sits next to, and pushes the title along to make room for itself.
            * `headerBackTitleVisible` is the older spelling of this and still
            * typechecks, but react-native-screens now drives the native
            * `UINavigationItemBackButtonDisplayMode` directly, so the newer name

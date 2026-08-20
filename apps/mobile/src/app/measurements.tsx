@@ -26,9 +26,10 @@ import {
   HeaderAction,
   Screen,
   SectionHeader,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
   type StatFigure,
 } from '@/components/ui';
 import { haptics } from '@/features/feedback/haptics';
@@ -80,6 +81,8 @@ type SheetState =
  * real chart instead of a 140pt sliver wedged into a list.
  */
 export default function MeasurementsScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
 
   // Primitive selectors, never an object literal: Zustand feeds the selector's
@@ -184,12 +187,12 @@ export default function MeasurementsScreen() {
   // itself a frame later. The header stays mounted so the native title does not
   // flash the route name. Same rule as records.tsx and history.tsx.
   if (!loaded) {
-    return <Screen>{header}</Screen>;
+    return <Screen scrolled={scrollEdge.progress}>{header}</Screen>;
   }
 
   if (summaries.size === 0) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         {header}
         <EmptyState
           icon="body-outline"
@@ -210,10 +213,10 @@ export default function MeasurementsScreen() {
   }
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       {header}
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
          * Bodyweight leads because it is the one measurement almost everyone
          * takes, the one taken most often, and the only one the rest of the app

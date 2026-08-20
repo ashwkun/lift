@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   formatDuration,
   isWorkingSet,
+  reorder,
   TRACKING_FIELDS,
   USES_BODYWEIGHT,
+  type PositionedRow,
   type SetType,
 } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
@@ -14,7 +16,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Divider, EmptyState, HeaderAction, Screen, StatBand, Text } from '@/components/ui';
+import {
+  Button,
+  Divider,
+  EmptyState,
+  HeaderAction,
+  ReorderSheet,
+  Screen,
+  StatBand,
+  Text,
+  useScrollEdge,
+  type ReorderItem,
+} from '@/components/ui';
 import { db } from '@/db/client';
 import {
   exercises as exercisesTable,
@@ -24,6 +37,7 @@ import {
   type WorkoutSet,
 } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
+import { setExerciseUnits } from '@/features/exercises/repository';
 import { clearWorkoutNotice } from '@/features/notifications/workout';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
 import {
@@ -38,6 +52,7 @@ import { RestTimerSheet } from '@/features/workouts/rest-timer-sheet';
 import {
   addExerciseToWorkout,
   addSet,
+  applyExerciseOrder,
   canLogSet,
   deleteSet,
   discardWorkout,
@@ -64,6 +79,8 @@ import { spacing, useColors } from '@/theme';
 const PICKER_ADDRESS = 'active-workout';
 
 export default function ActiveWorkoutScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
   const insets = useSafeAreaInsets();
   // Only ever one live session, so this screen is a singleton and needs no id
@@ -409,6 +426,68 @@ export default function ActiveWorkoutScreen() {
   const [restEditorId, setRestEditorId] = useState<string | null>(null);
   const restEditorDetail = details.find((detail) => detail.workoutExercise.id === restEditorId);
 
+  const [reordering, setReordering] = useState(false);
+
+  // Names and set counts only. The sheet reorders a list of labels, and what
+  // makes a block recognisable there is what it is called and how much of it
+  // there is — not the weights, which is what the screen behind it is for.
+  const reorderItems = useMemo<ReorderItem[]>(
+    () =>
+      details.map((detail) => ({
+        id: detail.workoutExercise.id,
+        label: detail.exercise.name,
+        detail: `${detail.sets.length} ${detail.sets.length === 1 ? 'set' : 'sets'}`,
+      })),
+    [details],
+  );
+
+  /**
+   * Writes the order the sheet came back with.
+   *
+   * The arithmetic is `reorder()`'s, one hop at a time: the sheet reports a
+   * final order, and replaying it as a sequence of single moves is what keeps
+   * the common case to one row written instead of renumbering the session. The
+   * working copy is kept in step as it goes so each hop is computed against the
+   * positions the one before it produced, not against the positions on screen
+   * when the sheet opened.
+   */
+  const handleReorder = useCallback(
+    (orderedIds: string[]) => {
+      setReordering(false);
+
+      let rows: PositionedRow[] = details.map((detail) => ({
+        id: detail.workoutExercise.id,
+        position: detail.workoutExercise.position,
+      }));
+
+      const writes: PositionedRow[] = [];
+
+      orderedIds.forEach((id, target) => {
+        const from = rows.findIndex((row) => row.id === id);
+        if (from === -1 || from === target) return;
+
+        const moved = reorder(rows, from, target);
+        if (moved.length === 0) return;
+
+        const byId = new Map(moved.map((row) => [row.id, row.position]));
+        rows = rows
+          .map((row) => ({ ...row, position: byId.get(row.id) ?? row.position }))
+          .sort((a, b) => a.position - b.position);
+
+        writes.push(...moved);
+      });
+
+      if (writes.length === 0) return;
+
+      haptics.selection();
+      // Last write wins per row: a row nudged twice while replaying the hops
+      // only needs the position it ended on.
+      const final = new Map(writes.map((write) => [write.id, write]));
+      guard(applyExerciseOrder([...final.values()]));
+    },
+    [details, guard],
+  );
+
   // The exercise the running timer belongs to, so the bar can show and edit
   // that exercise's rest rather than the app default.
   const restExerciseId = useTimer((state) => state.restExerciseId);
@@ -532,7 +611,7 @@ export default function ActiveWorkoutScreen() {
 
   if (!workout) {
     return (
-      <Screen edges={['top']}>
+      <Screen scrolled={scrollEdge.progress} edges={['top']}>
         <EmptyState
           icon="barbell-outline"
           title="No active workout"
@@ -544,7 +623,7 @@ export default function ActiveWorkoutScreen() {
   }
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: workout.name,
@@ -605,6 +684,7 @@ export default function ActiveWorkoutScreen() {
       )}
 
       <ScrollView
+        {...scrollEdge.list}
         // The discard button is the last thing in the scroll, so the system
         // navigation inset is added to the content rather than the container.
         // The docked rest bar is added on top of it while one is running: it
@@ -682,7 +762,13 @@ export default function ActiveWorkoutScreen() {
                     params: { id: detail.workoutExercise.id, ...(seed ? { seed } : {}) },
                   });
                 }}
+                onReorder={() => setReordering(true)}
                 onEditRest={() => setRestEditorId(detail.workoutExercise.id)}
+                onChangeUnits={(units) => {
+                  // No haptic here: the heading fires its own on the tap, and
+                  // the conversion is visible in every figure in the block.
+                  guard(setExerciseUnits(detail.exercise.id, units));
+                }}
                 onOpenExercise={() => {
                   router.push({
                     pathname: '/exercise/[id]',
@@ -770,6 +856,14 @@ export default function ActiveWorkoutScreen() {
           onSave={handleSaveRest}
         />
       )}
+
+      <ReorderSheet
+        visible={reordering}
+        title="Reorder exercises"
+        items={reorderItems}
+        onClose={() => setReordering(false)}
+        onCommit={handleReorder}
+      />
     </Screen>
   );
 }

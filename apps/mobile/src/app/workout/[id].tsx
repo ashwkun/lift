@@ -12,9 +12,10 @@ import {
   PromptModal,
   Screen,
   SectionHeader,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { touch, trackUpsertCoalesced } from '@/db/mutations';
@@ -28,15 +29,19 @@ import {
   type WorkoutDetail,
 } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
+import { resolveExerciseUnits, useAppUnits } from '@/features/exercises/units';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { showAlert, showConfirm } from '@/store/dialog';
-import { useSettings } from '@/store/settings';
 import { spacing } from '@/theme';
 
 export default function WorkoutDetailScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { id } = useLocalSearchParams<{ id: string }>();
-  const weightUnit = useSettings((state) => state.weightUnit);
-  const distanceUnit = useSettings((state) => state.distanceUnit);
+  // The app-wide pair, which the session's own totals are printed in and which
+  // each exercise falls back to when it has no unit of its own.
+  const appUnits = useAppUnits();
+  const { weightUnit } = appUnits;
 
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [prSetIds, setPrSetIds] = useState<Set<string>>(new Set());
@@ -144,7 +149,7 @@ export default function WorkoutDetailScreen() {
 
   if (!detail) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Workout' }} />
       </Screen>
     );
@@ -162,7 +167,7 @@ export default function WorkoutDetailScreen() {
   const [volume, volumeUnit] = splitMeasure(formatVolume(workout.totalVolumeKg, weightUnit));
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: workout.name,
@@ -177,7 +182,7 @@ export default function WorkoutDetailScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/* `title`, the same size the summary screen sets this same object at.
             The date has to stay inside the label: supplying one on the
             Pressable replaces the merged child text, so naming only the workout
@@ -238,19 +243,29 @@ export default function WorkoutDetailScreen() {
 
         <SectionHeader title="Workout" />
 
-        {exercises.map((entry) => (
-          <ExerciseSetList
-            key={entry.workoutExercise.id}
-            exerciseId={entry.exercise.id}
-            name={entry.exercise.name}
-            thumbnailUrl={entry.exercise.thumbnailUrl}
-            notes={entry.workoutExercise.notes}
-            sets={entry.sets}
-            recordSetIds={prSetIds}
-            weightUnit={weightUnit}
-            distanceUnit={distanceUnit}
-          />
-        ))}
+        {/* Each block reads in its own exercise's units — the dumbbell press in
+            pounds under a session whose volume total is in kilos. The total is
+            the app's unit because it is a sum across exercises that may not
+            agree, and a number added up from two units has to be printed in one
+            of them: the one the user set for the app. `resolveExerciseUnits`
+            rather than the hook, because this is a map and a hook cannot be. */}
+        {exercises.map((entry) => {
+          const units = resolveExerciseUnits(entry.exercise, appUnits);
+
+          return (
+            <ExerciseSetList
+              key={entry.workoutExercise.id}
+              exerciseId={entry.exercise.id}
+              name={entry.exercise.name}
+              thumbnailUrl={entry.exercise.thumbnailUrl}
+              notes={entry.workoutExercise.notes}
+              sets={entry.sets}
+              recordSetIds={prSetIds}
+              weightUnit={units.weightUnit}
+              distanceUnit={units.distanceUnit}
+            />
+          );
+        })}
 
         <View style={styles.repeat}>
           <Button

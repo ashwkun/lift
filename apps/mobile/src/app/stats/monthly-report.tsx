@@ -17,8 +17,9 @@ import {
   Divider,
   Screen,
   SegmentedControl,
-  splitMeasure,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { pluralSessions, pluralSets } from '@/features/analytics/format';
 import {
@@ -77,6 +78,8 @@ const METRICS: Record<
 };
 
 export default function MonthlyReportScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
@@ -132,10 +135,10 @@ export default function MonthlyReportScreen() {
     current?.earliestMonth != null && month.getTime() <= current.earliestMonth;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Monthly report' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <View style={styles.nav}>
           <NavButton
             icon="chevron-back"

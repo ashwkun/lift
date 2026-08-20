@@ -4,7 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Screen, SectionHeader, Text } from '@/components/ui';
+import { Button, Card, Screen, SectionHeader, Text, useScrollEdge } from '@/components/ui';
 import { buildBackup, restoreBackup, writeBackupFile, writeCsvFile } from '@/features/backup';
 import { showAlert } from '@/store/dialog';
 import { spacing } from '@/theme';
@@ -37,6 +37,8 @@ function reason(cause: unknown): string {
  * instead of painting six confident zeroes.
  */
 export default function ExportScreen() {
+  const scrollEdge = useScrollEdge();
+
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [countsFailed, setCountsFailed] = useState(false);
   const [busy, setBusy] = useState<Task | null>(null);
@@ -138,10 +140,10 @@ export default function ExportScreen() {
   const totalRows = counts ? Object.values(counts).reduce((sum, count) => sum + count, 0) : null;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Backup & export' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <Text variant="body" color="textSecondary">
           A backup is one JSON file holding every workout, set, routine, record and measurement on
           this phone. Writing it only reads the database, so it still works when writes are failing.

@@ -13,24 +13,38 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Confetti } from '@/components/celebration/confetti';
-import { Button, Card, Screen, splitMeasure, Text } from '@/components/ui';
+import { Button, Card, Screen, Text, splitMeasure, useScrollEdge } from '@/components/ui';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
+import {
+  resolveExerciseUnits,
+  useAppUnits,
+  type ExerciseUnitOverrides,
+} from '@/features/exercises/units';
 import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
-import { useSettings } from '@/store/settings';
 import { spacing, stroke, useColors } from '@/theme';
 
 interface PrSummary {
   kind: PrKind;
   value: number;
   exerciseName: string;
+  /**
+   * The exercise's own unit, if it has one. A record is a fact about a single
+   * movement, so it is printed in that movement's unit — while the volume total
+   * three rows below stays in the app's, because it is a sum across exercises
+   * that may not agree on one.
+   */
+  units: ExerciseUnitOverrides;
 }
 
 export default function WorkoutSummaryScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
-  const weightUnit = useSettings((state) => state.weightUnit);
+  const appUnits = useAppUnits();
+  const { weightUnit } = appUnits;
   const reduceMotion = useReduceMotion();
 
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
@@ -49,17 +63,25 @@ export default function WorkoutSummaryScreen() {
         .from(personalRecords)
         .where(and(eq(personalRecords.workoutId, id), isNull(personalRecords.deletedAt)));
 
-      const nameById = new Map(
-        loaded.exercises.map((entry) => [entry.exercise.id, entry.exercise.name]),
+      const exerciseById = new Map(
+        loaded.exercises.map((entry) => [entry.exercise.id, entry.exercise]),
       );
 
       if (!cancelled) {
         setPrs(
-          records.map((record) => ({
-            kind: record.kind,
-            value: record.value,
-            exerciseName: nameById.get(record.exerciseId) ?? 'Exercise',
-          })),
+          records.map((record) => {
+            const exercise = exerciseById.get(record.exerciseId);
+
+            return {
+              kind: record.kind,
+              value: record.value,
+              exerciseName: exercise?.name ?? 'Exercise',
+              units: {
+                weightUnit: exercise?.weightUnit ?? null,
+                distanceUnit: exercise?.distanceUnit ?? null,
+              },
+            };
+          }),
         );
       }
     })();
@@ -91,7 +113,7 @@ export default function WorkoutSummaryScreen() {
     />
   );
 
-  if (!detail) return <Screen>{header}</Screen>;
+  if (!detail) return <Screen scrolled={scrollEdge.progress}>{header}</Screen>;
 
   const { workout, exercises } = detail;
 
@@ -99,7 +121,7 @@ export default function WorkoutSummaryScreen() {
   const confettiColors = [colors.record, colors.warning, colors.success, colors.accent];
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       {header}
 
       {/* Records only. Firing on every finished session made the burst mean
@@ -111,7 +133,7 @@ export default function WorkoutSummaryScreen() {
         <Confetti runKey={prs.length} count={70} durationMs={3200} colors={confettiColors} />
       )}
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
          * A colophon, not a trophy screen.
          *
@@ -158,7 +180,11 @@ export default function WorkoutSummaryScreen() {
                   {PR_KIND_LABELS[pr.kind]}
                 </Text>
                 <Text variant="numeric" color="record">
-                  {formatPrValue(pr.kind, pr.value, weightUnit)}
+                  {formatPrValue(
+                    pr.kind,
+                    pr.value,
+                    resolveExerciseUnits(pr.units, appUnits).weightUnit,
+                  )}
                 </Text>
               </View>
             ))}

@@ -20,6 +20,7 @@ import { relations, sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import type {
+  DistanceUnit,
   Equipment,
   MeasurementKind,
   MuscleGroup,
@@ -27,6 +28,7 @@ import type {
   SetType,
   SyncState,
   TrackingType,
+  WeightUnit,
 } from '@lift/shared';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +80,23 @@ export const exercises = sqliteTable(
     isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
     /** Per-exercise rest override; falls back to the global default when null. */
     defaultRestSeconds: integer('default_rest_seconds'),
+    /**
+     * Per-exercise display units; null follows the app-wide setting.
+     *
+     * A gym is not one unit. The dumbbell rack is stamped in pounds, the plates
+     * on the rack next to it are kilos, and a treadmill reports miles whatever
+     * the rest of the room does — so the unit belongs to the movement, the way
+     * `defaultRestSeconds` does, and not to the app or to one session. The
+     * column changes nothing about storage: weights are still kept in kilos and
+     * distances in kilometres, and this only decides what the user is shown and
+     * what their typing is read as.
+     *
+     * Null rather than a default so that "I have never said" stays
+     * distinguishable from "I said kilos". Someone who flips the app-wide
+     * setting expects every exercise they have not spoken for to follow.
+     */
+    weightUnit: text('weight_unit').$type<WeightUnit>(),
+    distanceUnit: text('distance_unit').$type<DistanceUnit>(),
     ...syncColumns,
   },
   (table) => [

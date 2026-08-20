@@ -12,9 +12,10 @@ import {
   Reveal,
   Screen,
   SectionHeader,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import {
   getDashboardStats,
@@ -41,6 +42,8 @@ const BODY_PART_LABELS: Record<string, string> = {
 };
 
 export default function HomeScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -93,7 +96,7 @@ export default function HomeScreen() {
    * poster. Only the recent-workouts block hides, because an empty box is not a
    * layout, it is a hole.
    */
-  if (!stats) return <Screen>{null}</Screen>;
+  if (!stats) return <Screen scrolled={scrollEdge.progress}>{null}</Screen>;
 
   const [weekVolume, weekVolumeUnit] = splitMeasure(
     formatVolume(stats.thisWeekVolumeKg, weightUnit),
@@ -120,8 +123,8 @@ export default function HomeScreen() {
   }));
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
+    <Screen scrolled={scrollEdge.progress}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
          * Four blocks, revealed in the order they are read.
          *

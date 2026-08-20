@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { BodyMap } from '@/components/charts/body-map';
-import { Card, Divider, Screen, Text } from '@/components/ui';
+import { Card, Divider, Screen, Text, useScrollEdge } from '@/components/ui';
 import { DayStrip } from '@/features/analytics/day-strip';
 import { formatSets } from '@/features/analytics/format';
 import { getMuscleBoard, type MuscleBoard } from '@/features/analytics/muscle-stats';
@@ -16,6 +16,8 @@ import { useSettings } from '@/store/settings';
 import { HIT_SLOP, MIN_TOUCH_SIZE, radius, spacing, stroke, useColors } from '@/theme';
 
 export default function BodyDistributionScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const colors = useColors();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
@@ -60,10 +62,10 @@ export default function BodyDistributionScreen() {
   }, [current]);
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Body distribution' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <View style={styles.nav}>
           <NavButton
             icon="chevron-back"

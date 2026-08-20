@@ -21,10 +21,11 @@ import {
   HeaderAction,
   ListRow,
   Screen,
-  splitMeasure,
   StatBand,
   Text,
   TextField,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import {
@@ -66,6 +67,8 @@ interface SessionEntry {
  * running, because nothing on this screen writes until Save does.
  */
 export default function SaveWorkoutScreen() {
+  const scrollEdge = useScrollEdge();
+
   const insets = useSafeAreaInsets();
 
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
@@ -346,7 +349,7 @@ export default function SaveWorkoutScreen() {
     const settled = updatedAt !== undefined && !closing;
 
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         {header}
         {settled && (
           <EmptyState
@@ -373,10 +376,11 @@ export default function SaveWorkoutScreen() {
   });
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       {header}
 
       <ScrollView
+        {...scrollEdge.list}
         // Discard is the last thing in the scroll, so the system navigation
         // inset is added to the content rather than to the container.
         contentContainerStyle={[styles.content, { paddingBottom: spacing.huge + insets.bottom }]}

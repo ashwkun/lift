@@ -172,18 +172,42 @@ export function HeaderAction({
  * left-aligned on Android — which meant the same screen looked like two
  * different apps depending on the phone.
  *
- * One title style, centred on both platforms, and the back control reduced to
- * its chevron: iOS otherwise labels it with the previous screen's title, so
- * "Personal records" turned into a back button wider than the title it sat
- * next to. Stack-only options (`contentStyle`, gestures) stay at the call site
- * — this is the set both navigators can take.
+ * One title style, left-aligned on both platforms, and the back control reduced
+ * to its chevron: iOS otherwise labels it with the previous screen's title, so
+ * "Personal records" turned into a back button wider than the title it sat next
+ * to. Stack-only options (`contentStyle`, gestures) stay at the call site — this
+ * is the set both navigators can take.
+ *
+ * Left rather than centred, which is the iOS default and was the first thing
+ * this function did. A centred title is sized by whatever is left after both
+ * ends have taken their share, so it truncates soonest on the screens with the
+ * longest names — a workout called "Upper Body — Heavy" beside a Finish pill —
+ * and it moves when an action appears or disappears. Against the margin it
+ * starts where every other first line on the screen starts, and it has the
+ * whole width up to the actions.
+ *
+ * The size is the `heading` variant's: 24 in the display cut, which is what the
+ * app sets a page title at everywhere else. That is the point — left-aligned at
+ * the margin, this *is* the page's title, not a label on a bar above it, and at
+ * 17 it read as chrome with the content's own headings shouting past it. The
+ * two sizes below it (17, 20) both left the header quieter than the first
+ * `SectionHeader` under it, which inverts the hierarchy of the screen.
+ *
+ * It costs width, and the screens with two actions and a long name are the ones
+ * to check: the native stack ellipsises rather than wrapping, so the failure is
+ * a truncated workout name and not a broken header.
  */
 export function headerOptions(colors: Palette) {
   return {
     headerStyle: { backgroundColor: colors.background },
     headerTintColor: colors.text,
-    headerTitleStyle: { fontSize: fontSize.lg, ...font('bold'), color: colors.text },
-    headerTitleAlign: 'center' as const,
+    headerTitleStyle: {
+      fontSize: fontSize.xxl,
+      ...font('display'),
+      letterSpacing: -0.3,
+      color: colors.text,
+    },
+    headerTitleAlign: 'left' as const,
     headerShadowVisible: false,
   };
 }

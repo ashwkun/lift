@@ -22,6 +22,7 @@ import {
   SearchBar,
   SectionHeader,
   Text,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
@@ -99,6 +100,8 @@ function Suggestions({ exercises, fromContext, selected, onPress }: SuggestionsP
  * navigating here, so this screen still needs to know nothing about it.
  */
 export default function ExercisePickerScreen() {
+  const scrollEdge = useScrollEdge();
+
   const insets = useSafeAreaInsets();
 
   const [search, setSearch] = useState('');
@@ -215,7 +218,7 @@ export default function ExercisePickerScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: 'Add exercise',
@@ -262,6 +265,7 @@ export default function ExercisePickerScreen() {
       </View>
 
       <FlashList
+        {...scrollEdge.list}
         data={visible}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}

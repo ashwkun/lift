@@ -1,9 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { fromDisplayWeight, toDisplayWeight } from '@lift/shared';
+import {
+  fromDisplayWeight,
+  reorder,
+  toDisplayWeight,
+  type PositionedRow,
+} from '@lift/shared';
 import { and, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
@@ -13,14 +18,18 @@ import {
   HeaderAction,
   NumericField,
   PromptModal,
+  ReorderSheet,
   Screen,
   Text,
+  useScrollEdge,
+  type ReorderItem,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { workouts } from '@/db/schema';
 import {
   addExerciseToRoutine,
   addRoutineSet,
+  applyRoutineExerciseOrder,
   deleteRoutine,
   deleteRoutineSet,
   getRoutineDetail,
@@ -28,13 +37,15 @@ import {
   updateRoutine,
   updateRoutineSet,
   type RoutineDetail,
+  type RoutineExerciseDetail,
 } from '@/features/routines/repository';
+import { resolveExerciseUnits, useAppUnits } from '@/features/exercises/units';
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { haptics } from '@/features/feedback/haptics';
 import { showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
-import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
 
 /**
@@ -45,6 +56,8 @@ import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
 const ADD_SET_SLOP = { top: 8, bottom: 8 };
 
 export default function RoutineEditorScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { id } = useLocalSearchParams<{ id: string }>();
 
   // Addressed per routine, not per screen: this editor has one instance per
@@ -56,7 +69,21 @@ export default function RoutineEditorScreen() {
   const openPicker = useExercisePicker((state) => state.open);
 
   const colors = useColors();
-  const weightUnit = useSettings((state) => state.weightUnit);
+  const appUnits = useAppUnits();
+
+  /*
+   * The unit one prescribed row is written in.
+   *
+   * Per exercise rather than per routine: a target typed here and the number
+   * typed against it in a session have to be the same number, and reading in
+   * kilos what will be entered in pounds is how a routine ends up prescribing a
+   * 100 kg dumbbell press. A function rather than a value computed in the map,
+   * because it is wanted at three points inside one JSX block and lifting the
+   * block into a body to hold a `const` would re-indent a hundred lines to say
+   * the same thing.
+   */
+  const weightUnitFor = (entry: RoutineExerciseDetail) =>
+    resolveExerciseUnits(entry.exercise, appUnits).weightUnit;
 
   const [detail, setDetail] = useState<RoutineDetail | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -80,6 +107,73 @@ export default function RoutineEditorScreen() {
   const reload = useCallback(async () => {
     setDetail((await getRoutineDetail(id)) ?? null);
   }, [id]);
+
+  const [reordering, setReordering] = useState(false);
+
+  // Names and set counts. A routine's blocks are told apart by what they are
+  // and how much of them there is — the target weights are the screen behind
+  // the sheet, not the thing being ordered.
+  const reorderItems = useMemo<ReorderItem[]>(
+    () =>
+      (detail?.exercises ?? []).map((entry) => ({
+        id: entry.routineExercise.id,
+        label: entry.exercise.name,
+        detail: `${entry.sets.length} ${entry.sets.length === 1 ? 'set' : 'sets'}`,
+      })),
+    [detail],
+  );
+
+  /**
+   * Writes the order the sheet came back with, then re-reads.
+   *
+   * Replayed as single moves rather than written as a block, which is what
+   * keeps the usual drag to one row: `reorder()` takes a midpoint where it can
+   * and only renumbers when the gap between two neighbours is spent. The
+   * working copy is advanced with each hop so the next one is computed against
+   * the positions the last one produced.
+   *
+   * A reload rather than an optimistic reorder of `detail`: this screen has no
+   * live query, so storage is the only thing that knows the new order, and the
+   * write is fast enough that the list does not visibly wait for it.
+   */
+  const handleReorder = useCallback(
+    (orderedIds: string[]) => {
+      setReordering(false);
+
+      void (async () => {
+        let rows: PositionedRow[] = (detail?.exercises ?? []).map((entry) => ({
+          id: entry.routineExercise.id,
+          position: entry.routineExercise.position,
+        }));
+
+        const writes = new Map<string, PositionedRow>();
+
+        orderedIds.forEach((rowId, target) => {
+          const from = rows.findIndex((row) => row.id === rowId);
+          if (from === -1 || from === target) return;
+
+          const moved = reorder(rows, from, target);
+          if (moved.length === 0) return;
+
+          const byId = new Map(moved.map((row) => [row.id, row.position]));
+          rows = rows
+            .map((row) => ({ ...row, position: byId.get(row.id) ?? row.position }))
+            .sort((a, b) => a.position - b.position);
+
+          // Last write wins: a row nudged twice while replaying the hops only
+          // needs the position it ended on.
+          for (const row of moved) writes.set(row.id, row);
+        });
+
+        if (writes.size === 0) return;
+
+        haptics.selection();
+        await applyRoutineExerciseOrder([...writes.values()]);
+        await reload();
+      })();
+    },
+    [detail, reload],
+  );
 
   // Read on focus rather than in a mount effect. Nothing on this screen is a
   // live query, so a mount-only read would go on showing whatever storage held
@@ -147,29 +241,46 @@ export default function RoutineEditorScreen() {
 
   if (!detail) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Routine' }} />
       </Screen>
     );
   }
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: detail.routine.name,
           headerRight: () => (
-            <HeaderAction
-              label="Delete routine"
-              icon="trash-outline"
-              tone="danger"
-              onPress={confirmDelete}
-            />
+            <View style={styles.headerActions}>
+              {/* Only once there is an order to change. A reorder control above
+                  a one-exercise routine is a button that cannot do anything,
+                  and this is the screen where a routine is built up from
+                  nothing — so it would spend its first minutes dead. */}
+              {detail.exercises.length > 1 && (
+                <HeaderAction
+                  label="Reorder exercises"
+                  icon="swap-vertical-outline"
+                  onPress={() => setReordering(true)}
+                />
+              )}
+              <HeaderAction
+                label="Delete routine"
+                icon="trash-outline"
+                tone="danger"
+                onPress={confirmDelete}
+              />
+            </View>
           ),
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...scrollEdge.list}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.nameField}>
           <Text variant="overline" color="textTertiary">
             Routine name
@@ -232,7 +343,7 @@ export default function RoutineEditorScreen() {
                   Set
                 </Text>
                 <Text variant="overline" color="textTertiary" style={styles.targetCell}>
-                  {weightUnit}
+                  {weightUnitFor(entry)}
                 </Text>
                 <Text variant="overline" color="textTertiary" style={styles.targetCell}>
                   Reps
@@ -249,7 +360,11 @@ export default function RoutineEditorScreen() {
                     value={
                       set.targetWeightKg == null
                         ? ''
-                        : String(Math.round(toDisplayWeight(set.targetWeightKg, weightUnit) * 10) / 10)
+                        : String(
+                            Math.round(
+                              toDisplayWeight(set.targetWeightKg, weightUnitFor(entry)) * 10,
+                            ) / 10,
+                          )
                     }
                     placeholder="—"
                     onChangeText={(text) => {
@@ -257,7 +372,7 @@ export default function RoutineEditorScreen() {
                       if (parsed !== null && !Number.isFinite(parsed)) return;
                       void updateRoutineSet(set.id, {
                         targetWeightKg:
-                          parsed === null ? null : fromDisplayWeight(parsed, weightUnit),
+                          parsed === null ? null : fromDisplayWeight(parsed, weightUnitFor(entry)),
                       }).then(reload);
                     }}
                   />
@@ -345,11 +460,20 @@ export default function RoutineEditorScreen() {
           void updateRoutine(id, { name: value }).then(reload);
         }}
       />
+
+      <ReorderSheet
+        visible={reordering}
+        title="Reorder exercises"
+        items={reorderItems}
+        onClose={() => setReordering(false)}
+        onCommit={handleReorder}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   content: { paddingBottom: spacing.huge },
   nameField: { padding: spacing.lg, gap: spacing.xs },
   nameButton: {

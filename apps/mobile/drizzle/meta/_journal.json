@@ -15,6 +15,13 @@
       "when": 1786698333036,
       "tag": "0001_clever_roland_deschain",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787232021675,
+      "tag": "0002_youthful_colossus",
+      "breakpoints": true
     }
   ]
 }

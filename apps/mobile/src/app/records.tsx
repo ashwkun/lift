@@ -21,25 +21,39 @@ import {
   PressableScale,
   Reveal,
   Screen,
-  splitMeasure,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises, personalRecords } from '@/db/schema';
+import {
+  resolveExerciseUnits,
+  useAppUnits,
+  type ExerciseUnitOverrides,
+} from '@/features/exercises/units';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
-import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
 interface ExerciseRecords {
   exerciseId: string;
   exerciseName: string;
+  /**
+   * The exercise's own unit overrides, carried through the query so each group
+   * prints its record in the unit that exercise is logged in. A best bench of
+   * "102.5 kg" under a heading the user only ever sees as 225 lb is a number
+   * they have to convert to recognise as theirs. Null here means the exercise
+   * has no opinion and follows the app-wide setting.
+   */
+  units: ExerciseUnitOverrides;
   records: { kind: PrKind; value: number; achievedAt: Date }[];
 }
 
 export default function RecordsScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
-  const weightUnit = useSettings((state) => state.weightUnit);
-  const distanceUnit = useSettings((state) => state.distanceUnit);
+  const appUnits = useAppUnits();
   const [grouped, setGrouped] = useState<ExerciseRecords[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -53,6 +67,8 @@ export default function RecordsScreen() {
             .select({
               exerciseId: personalRecords.exerciseId,
               exerciseName: exercises.name,
+              weightUnit: exercises.weightUnit,
+              distanceUnit: exercises.distanceUnit,
               kind: personalRecords.kind,
               value: personalRecords.value,
               achievedAt: personalRecords.achievedAt,
@@ -73,7 +89,12 @@ export default function RecordsScreen() {
 
             let entry = byExercise.get(row.exerciseId);
             if (!entry) {
-              entry = { exerciseId: row.exerciseId, exerciseName: row.exerciseName, records: [] };
+              entry = {
+                exerciseId: row.exerciseId,
+                exerciseName: row.exerciseName,
+                units: { weightUnit: row.weightUnit, distanceUnit: row.distanceUnit },
+                records: [],
+              };
               byExercise.set(row.exerciseId, entry);
             }
 
@@ -117,7 +138,7 @@ export default function RecordsScreen() {
   // The header stays mounted so the native title does not flash the route name.
   if (!loaded) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Personal records' }} />
       </Screen>
     );
@@ -125,7 +146,7 @@ export default function RecordsScreen() {
 
   if (grouped.length === 0) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Personal records' }} />
         <Reveal>
           <EmptyState
@@ -143,7 +164,7 @@ export default function RecordsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Personal records' }} />
 
       {/* Both branches above hold a bare header until the query answers, so
@@ -160,7 +181,7 @@ export default function RecordsScreen() {
           badge and no medal either; the number is the achievement, and dressing
           it up would say the number is not enough.
         */}
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
           {showsEstimated1rm && (
             <Text variant="caption" color="textTertiary" style={styles.note}>
               An estimated 1RM is calculated from a set you completed, not a max you have tested.
@@ -199,7 +220,13 @@ export default function RecordsScreen() {
 
               <View style={styles.records}>
                 {entry.records.map((record) => {
-                  const measure = formatRecord(record.kind, record.value, weightUnit, distanceUnit);
+                  const units = resolveExerciseUnits(entry.units, appUnits);
+                  const measure = formatRecord(
+                    record.kind,
+                    record.value,
+                    units.weightUnit,
+                    units.distanceUnit,
+                  );
                   const [figure, unit] = splitMeasure(measure);
                   const day = record.achievedAt.toLocaleDateString(undefined, {
                     day: 'numeric',

@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { BodyMap } from '@/components/charts/body-map';
-import { Card, Divider, ListRow, Reveal, Screen, Text } from '@/components/ui';
+import { Card, Divider, ListRow, Reveal, Screen, Text, useScrollEdge } from '@/components/ui';
 import { DayStrip } from '@/features/analytics/day-strip';
 import { getMuscleBoard, type MuscleBoard } from '@/features/analytics/muscle-stats';
 import { VolumeLegend } from '@/features/analytics/volume-legend';
@@ -62,6 +62,8 @@ const ADVANCED = [
 ] as const;
 
 export default function StatisticsScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const [board, setBoard] = useState<MuscleBoard | null>(null);
 
@@ -91,10 +93,10 @@ export default function StatisticsScreen() {
   const mapWidth = width - spacing.lg * 2 - spacing.lg * 2;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Statistics' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <Card style={styles.graph}>
           <View style={styles.graphHeader}>
             <Text variant="overline" color="textSecondary">

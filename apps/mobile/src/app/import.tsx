@@ -16,6 +16,7 @@ import {
   SectionHeader,
   SegmentedControl,
   Text,
+  useScrollEdge,
 } from '@/components/ui';
 import { restoreBackup } from '@/features/backup';
 import {
@@ -49,6 +50,8 @@ import { spacing, useColors } from '@/theme';
  * duplicate check, the list of exercises that would be created — is a read.
  */
 export default function ImportScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [app, setApp] = useState<ImportApp | null>(null);
@@ -190,10 +193,14 @@ export default function ImportScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Import' }} />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...scrollEdge.list}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {summary !== null ? (
           <ImportResult summary={summary} onImportMore={startOver} />
         ) : restored !== null ? (

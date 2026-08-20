@@ -32,9 +32,10 @@ import {
   Screen,
   SectionHeader,
   SegmentedControl,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
   type SegmentOption,
 } from '@/components/ui';
 import type { BodyMeasurement } from '@/db/schema';
@@ -79,6 +80,8 @@ type SheetState = { mode: 'add' } | { mode: 'edit'; entry: BodyMeasurement } | n
  * reading listed and editable.
  */
 export default function MeasurementDetailScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
   const { width } = useWindowDimensions();
   const params = useLocalSearchParams<{ kind: string }>();
@@ -156,7 +159,7 @@ export default function MeasurementDetailScreen() {
 
   if (!kind) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Measurement' }} />
         <EmptyState icon="help-circle-outline" title="Unknown measurement" />
       </Screen>
@@ -240,11 +243,11 @@ export default function MeasurementDetailScreen() {
     />
   );
 
-  if (!loaded) return <Screen>{header}</Screen>;
+  if (!loaded) return <Screen scrolled={scrollEdge.progress}>{header}</Screen>;
 
   if (!stats || !overall) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         {header}
         <EmptyState
           icon="analytics-outline"
@@ -274,10 +277,10 @@ export default function MeasurementDetailScreen() {
   const insight = buildInsight(kind, windowed, prefs, { heightCm, counterpart });
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       {header}
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <View style={styles.masthead}>
           <Text variant="overline" color="accent">
             Latest

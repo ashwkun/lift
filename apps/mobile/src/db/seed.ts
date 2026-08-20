@@ -85,9 +85,13 @@ export async function seedExerciseLibrary(): Promise<void> {
       .onConflictDoUpdate({
         target: exercises.id,
         /**
-         * Refresh only canonical library data. `isArchived`, `notes` and
-         * `defaultRestSeconds` are deliberately excluded — those are the
-         * user's, and overwriting them would undo their customisations.
+         * Refresh only canonical library data. `isArchived`, `notes`,
+         * `defaultRestSeconds` and the two unit overrides are deliberately
+         * excluded — those are the user's, and overwriting them would undo
+         * their customisations on the next launch that ships a new catalog.
+         *
+         * The rule for anything added to `exercises` later: if the user can
+         * change it, it does not belong in this set.
          */
         set: {
           name: sqlExcluded('name'),

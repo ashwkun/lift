@@ -9,7 +9,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Fragment, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Chip, Divider, Screen, Text, TextField } from '@/components/ui';
+import { Chip, Divider, Screen, Text, TextField, useScrollEdge } from '@/components/ui';
 import { useSettings } from '@/store/settings';
 import { fontSize, spacing } from '@/theme';
 
@@ -28,6 +28,8 @@ const BAR_OPTIONS: Record<WeightUnit, readonly number[]> = {
 };
 
 export default function PlateCalculatorScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
   // The configured bar *is* the state — there is no local copy to drift from
   // it. Zustand reads synchronously, so tapping a chip repaints this frame and
@@ -60,10 +62,14 @@ export default function PlateCalculatorScreen() {
   }, [targetText, barKg, weightUnit, inventory]);
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Plate calculator' }} />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...scrollEdge.list}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <TextField
           label={`Target weight (${weightUnit})`}
           accessibilityLabel={`Target weight in ${weightUnit}`}

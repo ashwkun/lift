@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { Button, HeaderAction, Screen, Text, TextField } from '@/components/ui';
+import { Button, HeaderAction, Screen, Text, TextField, useScrollEdge } from '@/components/ui';
 import { haptics } from '@/features/feedback/haptics';
 import { authClient } from '@/features/sync/auth-client';
 import { useSync } from '@/store/sync';
@@ -58,6 +58,8 @@ function describeFailure(cause: unknown, isSignUp: boolean): string {
 }
 
 export default function SignInScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
   const sync = useSync((state) => state.sync);
 
@@ -117,7 +119,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: isSignUp ? 'Create account' : 'Sign in',
@@ -139,7 +141,11 @@ export default function SignInScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          {...scrollEdge.list}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
           {/*
            * A tinted disc with a cloud in it, over a centred heading and a
            * centred paragraph, is the stock sign-in screen — and centring the

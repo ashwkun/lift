@@ -36,7 +36,6 @@ import type { WorkoutSet } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { canLogSet } from '@/features/workouts/repository';
 import { showConfirm } from '@/store/dialog';
-import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
 export interface SetRowProps {
@@ -44,6 +43,13 @@ export interface SetRowProps {
   /** 1-based index among working sets; warm-ups show a badge instead. */
   workingIndex: number;
   trackingType: TrackingType;
+  /**
+   * The units this exercise reads in, resolved by the block above (see
+   * `useExerciseUnits`). Not read from settings here: the row types into the
+   * column its heading names, and that heading belongs to one exercise.
+   */
+  weightUnit: WeightUnit;
+  distanceUnit: DistanceUnit;
   /** Same-position set from the previous session, shown as a ghost target. */
   previous?: WorkoutSet;
   onChange: (patch: Partial<WorkoutSet>) => void;
@@ -179,6 +185,8 @@ export const SetRow = memo(function SetRow({
   set,
   workingIndex,
   trackingType,
+  weightUnit,
+  distanceUnit,
   previous,
   onChange,
   onToggleComplete,
@@ -186,8 +194,6 @@ export const SetRow = memo(function SetRow({
   onChangeSetType,
 }: SetRowProps) {
   const colors = useColors();
-  const weightUnit = useSettings((state) => state.weightUnit);
-  const distanceUnit = useSettings((state) => state.distanceUnit);
 
   // 0 = open, 1 = checked off. Seeded from the current value so a screen opened
   // on a half-finished workout renders its state rather than animating into it.

@@ -10,9 +10,10 @@ import {
   HeaderAction,
   IconButton,
   Screen,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import {
   addMonths,
@@ -43,6 +44,8 @@ const PENDING = '—';
 const UNREADABLE: WorkoutCalendar = { days: new Map(), first: null, typicalVolumeKg: 0 };
 
 export default function CalendarScreen() {
+  const scrollEdge = useScrollEdge();
+
   const colors = useColors();
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
@@ -143,7 +146,7 @@ export default function CalendarScreen() {
   // a band of dashes, which is what History does with the same situation.
   if (calendar && calendar.first === null) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         {header}
         <EmptyState
           icon="calendar-outline"
@@ -162,10 +165,10 @@ export default function CalendarScreen() {
   const listed = selectedKey ? (selectedDay?.workouts ?? []) : (summary?.workouts ?? []);
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       {header}
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <View style={styles.monthBar}>
           <IconButton
             name="chevron-back"

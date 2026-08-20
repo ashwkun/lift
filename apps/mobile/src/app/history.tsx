@@ -20,9 +20,10 @@ import {
   Reveal,
   Screen,
   SegmentedControl,
-  splitMeasure,
   StatBand,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { workouts, type Workout } from '@/db/schema';
@@ -91,6 +92,8 @@ const METRICS: Record<
 };
 
 export default function HistoryScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -185,7 +188,7 @@ export default function HistoryScreen() {
   // the route name.
   if (!loaded) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'History' }} />
       </Screen>
     );
@@ -193,7 +196,7 @@ export default function HistoryScreen() {
 
   if (completed.length === 0) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'History' }} />
         <Reveal>
           <EmptyState
@@ -210,7 +213,7 @@ export default function HistoryScreen() {
   const active = ranged?.buckets.find((bucket) => bucket.start === selectedBucket) ?? null;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'History' }} />
       {/* The list is held behind `loaded` and its analytics are held behind the
           push transition, so it arrives some way into the screen's life. The
@@ -219,6 +222,7 @@ export default function HistoryScreen() {
           the list still measures against the screen and not against itself. */}
       <Reveal style={styles.flex}>
         <SectionList
+          {...scrollEdge.list}
           sections={sections}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled={false}

@@ -9,7 +9,7 @@ import { router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, EmptyState, Screen, Text } from '@/components/ui';
+import { Card, EmptyState, Screen, Text, useScrollEdge } from '@/components/ui';
 import { pluralSessions } from '@/features/analytics/format';
 import { getMainExercises, type MainExercise } from '@/features/analytics/exercise-stats';
 import { RangePicker } from '@/features/analytics/range-picker';
@@ -23,6 +23,8 @@ import { radius, spacing, useColors } from '@/theme';
 const RANKED = 3;
 
 export default function MainExercisesScreen() {
+  const scrollEdge = useScrollEdge();
+
   const weightUnit = useSettings((state) => state.weightUnit);
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
   const formula = useSettings((state) => state.oneRepMaxFormula);
@@ -48,10 +50,10 @@ export default function MainExercisesScreen() {
   const ranged = result?.range === range ? result : null;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Main exercises' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <RangePicker value={range} onChange={setRange} />
 
         {!ranged ? null : ranged.exercises.length === 0 ? (

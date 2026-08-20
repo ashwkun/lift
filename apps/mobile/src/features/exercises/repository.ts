@@ -2,12 +2,19 @@
  * Exercise library reads and writes.
  */
 
-import { uuidv7, type Equipment, type MuscleGroup, type TrackingType } from '@lift/shared';
+import {
+  uuidv7,
+  type DistanceUnit,
+  type Equipment,
+  type MuscleGroup,
+  type TrackingType,
+  type WeightUnit,
+} from '@lift/shared';
 import { filterExercises, type ExerciseFilters } from '@lift/shared/exercises';
 import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { touch, trackDelete, trackUpsert } from '@/db/mutations';
+import { touch, trackDelete, trackUpsert, trackUpsertCoalesced } from '@/db/mutations';
 import { exercises, workoutExercises, workouts, type Exercise } from '@/db/schema';
 
 /**
@@ -135,6 +142,12 @@ export async function createCustomExercise(input: CreateExerciseInput): Promise<
     videoUrl: null,
     isArchived: false,
     defaultRestSeconds: input.defaultRestSeconds ?? null,
+    // Null, not the current setting: a new exercise inherits whatever the app
+    // is set to *at the time it is read*, which is what someone who later
+    // switches the app to pounds expects of an exercise they never spoke for.
+    // Copying the setting in here would freeze today's answer onto the row.
+    weightUnit: null,
+    distanceUnit: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -164,6 +177,49 @@ export async function updateExercise(
   // Built-in exercises exist identically on every device, so only user-created
   // ones are worth replicating.
   if (updated.isCustom) await trackUpsert('exercises', updated);
+}
+
+/**
+ * Sets the units this exercise is displayed in, now and in every later session.
+ *
+ * Scoped to the exercise on purpose, and this is the whole point of the column:
+ * the unit headings in a workout used to write the app-wide setting, so
+ * switching the dumbbell press to pounds re-labelled the squat, the leg press
+ * and every figure on the history screen along with it. What the user meant was
+ * "this rack is in pounds".
+ *
+ * Persisted rather than held for the session, for the reason per-exercise rest
+ * is: the rack does not change units between Tuesdays, and re-choosing it every
+ * week is the thing that makes a per-exercise setting not worth having.
+ *
+ * `null` for either clears that override and returns the exercise to the
+ * app-wide setting. Omitting a key leaves it alone, so the weight heading and
+ * the distance heading can be set independently — a rowing machine reasonably
+ * reports metres while its resistance means nothing in either unit.
+ */
+export async function setExerciseUnits(
+  exerciseId: string,
+  units: { weightUnit?: WeightUnit | null; distanceUnit?: DistanceUnit | null },
+): Promise<void> {
+  const patch: Partial<Pick<Exercise, 'weightUnit' | 'distanceUnit'>> = {};
+
+  if ('weightUnit' in units) patch.weightUnit = units.weightUnit ?? null;
+  if ('distanceUnit' in units) patch.distanceUnit = units.distanceUnit ?? null;
+  if (Object.keys(patch).length === 0) return;
+
+  await db
+    .update(exercises)
+    .set({ ...patch, ...touch() })
+    .where(eq(exercises.id, exerciseId));
+
+  const updated = await getExercise(exerciseId);
+
+  // Built-ins exist identically on every device and never cross the wire, so
+  // only a user-created exercise is worth replicating — the same rule
+  // `setExerciseRest` follows, and with the same consequence: a unit set on a
+  // catalog movement is local to this phone. Coalesced because the heading is a
+  // toggle, and settling on pounds after two taps should leave one row to push.
+  if (updated?.isCustom) await trackUpsertCoalesced('exercises', updated);
 }
 
 /**

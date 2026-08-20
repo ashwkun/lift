@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
-import { Badge, Card, EmptyState, Screen, Text } from '@/components/ui';
+import { Badge, Card, EmptyState, Screen, Text, useScrollEdge } from '@/components/ui';
 import { UNMAPPED_MUSCLES } from '@/components/charts/body-map';
 import { formatSets, pluralSets } from '@/features/analytics/format';
 import {
@@ -37,6 +37,8 @@ const RANGES: readonly StatRange[] = ['30d', '3m', '1y', 'all'];
 const PENDING = '—';
 
 export default function MuscleSetsScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
@@ -90,10 +92,10 @@ export default function MuscleSetsScreen() {
   const activeBucket = columns.find((column) => column.key === bucket) ?? null;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Set count per muscle' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <RangePicker
           value={range}
           options={RANGES}

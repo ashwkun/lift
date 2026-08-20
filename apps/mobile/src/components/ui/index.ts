@@ -18,7 +18,7 @@ export {
 } from './header-action';
 export { ListPicker, type ListPickerOption, type ListPickerProps } from './list-picker';
 export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
-export { Screen, type ScreenProps } from './screen';
+export { Screen, useScrollEdge, type ScreenProps } from './screen';
 export {
   SegmentedControl,
   type SegmentOption,
@@ -56,3 +56,4 @@ export {
   type TextFieldProps,
 } from './input';
 export { PromptModal, type PromptModalProps } from './prompt-modal';
+export { ReorderSheet, type ReorderItem, type ReorderSheetProps } from './reorder-sheet';

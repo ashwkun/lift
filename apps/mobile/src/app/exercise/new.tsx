@@ -21,6 +21,7 @@ import {
   SectionHeader,
   Text,
   TextField,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises } from '@/db/schema';
@@ -60,6 +61,8 @@ async function findConflict(name: string): Promise<{ name: string; isArchived: b
 }
 
 export default function NewExerciseScreen() {
+  const scrollEdge = useScrollEdge();
+
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [equipment, setEquipment] = useState<Equipment>('barbell');
@@ -114,7 +117,7 @@ export default function NewExerciseScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: 'New exercise',
@@ -134,7 +137,11 @@ export default function NewExerciseScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...scrollEdge.list}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <TextField
           ref={nameField}
           label="Name"

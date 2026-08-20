@@ -132,6 +132,19 @@ export const exercises = pgTable(
     imageUrl: text('image_url'),
     isArchived: boolean('is_archived').notNull().default(false),
     defaultRestSeconds: integer('default_rest_seconds'),
+    /**
+     * Per-exercise display units, carried so a custom exercise arrives on the
+     * user's other phone reading in the unit they set it in. Nullable, meaning
+     * "follow whatever that device's app-wide setting says".
+     *
+     * The server stores them and never interprets them: nothing here converts a
+     * weight, because nothing here displays one — weights replicate in kilos
+     * exactly as they are stored on device. `sanitize` drops any payload key
+     * that is not a column, so without these two the client's choice would be
+     * silently discarded on the way through rather than rejected.
+     */
+    weightUnit: text('weight_unit'),
+    distanceUnit: text('distance_unit'),
     ...syncColumns,
   },
   (table) => [index('exercises_sync_idx').on(table.userId, table.seq)],

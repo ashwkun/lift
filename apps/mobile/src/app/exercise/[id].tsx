@@ -29,8 +29,9 @@ import {
   Screen,
   SectionHeader,
   SegmentedControl,
-  splitMeasure,
   Text,
+  splitMeasure,
+  useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import {
@@ -43,6 +44,7 @@ import {
 } from '@/db/schema';
 import { ExerciseMedia } from '@/features/exercises/exercise-media';
 import { deleteExercise, getExercise } from '@/features/exercises/repository';
+import { useExerciseUnits } from '@/features/exercises/units';
 import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
@@ -125,14 +127,29 @@ function describeChange(trend: OneRepMaxTrend, unit: WeightUnit): string {
 }
 
 export default function ExerciseDetailScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
-  const { weightUnit, distanceUnit, oneRepMaxFormula, bodyweightKg } = useSettings();
+  const { oneRepMaxFormula, bodyweightKg } = useSettings();
 
   const [tab, setTab] = useState<Tab>('summary');
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [records, setRecords] = useState<{ kind: PrKind; value: number }[]>([]);
+
+  /*
+   * Every figure on this screen belongs to this one exercise — the trend, the
+   * rep-max table, the chart axis, the session history — so all of them read in
+   * its unit rather than the app's. That is the point of the override: someone
+   * who logs the dumbbell press in pounds should not have to convert their own
+   * history in their head to check it against last month.
+   *
+   * Null while the row is loading, which resolves to the app-wide pair. The
+   * screen renders its skeleton in that frame, so nothing is printed in a unit
+   * that then changes under the reader.
+   */
+  const { weightUnit, distanceUnit } = useExerciseUnits(exercise);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,7 +231,7 @@ export default function ExerciseDetailScreen() {
 
   if (!exercise) {
     return (
-      <Screen>
+      <Screen scrolled={scrollEdge.progress}>
         <Stack.Screen options={{ title: 'Exercise' }} />
       </Screen>
     );
@@ -252,7 +269,7 @@ export default function ExerciseDetailScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: exercise.name,
@@ -286,7 +303,11 @@ export default function ExerciseDetailScreen() {
       </View>
 
       {tab === 'summary' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView
+          {...scrollEdge.list}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+        >
           <ExerciseMedia
             name={exercise.name}
             thumbnailUrl={exercise.thumbnailUrl}
@@ -393,7 +414,11 @@ export default function ExerciseDetailScreen() {
           )}
         </ScrollView>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <ScrollView
+          {...scrollEdge.list}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+        >
           {history.length === 0 ? (
             <EmptyState
               icon="time-outline"

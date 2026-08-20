@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { RadarChart, RadarLegend, type RadarAxis } from '@/components/charts/radar-chart';
-import { Card, Divider, Screen, splitMeasure, Text } from '@/components/ui';
+import { Card, Divider, Screen, Text, splitMeasure, useScrollEdge } from '@/components/ui';
 import { pluralSets } from '@/features/analytics/format';
 import {
   getMuscleDistributionReport,
@@ -26,6 +26,8 @@ import { spacing } from '@/theme';
 const PENDING = '—';
 
 export default function MuscleDistributionScreen() {
+  const scrollEdge = useScrollEdge();
+
   const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -68,10 +70,10 @@ export default function MuscleDistributionScreen() {
   const plotSize = Math.min(width - spacing.lg * 4, 320);
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Muscle distribution' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <RangePicker value={range} onChange={setRange} />
 
         <Card style={styles.chartCard}>

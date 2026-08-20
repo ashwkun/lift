@@ -12,6 +12,7 @@ import {
   TRACKING_FIELDS,
   uuidv7,
   type AnalyticsContext,
+  type PositionedRow,
   type PrKind,
   type SetLike,
   type SetType,
@@ -523,19 +524,39 @@ export async function reorderExercise(
   workoutExerciseId: string,
   newPosition: number,
 ): Promise<void> {
-  const stamp = touch();
-  await db
-    .update(workoutExercises)
-    .set({ position: newPosition, ...stamp })
-    .where(eq(workoutExercises.id, workoutExerciseId));
+  await applyExerciseOrder([{ id: workoutExerciseId, position: newPosition }]);
+}
 
-  const [updated] = await db
-    .select()
-    .from(workoutExercises)
-    .where(eq(workoutExercises.id, workoutExerciseId))
-    .limit(1);
+/**
+ * Applies the writes a reorder produced.
+ *
+ * Takes the rows rather than a from/to pair because the caller has already done
+ * the arithmetic — `reorder()` in `@lift/shared` decides whether a move is one
+ * midpoint or a full renumber, and this only has to write whatever it handed
+ * back. Usually that is a single row, which is the entire point of `position`
+ * being a REAL.
+ *
+ * Sequential rather than batched: each write also emits an oplog entry, and the
+ * sync layer's coalescing is per row. A renumber of ten exercises is ten
+ * statements, which happens roughly never — see `MIN_GAP` in `ordering.ts`.
+ */
+export async function applyExerciseOrder(updates: PositionedRow[]): Promise<void> {
+  if (updates.length === 0) return;
 
-  if (updated) await trackUpsertCoalesced('workout_exercises', updated);
+  for (const { id, position } of updates) {
+    await db
+      .update(workoutExercises)
+      .set({ position, ...touch() })
+      .where(eq(workoutExercises.id, id));
+
+    const [updated] = await db
+      .select()
+      .from(workoutExercises)
+      .where(eq(workoutExercises.id, id))
+      .limit(1);
+
+    if (updated) await trackUpsertCoalesced('workout_exercises', updated);
+  }
 }
 
 /**

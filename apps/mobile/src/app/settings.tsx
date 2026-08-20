@@ -20,7 +20,16 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, Chip, PromptModal, Screen, SectionHeader, Text, Toggle } from '@/components/ui';
+import {
+  Card,
+  Chip,
+  PromptModal,
+  Screen,
+  SectionHeader,
+  Text,
+  Toggle,
+  useScrollEdge,
+} from '@/components/ui';
 import { recordBodyweight } from '@/features/measurements/repository';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
@@ -55,6 +64,8 @@ const UNSET = 'unset';
 type SexChoice = Sex | typeof UNSET;
 
 export default function SettingsScreen() {
+  const scrollEdge = useScrollEdge();
+
   const settings = useSettings();
   const update = useSettings((state) => state.update);
 
@@ -87,10 +98,10 @@ export default function SettingsScreen() {
   const restOff = !settings.restTimerEnabled;
 
   return (
-    <Screen>
+    <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Settings' }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <SectionHeader title="Units" />
         <Card style={styles.card}>
           <ChoiceRow
@@ -112,9 +123,15 @@ export default function SettingsScreen() {
             onSelect={(value) => update('measurementUnit', value)}
           />
         </Card>
+        {/* Two sentences, and the second one exists because the first is no
+            longer the whole story: an exercise can carry its own unit, set from
+            the column heading while logging it. Someone who switches the app to
+            kilograms and finds one exercise still reading in pounds should be
+            able to find out why from the screen they just used. */}
         <Text variant="caption" color="textTertiary" style={styles.hint}>
           Changing units only affects display. Everything is stored in kilograms, kilometres and
-          centimetres, so your history stays consistent.
+          centimetres, so your history stays consistent. An exercise can override this from its
+          column heading in a workout — the dumbbell rack in pounds, the plates in kilos.
         </Text>
 
         <SectionHeader title="Appearance" />

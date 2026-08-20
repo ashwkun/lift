@@ -3,6 +3,7 @@ export * from './types.ts';
 export * from './units.ts';
 export * from './calculations.ts';
 export * from './measurements.ts';
+export * from './ordering.ts';
 export * from './plates.ts';
 export * from './sync.ts';
 
