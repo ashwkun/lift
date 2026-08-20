@@ -104,7 +104,12 @@ export const darkPalette: Palette = {
 
   text: '#F5F5F7',
   textSecondary: '#A1A1AC',
-  textTertiary: '#6E6E7A',
+  // Lifted from #6E6E7A, which measured 4.17 on the canvas, 3.88 on `surface`
+  // and 3.30 inside a `surfaceMuted` input — below AA everywhere it is actually
+  // printed, and this tier carries the previous-set column and the unchecked
+  // check glyph. It now reads 5.68 / 5.28 / 4.48 on those same three surfaces,
+  // so the third tier clears AA even on the darkest fill.
+  textTertiary: '#84848F',
 
   // Electric lime — the one saturated colour in the app, and the reason the
   // dark canvas reads as deliberate rather than absent. It sits at ~78% relative
@@ -153,8 +158,18 @@ export const lightPalette: Palette = {
   borderStrong: '#C9C9D2',
 
   text: '#111114',
-  textSecondary: '#6B6B75',
-  textTertiary: '#95959F',
+  // 6.20 on `background`, 6.82 on `surface`. The previous #6B6B75 measured 4.80
+  // — nominally a pass, but it sat so close to the AA line that the tier below
+  // it had nowhere left to go.
+  textSecondary: '#5A5A64',
+  // 4.09 on `background`, 4.49 on `surface`, and that is the honest ceiling: a
+  // third tier dark enough to reach 4.5 on `background` lands within a step of
+  // `textSecondary` and collapses the neutral ramp from three tiers into two.
+  // The previous #95959F measured 2.70. Because this token cannot be made to
+  // pass, it is only ever used for text that repeats something already stated
+  // in a higher tier — units beside a number, placeholders, row hints — and
+  // never for the only copy of a fact.
+  textTertiary: '#767681',
 
   // The same yellow-green hue as the dark palette, dropped to a depth where it
   // still works as *text*. `accent` is read as a foreground far more often than
@@ -165,19 +180,37 @@ export const lightPalette: Palette = {
   accentPressed: '#3F5406',
   accentSurface: 'rgba(163, 209, 30, 0.22)',
 
-  success: '#16A34A',
-  successPressed: '#15803D',
-  successSurface: 'rgba(22, 163, 74, 0.12)',
+  // 4.96 on `background`, 5.44 on `surface`, and the white Finish label on top
+  // of the filled button reads at that same 5.44. #16A34A measured 3.00 — a
+  // green that works as a fill and fails as text, and the token also colours
+  // sync status text and the completed-set glyph. `successPressed` has to go
+  // *down* from here: the old pressed value (#15803D, 4.57) is now lighter than
+  // the resting colour, so keeping it would make a press brighten the button.
+  success: '#0F7A36',
+  successPressed: '#0A5F2A',
+  successSurface: 'rgba(15, 122, 54, 0.12)',
 
-  warning: '#D97706',
-  warningSurface: 'rgba(217, 119, 6, 0.14)',
+  // 5.40 on `background`, 5.93 on `surface`; #D97706 measured 2.90. Burnt
+  // orange rather than amber so that it and `record` cannot be confused — see
+  // `record` below.
+  warning: '#A34A07',
+  warningSurface: 'rgba(163, 74, 7, 0.14)',
 
   danger: '#DC2626',
   dangerPressed: '#B91C1C',
   dangerSurface: 'rgba(220, 38, 38, 0.10)',
 
-  record: '#D97706',
-  recordSurface: 'rgba(217, 119, 6, 0.14)',
+  // Light mode used to give `record` and `warning` the same #D97706, so a PR
+  // badge and a validation warning were the same colour on the same card with
+  // nothing but their glyph to tell them apart. `record` keeps the gold and
+  // `warning` moves to burnt orange; the two are separated by hue (50° against
+  // 26°) rather than depth alone, because the PR marker is often a 13px trophy
+  // where a lightness step would not register. 5.99 on `background`, 6.58 on
+  // `surface`, and 4.92 on its own `recordSurface` tint over a card — the badge
+  // is the case that has to pass, and a tint costs roughly 0.8 of whatever the
+  // colour measures on the bare surface.
+  record: '#6E5C00',
+  recordSurface: 'rgba(110, 92, 0, 0.14)',
 
   textOnAccent: '#FFFFFF',
   textOnSuccess: '#FFFFFF',

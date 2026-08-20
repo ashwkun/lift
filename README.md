@@ -1,4 +1,12 @@
-# Lift
+<p align="center">
+  <img src="docs/banner.png" alt="Lift — local-first workout tracker" width="560">
+</p>
+
+<p align="center">
+  <a href="https://github.com/pawan67/lift/actions/workflows/android.yml">
+    <img src="https://github.com/pawan67/lift/actions/workflows/android.yml/badge.svg" alt="Android build status">
+  </a>
+</p>
 
 A local-first workout tracker in the spirit of Hevy. Everything works offline;
 an account is optional and only adds backup and cross-device sync.
@@ -9,6 +17,28 @@ lift/
 ├── apps/api         NestJS 11 · Postgres · better-auth
 └── packages/shared  domain logic — no React, no database, fully tested
 ```
+
+## Install on Android
+
+Download the APK from [the latest release](https://github.com/pawan67/lift/releases/latest)
+and open it on the phone. Android will ask you to allow installs from your
+browser the first time.
+
+Builds are produced by [`.github/workflows/android.yml`](.github/workflows/android.yml)
+— push a `v*` tag to cut a release, or run the workflow by hand from the
+Actions tab to get an APK as a build artifact. Two things to know:
+
+- **arm64-v8a only** by default, which covers any phone from the last decade.
+  The workflow's `architectures` input builds the other ABIs if you need them.
+- **Signed with the debug key** that Expo's prebuild template ships. That key
+  is a fixed file in the template rather than something generated per machine,
+  so CI-built and locally-built APKs share a signature and install over each
+  other. It also means the APK is not publishable to the Play Store as-is.
+
+Sync needs the API to be reachable from the phone. Set the `API_URL`
+repository variable before building — a release build has no Metro server to
+infer a host from, so it otherwise falls back to `localhost`, which on a phone
+means the phone itself.
 
 ## Getting started
 
@@ -30,6 +60,17 @@ npx expo run:android      # or run:ios on a Mac
 ```
 
 The app is fully usable at this point, with no backend running.
+
+To produce a release APK locally rather than in CI:
+
+```bash
+cd apps/mobile
+npx expo prebuild --platform android --no-install
+cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+`android/` and `ios/` are gitignored — prebuild regenerates them, and nothing
+native is committed.
 
 ### API
 
@@ -96,3 +137,18 @@ Dockerfile and supply the same environment variables as `.env.example`.
 
 Two things worth doing on day one: turn on scheduled database backups, and
 verify a restore. This app holds people's multi-year training history.
+
+## Brand assets
+
+Every icon, the splash image, the favicon and the banner above are generated
+from a single vector definition:
+
+```bash
+./scripts/generate-brand.sh    # needs rsvg-convert and ImageMagick 7
+```
+
+Editing the mark means editing the geometry at the top of that script and
+re-running it, rather than hand-editing seven PNGs. Each output needs its own
+scale — Android crops the adaptive-icon layers to their central 66%, so the
+foreground is drawn smaller than the iOS icon to land at the same apparent
+size — and the script is where those ratios are recorded.

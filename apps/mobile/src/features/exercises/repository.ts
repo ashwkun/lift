@@ -2,18 +2,13 @@
  * Exercise library reads and writes.
  */
 
-import {
-  createExerciseMatcher,
-  uuidv7,
-  type Equipment,
-  type MuscleGroup,
-  type TrackingType,
-} from '@lift/shared';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { uuidv7, type Equipment, type MuscleGroup, type TrackingType } from '@lift/shared';
+import { createExerciseMatcher } from '@lift/shared/exercises';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { touch, trackDelete, trackUpsert } from '@/db/mutations';
-import { exercises, type Exercise } from '@/db/schema';
+import { exercises, workoutExercises, workouts, type Exercise } from '@/db/schema';
 
 /**
  * The subset of an exercise a list screen renders and filters on.
@@ -126,6 +121,48 @@ export async function listExercises(filters: ExerciseFilters = {}): Promise<Exer
     .orderBy(asc(exercises.name));
 
   return filterExercises(rows, filters);
+}
+
+/** How many previously-trained exercises the picker offers before the catalog. */
+export const RECENT_EXERCISE_LIMIT = 8;
+
+/**
+ * The exercises from the most recent finished sessions, most recent first.
+ *
+ * Returned as an unawaited builder because its only caller feeds it to
+ * `useRows`: the picker opens mid-set and this list must not cost a render pass
+ * of its own. Grouping by exercise collapses the same lift across sessions to
+ * one row, and `max(startedAt)` orders by when you last actually trained it.
+ *
+ * Finished sessions only. The open session's exercises are the one set of
+ * exercises the user demonstrably does *not* need offered back to them, and
+ * excluding them keeps the block from reshuffling under the thumb as the
+ * session is built.
+ *
+ * Selecting `from(workoutExercises)` is also what makes this live: drizzle's
+ * `useLiveQuery` re-runs a query only when its *primary* table changes, so the
+ * joined tables here are read once per mount. That is the right granularity —
+ * this list turns over when a session ends, and the picker is mounted fresh
+ * every time it opens.
+ */
+export function recentExercisesQuery(limit: number = RECENT_EXERCISE_LIMIT) {
+  return db
+    .select(exerciseListColumns)
+    .from(workoutExercises)
+    .innerJoin(workouts, eq(workoutExercises.workoutId, workouts.id))
+    .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
+    .where(
+      and(
+        isNotNull(workouts.finishedAt),
+        isNull(workouts.deletedAt),
+        isNull(workoutExercises.deletedAt),
+        isNull(exercises.deletedAt),
+        eq(exercises.isArchived, false),
+      ),
+    )
+    .groupBy(workoutExercises.exerciseId)
+    .orderBy(desc(max(workouts.startedAt)))
+    .limit(limit);
 }
 
 export async function getExercise(id: string): Promise<Exercise | undefined> {

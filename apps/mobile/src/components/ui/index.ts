@@ -1,5 +1,6 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
 export { FilterSelect, type FilterOption, type FilterSelectProps } from './filter-select';
+export { HeaderAction, type HeaderActionProps, type HeaderActionTone } from './header-action';
 export { Screen, type ScreenProps } from './screen';
 export {
   SegmentedControl,
@@ -15,14 +16,16 @@ export {
   IconButton,
   ListRow,
   SectionHeader,
-  StatTile,
+  splitMeasure,
+  StatBand,
   type BadgeProps,
   type CardProps,
   type ChipProps,
   type EmptyStateProps,
   type IconButtonProps,
   type ListRowProps,
-  type StatTileProps,
+  type StatBandProps,
+  type StatFigure,
   type Tone,
 } from './surfaces';
 export { Text, type TextProps, type TextVariant } from './text';

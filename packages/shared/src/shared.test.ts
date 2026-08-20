@@ -14,9 +14,19 @@ import {
 } from './calculations.ts';
 import { EXERCISE_LIBRARY, findDuplicateExerciseIds, scoreExerciseMatch, slugify } from './exercises/index.ts';
 import { isUuid, uuidv7, uuidv7Timestamp } from './ids.ts';
+import * as barrel from './index.ts';
 import { calculatePlates, DEFAULT_PLATES_KG } from './plates.ts';
 import { shouldOverwrite } from './sync.ts';
-import { formatDuration, formatWeight, kgToLb, lbToKg, parseDuration } from './units.ts';
+import { TRACKING_TYPES, USES_BODYWEIGHT } from './types.ts';
+import {
+  formatDuration,
+  formatWeight,
+  fromDisplayWeight,
+  kgToLb,
+  lbToKg,
+  parseDuration,
+  trimZeros,
+} from './units.ts';
 
 // Convenience builder so tests only state the fields they care about.
 function set(partial: Partial<SetLike>): SetLike {
@@ -66,6 +76,31 @@ describe('units', () => {
   it('trims trailing zeros when formatting', () => {
     assert.equal(formatWeight(100, 'kg'), '100 kg');
     assert.equal(formatWeight(102.5, 'kg'), '102.5 kg');
+  });
+
+  it('trims zeros only past the decimal point', () => {
+    assert.equal(trimZeros('100.00'), '100');
+    assert.equal(trimZeros('102.50'), '102.5');
+    assert.equal(trimZeros('102.55'), '102.55');
+    assert.equal(trimZeros('1000'), '1000');
+  });
+
+  it('survives the round trip as an editable field value', () => {
+    // The set row puts this string straight into the weight TextInput, so any
+    // float residue or trailing zero is a character the user has to delete.
+    for (const [unit, increments] of [
+      ['kg', [2.5, 20, 60, 102.5, 137.5, 225]],
+      ['lb', [5, 45, 135, 137.5, 225, 315]],
+    ] as const) {
+      for (const entered of increments) {
+        const stored = fromDisplayWeight(entered, unit);
+        assert.equal(
+          formatWeight(stored, unit, { withUnit: false }),
+          String(entered),
+          `${entered} ${unit} did not survive the round trip`,
+        );
+      }
+    }
   });
 
   it('formats durations, adding hours only when needed', () => {
@@ -130,6 +165,25 @@ describe('effective weight', () => {
   it('uses bodyweight alone for unloaded rep work', () => {
     const ctx: AnalyticsContext = { trackingType: 'bodyweight_reps', bodyweightKg: 75 };
     assert.equal(effectiveWeightKg(set({ reps: 10 }), ctx), 75);
+  });
+});
+
+describe('USES_BODYWEIGHT', () => {
+  it('lists exactly the tracking types whose load moves with bodyweight', () => {
+    // Pinned to `effectiveWeightKg` rather than restated, so adding a tracking
+    // type without deciding this question fails here instead of silently
+    // logging zero volume for it.
+    for (const trackingType of TRACKING_TYPES) {
+      const sample = set({ weightKg: 30, reps: 5 });
+      const unknown = effectiveWeightKg(sample, { trackingType, bodyweightKg: 0 });
+      const known = effectiveWeightKg(sample, { trackingType, bodyweightKg: 80 });
+
+      assert.equal(
+        USES_BODYWEIGHT.has(trackingType),
+        unknown !== known,
+        `${trackingType} disagrees with effectiveWeightKg`,
+      );
+    }
   });
 });
 
@@ -331,5 +385,14 @@ describe('exercise library', () => {
 
   it('matches multi-token queries in any order', () => {
     assert.ok(scoreExerciseMatch('Bench Press (Barbell)', 'barbell bench') > 0);
+  });
+
+  it('stays out of the main barrel', () => {
+    // ~6,800 generated rows. Re-exporting them from `index.ts` put the whole
+    // catalog in the module graph of every screen that only wanted a unit
+    // conversion; the seeder and the exercise repository import
+    // `@lift/shared/exercises` directly instead.
+    assert.ok(!('EXERCISE_LIBRARY' in barrel));
+    assert.ok(!('createExerciseMatcher' in barrel));
   });
 });

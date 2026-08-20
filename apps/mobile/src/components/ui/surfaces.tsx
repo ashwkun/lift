@@ -4,12 +4,23 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
   type PressableProps,
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
 
-import { HIT_SLOP, MIN_TOUCH_SIZE, radius, spacing, useColors, type Palette } from '@/theme';
+import {
+  font,
+  fontSize,
+  HIT_SLOP,
+  MIN_TOUCH_SIZE,
+  radius,
+  spacing,
+  useColors,
+  type Palette,
+} from '@/theme';
 
 import { Text } from './text';
 
@@ -102,10 +113,9 @@ export interface ChipProps extends Omit<PressableProps, 'style' | 'children'> {
   label: string;
   selected?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
-  onRemove?: () => void;
 }
 
-export function Chip({ label, selected = false, icon, onRemove, ...rest }: ChipProps) {
+export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
   const colors = useColors();
   const fg = selected ? colors.accent : colors.textSecondary;
 
@@ -130,11 +140,6 @@ export function Chip({ label, selected = false, icon, onRemove, ...rest }: ChipP
       <Text variant="label" style={{ color: fg }}>
         {label}
       </Text>
-      {onRemove && (
-        <Pressable onPress={onRemove} hitSlop={HIT_SLOP} accessibilityLabel={`Remove ${label}`}>
-          <Ionicons name="close" size={14} color={fg} />
-        </Pressable>
-      )}
     </Pressable>
   );
 }
@@ -209,46 +214,96 @@ export function IconButton({
 }
 
 // ---------------------------------------------------------------------------
-// StatTile
+// StatBand
 // ---------------------------------------------------------------------------
 
-export interface StatTileProps {
+export interface StatFigure {
   label: string;
   value: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  tone?: Tone;
+  /** Set apart from the figure — smaller, quieter, on the same baseline. */
+  unit?: string;
+  /** Renders in the accent. At most one per band; see the note below. */
+  lead?: boolean;
+}
+
+export interface StatBandProps {
+  items: StatFigure[];
   style?: ViewStyle;
 }
 
 /**
- * One number with its label. Sits in a row of two or three (`flex: 1` each), so
- * the tiles share the width evenly however many there are.
+ * A row of figures, ruled rather than boxed.
+ *
+ * This replaces a row of tiles — rounded card, tinted circle, icon, number,
+ * grey caption — which is the single most generic component in mobile design
+ * and read as such. Three of them side by side, each in a different role
+ * colour, also broke the palette's own rule: lime, amber and green are all
+ * near-maximum saturation on a black canvas, and using them decoratively for
+ * "workouts / streak / volume" spends every emphasis the app has on three
+ * numbers that are not emphatic. `lead` exists so a band can promote *one*
+ * figure, which is what the accent is for.
+ *
+ * What is left is the data. Labels sit above their figures, tracked and
+ * uppercase, the way a table heads its columns; the figures are tabular so
+ * they align down the row; units are set small and quiet so "184.2k" reads as
+ * the number and "kg" as its annotation. Hairline rules above, below and
+ * between are the whole chrome budget. The first label aligns to the screen's
+ * left margin, so the band sits on the same grid as every section header
+ * rather than floating in a card of its own.
  */
-export function StatTile({ label, value, icon, tone = 'neutral', style }: StatTileProps) {
+export function StatBand({ items, style }: StatBandProps) {
   const colors = useColors();
-  const { fg } = toneColors(colors, tone);
+
+  // Three figures across a phone at 32px overflows the moment a volume reaches
+  // six digits, so the type steps down as the band fills up rather than each
+  // figure independently shrinking itself to fit — that is what made the old
+  // tiles render their three numbers at three different sizes.
+  const figureSize = items.length > 2 ? fontSize.xxl : fontSize.xxxl;
 
   return (
-    <View
-      style={[
-        styles.statTile,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-        style,
-      ]}
-    >
-      {icon && (
-        <View style={[styles.statIcon, { backgroundColor: toneColors(colors, tone).bg }]}>
-          <Ionicons name={icon} size={15} color={fg} />
+    <View style={[styles.statBand, { borderColor: colors.border }, style]}>
+      {items.map((item, index) => (
+        <View key={item.label} style={[styles.statColumn, index > 0 && styles.statColumnInner]}>
+          {/* Absolute, so the rule sits *on* the column boundary and takes no
+              width from the row — in flow it stole its own width plus its
+              margin from every column but the first, and the columns stopped
+              being equal. */}
+          {index > 0 && <View style={[styles.statRule, { backgroundColor: colors.border }]} />}
+          <Text variant="overline" color="textTertiary" numberOfLines={1}>
+            {item.label}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.statValue,
+              { fontSize: figureSize, color: item.lead ? colors.accent : colors.text },
+            ]}
+          >
+            {item.value}
+            {item.unit ? (
+              <Text style={[styles.statUnit, { color: colors.textTertiary }]}>
+                {` ${item.unit}`}
+              </Text>
+            ) : null}
+          </Text>
         </View>
-      )}
-      <Text variant="numeric" numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
-      <Text variant="caption" color="textTertiary" numberOfLines={1}>
-        {label}
-      </Text>
+      ))}
     </View>
   );
+}
+
+/**
+ * Splits a formatted measurement into figure and unit — "184.2k kg" becomes
+ * `['184.2k', 'kg']`, "142" stays `['142', undefined]`.
+ *
+ * The formatters in `@lift/shared` return display-ready strings with the unit
+ * already attached, which is right for a sentence and wrong for a column: the
+ * band needs the two set at different sizes. Splitting here keeps that a
+ * presentation concern rather than forcing every formatter to grow a variant.
+ */
+export function splitMeasure(text: string): [string, string | undefined] {
+  const match = /^(.*\d.*?)\s+([^\s\d]+)$/.exec(text);
+  return match ? [match[1]!, match[2]!] : [text, undefined];
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +321,17 @@ export interface ListRowProps {
   /** Hides the chevron without supplying an accessory. */
   showChevron?: boolean;
   onPress?: () => void;
+  /**
+   * Reaches whatever the accessory does.
+   *
+   * A row is one accessibility element, so a button rendered into `accessory` —
+   * the routine list's Start, say — is swallowed by the row that contains it
+   * and cannot be reached at all. Naming it as a custom action gives it back:
+   * the row announces its title, the rotor offers "Start", and the screen keeps
+   * the one-element reading order that makes the list scannable.
+   */
+  accessibilityActions?: readonly AccessibilityActionInfo[];
+  onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
 }
 
 /**
@@ -281,6 +347,8 @@ export function ListRow({
   accessory,
   showChevron = true,
   onPress,
+  accessibilityActions,
+  onAccessibilityAction,
 }: ListRowProps) {
   const colors = useColors();
   const { fg, bg } = toneColors(colors, tone);
@@ -288,6 +356,8 @@ export function ListRow({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityActions={accessibilityActions}
+      onAccessibilityAction={onAccessibilityAction}
       disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => [
@@ -336,14 +406,19 @@ export interface EmptyStateProps {
   action?: ReactNode;
 }
 
+/**
+ * The glyph used to sit in a 64px grey disc. The disc said nothing the icon did
+ * not — it was there to give the icon a shape, and a grey circle floating above
+ * centred text is the house style of every empty state ever auto-generated.
+ * Naked and larger, at tertiary weight, it reads as a mark rather than a button
+ * nobody can press.
+ */
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   const colors = useColors();
 
   return (
     <View style={styles.empty}>
-      <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceMuted }]}>
-        <Ionicons name={icon} size={30} color={colors.textTertiary} />
-      </View>
+      <Ionicons name={icon} size={38} color={colors.textTertiary} style={styles.emptyIcon} />
       <Text variant="subheading" align="center">
         {title}
       </Text>
@@ -412,22 +487,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   pressed: { opacity: 0.6 },
-  statTile: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
+  statBand: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  statIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
+  // Equal columns, with the first flush to the screen margin so the band sits
+  // on the same grid as the section headers above and below it.
+  statColumn: { flex: 1, gap: spacing.xs, paddingRight: spacing.lg },
+  statColumnInner: { paddingLeft: spacing.lg },
+  statRule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
+  statValue: {
+    ...font('bold'),
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.8,
+  },
+  statUnit: {
+    fontSize: fontSize.sm,
+    ...font('medium'),
+    letterSpacing: 0,
   },
   listRow: {
     flexDirection: 'row',
@@ -452,14 +532,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     gap: spacing.md,
   },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
+  emptyIcon: { marginBottom: spacing.sm, opacity: 0.75 },
   emptyDescription: { maxWidth: 300 },
   emptyAction: { marginTop: spacing.sm },
   sectionHeader: {

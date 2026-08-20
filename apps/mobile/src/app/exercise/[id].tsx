@@ -1,20 +1,36 @@
 import {
   EQUIPMENT_LABELS,
+  formatDistance,
   formatDurationShort,
   formatVolume,
   formatWeight,
   MUSCLE_GROUP_LABELS,
   PR_KIND_LABELS,
   repMaxTable,
+  setOneRepMaxKg,
+  type AnalyticsContext,
+  type DistanceUnit,
   type PrKind,
   type SetLike,
+  type WeightUnit,
 } from '@lift/shared';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { Card, Chip, Divider, EmptyState, Screen, SectionHeader, Text } from '@/components/ui';
+import { LineChart, type DataPoint } from '@/components/charts/line-chart';
+import {
+  Card,
+  Chip,
+  Divider,
+  EmptyState,
+  HeaderAction,
+  Screen,
+  SectionHeader,
+  splitMeasure,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
 import {
   personalRecords,
@@ -27,7 +43,7 @@ import {
 import { ExerciseMedia } from '@/features/exercises/exercise-media';
 import { deleteExercise, getExercise } from '@/features/exercises/repository';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { spacing } from '@/theme';
 
 interface HistoryEntry {
   workoutId: string;
@@ -36,10 +52,72 @@ interface HistoryEntry {
   sets: WorkoutSet[];
 }
 
+interface OneRepMaxTrend {
+  /** Chronological, y in kilograms. */
+  points: DataPoint[];
+  latestKg: number;
+  changeKg: number;
+  /** When the series starts: "June", or "June 2025" once the year differs. */
+  since: string;
+}
+
+/**
+ * Best estimated 1RM per session, oldest first.
+ *
+ * Derived from the history this screen has already loaded rather than from a
+ * query of its own — the sets are in memory, and one `Math.max` per session is
+ * cheaper than the round trip would be. Sessions that produced no estimate
+ * (warm-ups only, an exercise that isn't weight-and-reps) drop out instead of
+ * plotting a zero, which would read as a week of no strength rather than a week
+ * of no comparable set.
+ */
+function buildOneRepMaxTrend(history: HistoryEntry[], ctx: AnalyticsContext): OneRepMaxTrend | null {
+  const points: DataPoint[] = [];
+
+  // The query returns newest first; walk it backwards so the line reads left to
+  // right in time.
+  for (let index = history.length - 1; index >= 0; index--) {
+    const entry = history[index]!;
+
+    let best = 0;
+    for (const set of entry.sets) best = Math.max(best, setOneRepMaxKg(set, ctx));
+    if (best > 0) points.push({ x: entry.performedAt.getTime(), y: best });
+  }
+
+  // One point is a reading, not a trend, and the chart would draw a lone dot.
+  if (points.length < 2) return null;
+
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  const start = new Date(first.x);
+
+  return {
+    points,
+    latestKg: last.y,
+    changeKg: last.y - first.y,
+    since: start.toLocaleDateString(
+      undefined,
+      start.getFullYear() === new Date().getFullYear()
+        ? { month: 'long' }
+        : { month: 'long', year: 'numeric' },
+    ),
+  };
+}
+
+/** "+4 kg since June", "-2.5 kg since June", "No change since June". */
+function describeChange(trend: OneRepMaxTrend, unit: WeightUnit): string {
+  // Under a tenth of a kilogram is float noise from the formula, not progress.
+  if (Math.abs(trend.changeKg) < 0.1) return `No change since ${trend.since}`;
+
+  const sign = trend.changeKg > 0 ? '+' : '-';
+  const magnitude = formatWeight(Math.abs(trend.changeKg), unit, { decimals: 1 });
+  return `${sign}${magnitude} since ${trend.since}`;
+}
+
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
-  const { weightUnit, oneRepMaxFormula, bodyweightKg } = useSettings();
+  const { width } = useWindowDimensions();
+  const { weightUnit, distanceUnit, oneRepMaxFormula, bodyweightKg } = useSettings();
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -113,6 +191,16 @@ export default function ExerciseDetailScreen() {
     };
   }, [id]);
 
+  // Above the loading guard, because hooks cannot be conditional.
+  const trend = useMemo(() => {
+    if (!exercise) return null;
+    return buildOneRepMaxTrend(history, {
+      trackingType: exercise.trackingType,
+      bodyweightKg: bodyweightKg ?? undefined,
+      formula: oneRepMaxFormula,
+    });
+  }, [exercise, history, bodyweightKg, oneRepMaxFormula]);
+
   if (!exercise) {
     return (
       <Screen>
@@ -121,12 +209,18 @@ export default function ExerciseDetailScreen() {
     );
   }
 
+  const analytics: AnalyticsContext = {
+    trackingType: exercise.trackingType,
+    bodyweightKg: bodyweightKg ?? undefined,
+    formula: oneRepMaxFormula,
+  };
+
   const allSets = history.flatMap((entry) => entry.sets) as SetLike[];
-  const repMaxes = repMaxTable(
-    allSets,
-    { trackingType: exercise.trackingType, bodyweightKg: bodyweightKg ?? undefined, formula: oneRepMaxFormula },
-    10,
-  );
+  const repMaxes = repMaxTable(allSets, analytics, 10);
+
+  const [trendFigure, trendUnit]: [string, string | undefined] = trend
+    ? splitMeasure(formatWeight(trend.latestKg, weightUnit, { decimals: 1 }))
+    : ['', undefined];
 
   const confirmDelete = () => {
     const isCustom = exercise.isCustom;
@@ -152,11 +246,12 @@ export default function ExerciseDetailScreen() {
         options={{
           title: exercise.name,
           headerRight: () => (
-            <Pressable onPress={confirmDelete} hitSlop={8}>
-              <Text variant="label" color="danger">
-                {exercise.isCustom ? 'Delete' : 'Archive'}
-              </Text>
-            </Pressable>
+            <HeaderAction
+              label={exercise.isCustom ? 'Delete exercise' : 'Archive exercise'}
+              title={exercise.isCustom ? 'Delete' : 'Archive'}
+              tone="danger"
+              onPress={confirmDelete}
+            />
           ),
         }}
       />
@@ -178,9 +273,49 @@ export default function ExerciseDetailScreen() {
           ))}
         </View>
 
+        {trend && (
+          <>
+            <SectionHeader title="Est. 1RM" />
+            {/* The chart has no scrub gesture and prints only its first and last
+                x labels, so the answer is stated above it. The reading you want
+                — where you are now, and how far that is from where the line
+                starts — should not require touching anything. */}
+            <View style={styles.trend}>
+              <Text variant="numericLarge" numberOfLines={1}>
+                {trendFigure}
+                {trendUnit ? (
+                  <Text variant="label" color="textTertiary">{` ${trendUnit}`}</Text>
+                ) : null}
+              </Text>
+              <Text variant="label" color="textSecondary">
+                {describeChange(trend, weightUnit)}
+              </Text>
+            </View>
+
+            <View style={styles.chart}>
+              <LineChart
+                data={trend.points}
+                width={width - spacing.lg * 2}
+                height={160}
+                formatValue={(value) =>
+                  formatWeight(value, weightUnit, { withUnit: false, decimals: 0 })
+                }
+                formatLabel={(x) =>
+                  new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+                }
+              />
+            </View>
+
+            <Text variant="caption" color="textTertiary" style={styles.hint}>
+              A one-rep max estimated from the heaviest working set of each session, not a max you
+              have tested.
+            </Text>
+          </>
+        )}
+
         {records.length > 0 && (
           <>
-            <SectionHeader title="Personal Records" />
+            <SectionHeader title="Personal records" />
             <Card style={styles.card}>
               {records.map((record) => (
                 <View key={record.kind} style={styles.recordRow}>
@@ -188,7 +323,7 @@ export default function ExerciseDetailScreen() {
                     {PR_KIND_LABELS[record.kind]}
                   </Text>
                   <Text variant="numeric" color="record">
-                    {formatRecord(record.kind, record.value, weightUnit)}
+                    {formatRecord(record.kind, record.value, weightUnit, distanceUnit)}
                   </Text>
                 </View>
               ))}
@@ -198,7 +333,7 @@ export default function ExerciseDetailScreen() {
 
         {repMaxes.size > 0 && (
           <>
-            <SectionHeader title="Rep Maxes" />
+            <SectionHeader title="Rep maxes" />
             <Card style={styles.card}>
               {[...repMaxes]
                 .sort((a, b) => a[0] - b[0])
@@ -221,7 +356,7 @@ export default function ExerciseDetailScreen() {
           <EmptyState
             icon="time-outline"
             title="No history yet"
-            description="Log this exercise in a workout and it'll show up here."
+            description="Sets you log for this exercise appear here."
           />
         ) : (
           history.map((entry) => (
@@ -256,14 +391,20 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-function formatRecord(kind: PrKind, value: number, unit: 'kg' | 'lb'): string {
+function formatRecord(
+  kind: PrKind,
+  value: number,
+  unit: WeightUnit,
+  distanceUnit: DistanceUnit,
+): string {
   switch (kind) {
     case 'most_reps':
       return `${value} reps`;
     case 'best_duration':
       return formatDurationShort(value);
     case 'best_distance':
-      return `${value.toFixed(2)} km`;
+      // Stored in kilometres; printed in whichever unit the user set.
+      return formatDistance(value, distanceUnit);
     case 'best_set_volume':
     case 'best_session_volume':
       return formatVolume(value, unit);
@@ -281,6 +422,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.lg,
   },
+  trend: { paddingHorizontal: spacing.lg, gap: 2 },
+  chart: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  hint: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   card: { marginHorizontal: spacing.lg, gap: spacing.sm },
   recordRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   historyCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },

@@ -7,18 +7,20 @@
  * a preference toggle should never feel like it waits on disk.
  */
 
-import type {
-  DistanceUnit,
-  MeasurementUnit,
-  OneRepMaxFormula,
-  ThemePreference,
-  WeightUnit,
+import {
+  USES_BODYWEIGHT,
+  type DistanceUnit,
+  type MeasurementUnit,
+  type OneRepMaxFormula,
+  type ThemePreference,
+  type TrackingType,
+  type WeightUnit,
 } from '@lift/shared';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { create } from 'zustand';
 
 import { db } from '@/db/client';
-import { settings as settingsTable } from '@/db/schema';
+import { bodyMeasurements, settings as settingsTable } from '@/db/schema';
 
 export interface Settings {
   weightUnit: WeightUnit;
@@ -32,6 +34,8 @@ export interface Settings {
   /** Start the rest timer automatically when a set is checked off. */
   restTimerAutoStart: boolean;
   restTimerNotifications: boolean;
+  /** Buzz on each of the last three seconds, so the cue starts before zero. */
+  restTimerCountdownCues: boolean;
   soundEnabled: boolean;
   hapticsEnabled: boolean;
   /** Keep the screen on during an active workout. */
@@ -43,7 +47,11 @@ export interface Settings {
   /** 0 = Sunday, 1 = Monday. Affects the calendar and weekly stats. */
   firstDayOfWeek: 0 | 1;
 
-  /** Used to convert bodyweight exercises into volume. */
+  /**
+   * Used to value bodyweight exercises. Null means push-ups and pull-ups log
+   * zero volume, so this is mirrored from every bodyweight entry in
+   * Measurements rather than being a second number the user has to maintain.
+   */
   bodyweightKg: number | null;
 
   /** Prompts the routine to update when sets change mid-workout. */
@@ -60,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   restTimerEnabled: true,
   restTimerAutoStart: true,
   restTimerNotifications: true,
+  restTimerCountdownCues: true,
   soundEnabled: true,
   hapticsEnabled: true,
   keepAwakeDuringWorkout: true,
@@ -88,6 +97,8 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   hydrated: false,
 
   hydrate: async () => {
+    let stored: Partial<Settings> = {};
+
     try {
       const [row] = await db
         .select()
@@ -95,19 +106,29 @@ export const useSettings = create<SettingsStore>((set, get) => ({
         .where(eq(settingsTable.key, SETTINGS_KEY))
         .limit(1);
 
-      if (row?.value) {
-        const stored = JSON.parse(row.value) as Partial<Settings>;
-        // Spread defaults first so a settings key added in a later release gets
-        // a sensible value instead of `undefined`.
-        set({ ...DEFAULT_SETTINGS, ...stored, hydrated: true });
-        return;
-      }
+      if (row?.value) stored = JSON.parse(row.value) as Partial<Settings>;
     } catch {
       // A corrupt or unreadable row should not block app start — fall through
       // to defaults, which will be rewritten on the next change.
     }
 
-    set({ hydrated: true });
+    // Spread defaults first so a settings key added in a later release gets a
+    // sensible value instead of `undefined`.
+    const next: Settings = { ...DEFAULT_SETTINGS, ...stored };
+
+    // Backfill from the measurement log. Until this release nothing ever wrote
+    // `bodyweightKg`, so every user who had logged a bodyweight in Measurements
+    // was still valuing their push-ups at zero. The number is already on the
+    // device; asking for it again would be asking the user to fix our bug.
+    if (next.bodyweightKg == null) {
+      const logged = await readLatestBodyweightKg();
+      if (logged != null) {
+        next.bodyweightKg = logged;
+        void persist(next);
+      }
+    }
+
+    set({ ...next, hydrated: true });
   },
 
   update: (key, value) => {
@@ -121,6 +142,45 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   },
 }));
 
+/**
+ * Latest bodyweight from the measurement log, in kg.
+ *
+ * Read straight off the table rather than through
+ * `features/measurements/repository`, which imports this store to mirror new
+ * entries into it — going the other way too would close the cycle.
+ */
+async function readLatestBodyweightKg(): Promise<number | null> {
+  try {
+    const [row] = await db
+      .select({ value: bodyMeasurements.value })
+      .from(bodyMeasurements)
+      .where(and(eq(bodyMeasurements.kind, 'bodyweight'), isNull(bodyMeasurements.deletedAt)))
+      .orderBy(desc(bodyMeasurements.measuredAt))
+      .limit(1);
+
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a set of tracking types needs a bodyweight the app does not have.
+ *
+ * Read imperatively because the only caller is an event handler (finishing a
+ * workout), and because the answer has to be true *at that moment* rather than
+ * at the last render. `USES_BODYWEIGHT`, not `TRACKING_FIELDS` — see the note
+ * beside it in `@lift/shared`: a push-up renders no weight field yet its whole
+ * volume is bodyweight.
+ */
+export function bodyweightMissingFor(trackingTypes: Iterable<TrackingType>): boolean {
+  if (useSettings.getState().bodyweightKg != null) return false;
+  for (const trackingType of trackingTypes) {
+    if (USES_BODYWEIGHT.has(trackingType)) return true;
+  }
+  return false;
+}
+
 async function persist(state: Settings): Promise<void> {
   const payload: Settings = {
     weightUnit: state.weightUnit,
@@ -131,6 +191,7 @@ async function persist(state: Settings): Promise<void> {
     restTimerEnabled: state.restTimerEnabled,
     restTimerAutoStart: state.restTimerAutoStart,
     restTimerNotifications: state.restTimerNotifications,
+    restTimerCountdownCues: state.restTimerCountdownCues,
     soundEnabled: state.soundEnabled,
     hapticsEnabled: state.hapticsEnabled,
     keepAwakeDuringWorkout: state.keepAwakeDuringWorkout,

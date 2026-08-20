@@ -1,10 +1,9 @@
 import { FlashList } from '@shopify/flash-list';
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { asc, isNull } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack } from 'expo-router';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Fragment, useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -12,16 +11,19 @@ import {
   Divider,
   EmptyState,
   FilterSelect,
+  HeaderAction,
   Screen,
   SearchBar,
-  Text,
+  SectionHeader,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { exercises as exercisesTable } from '@/db/schema';
+import { useRows } from '@/db/use-rows';
 import { ExerciseRow } from '@/features/exercises/exercise-row';
 import {
   exerciseListColumns,
   filterExercises,
+  recentExercisesQuery,
   type ExerciseListItem,
 } from '@/features/exercises/repository';
 import { useExercisePicker } from '@/store/exercise-picker';
@@ -32,12 +34,52 @@ function ListSeparator() {
   return <Divider inset={70} />;
 }
 
+interface RecentExercisesProps {
+  exercises: ExerciseListItem[];
+  selected: ReadonlySet<string>;
+  onPress: (exercise: ExerciseListItem) => void;
+}
+
+/**
+ * The lifts from recent sessions, above the catalog.
+ *
+ * Mid-workout the exercise you are reaching for is nearly always one you have
+ * done before, and the catalog answers that with 6,800 rows and a keyboard.
+ * Eight rows of history answer it with a thumb.
+ *
+ * Deliberately the same rows as the list below it, under a plain section
+ * header: this is a shortcut into the catalog, not a second, richer way of
+ * choosing. A carousel or a card deck here would out-shout the list that
+ * actually holds everything.
+ */
+function RecentExercises({ exercises, selected, onPress }: RecentExercisesProps) {
+  return (
+    <View>
+      <SectionHeader title="Recent" />
+      {exercises.map((exercise, index) => (
+        <Fragment key={exercise.id}>
+          {index > 0 && <ListSeparator />}
+          <ExerciseRow
+            exercise={exercise}
+            selectable
+            selected={selected.has(exercise.id)}
+            onPress={onPress}
+          />
+        </Fragment>
+      ))}
+      <SectionHeader title="All exercises" />
+    </View>
+  );
+}
+
 /**
  * Multi-select exercise picker.
  *
  * Publishes the chosen ids to `useExercisePicker` rather than writing to the
  * database itself — the caller knows whether they're building a routine or
- * adding to a live workout, and this screen shouldn't.
+ * adding to a live workout, and this screen shouldn't. It doesn't address the
+ * delivery either: the opener stamps the channel with its own name before
+ * navigating here, so this screen still needs to know nothing about it.
  */
 export default function ExercisePickerScreen() {
   const insets = useSafeAreaInsets();
@@ -49,13 +91,15 @@ export default function ExercisePickerScreen() {
   // keyboard already up — it is the most latency-sensitive list in the app.
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
 
-  const { data: allExercises = [] } = useLiveQuery(
+  const { rows: allExercises, loaded } = useRows(
     db
       .select(exerciseListColumns)
       .from(exercisesTable)
       .where(isNull(exercisesTable.deletedAt))
       .orderBy(asc(exercisesTable.name)),
   );
+
+  const { rows: recent, loaded: recentLoaded } = useRows(recentExercisesQuery());
 
   // Deferred for the same reason as the Exercises tab: the field must never
   // wait on a 6,800-row filter. See the note there.
@@ -86,17 +130,37 @@ export default function ExercisePickerScreen() {
     });
   }, []);
 
+  // One stable handler for every row rather than an arrow per row: `ExerciseRow`
+  // hands its own exercise back, and its `memo` can only hold if the callback
+  // identity survives a re-render. Toggling then re-renders exactly one row.
+  const handlePress = useCallback(
+    (exercise: ExerciseListItem) => toggle(exercise.id),
+    [toggle],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: ExerciseListItem }) => (
       <ExerciseRow
         exercise={item}
         selectable
         selected={selected.has(item.id)}
-        onPress={() => toggle(item.id)}
+        onPress={handlePress}
       />
     ),
-    [selected, toggle],
+    [selected, handlePress],
   );
+
+  // Both queries have to have answered before anything renders. Not for the
+  // catalog's sake — it is empty either way — but so the recent block can't
+  // appear a frame late and shove the first rows of the list down under a
+  // thumb already on its way to one of them.
+  const ready = loaded && recentLoaded;
+
+  // The recent block belongs to the *deferred* view, so it disappears on the
+  // same frame the list stops being the full catalog. Keyed off `search` it
+  // would vanish one render before the rows it sits above changed.
+  const browsing = deferredSearch.length === 0 && muscle === null;
+  const showRecent = ready && browsing && recent.length > 0;
 
   const submit = useExercisePicker((state) => state.submit);
 
@@ -113,20 +177,16 @@ export default function ExercisePickerScreen() {
     <Screen>
       <Stack.Screen
         options={{
-          title: 'Add Exercise',
+          title: 'Add exercise',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text variant="bodyMedium" color="accent">
-                Cancel
-              </Text>
-            </Pressable>
+            <HeaderAction side="left" label="Cancel" title="Cancel" onPress={() => router.back()} />
           ),
           headerRight: () => (
-            <Pressable onPress={() => router.push('/exercise/new')} hitSlop={8}>
-              <Text variant="bodyMedium" color="accent">
-                New
-              </Text>
-            </Pressable>
+            <HeaderAction
+              label="Create custom exercise"
+              title="New"
+              onPress={() => router.push('/exercise/new')}
+            />
           ),
         }}
       />
@@ -151,12 +211,21 @@ export default function ExercisePickerScreen() {
         renderItem={renderItem}
         ItemSeparatorComponent={ListSeparator}
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          showRecent ? (
+            <RecentExercises exercises={recent} selected={selected} onPress={handlePress} />
+          ) : null
+        }
         ListEmptyComponent={
-          <EmptyState
-            icon="search"
-            title="No matches"
-            description="Try a different search, or create a custom exercise."
-          />
+          // Only once the query has reported. Seeded to `[]` it would otherwise
+          // announce that 6,800 exercises don't exist for the first frame.
+          ready ? (
+            <EmptyState
+              icon="search"
+              title="No matches"
+              description="Try a different search, or create a custom exercise."
+            />
+          ) : null
         }
       />
 
@@ -167,7 +236,7 @@ export default function ExercisePickerScreen() {
         // hidden).
         <View style={[styles.footer, { paddingBottom: spacing.lg + insets.bottom }]}>
           <Button
-            title={`Add ${selected.size} ${selected.size === 1 ? 'Exercise' : 'Exercises'}`}
+            title={`Add ${selected.size} ${selected.size === 1 ? 'exercise' : 'exercises'}`}
             fullWidth
             size="lg"
             onPress={confirm}

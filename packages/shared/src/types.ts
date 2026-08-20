@@ -163,6 +163,23 @@ export const TRACKING_FIELDS: Record<
   reps_only: { weight: false, reps: true, duration: false, distance: false },
 };
 
+/**
+ * Tracking types whose volume is a function of the lifter's bodyweight.
+ *
+ * `TRACKING_FIELDS` cannot express this: it describes what the *set row* asks
+ * for, and bodyweight is asked for once in Settings rather than per set. The
+ * two disagree in both directions — `bodyweight_reps` renders no weight field
+ * yet its entire volume is bodyweight, while `weight_reps` renders one and
+ * ignores bodyweight completely. A push-up session with no bodyweight on record
+ * therefore logs zero volume, so anything that writes or prompts for the value
+ * keys off this set instead.
+ */
+export const USES_BODYWEIGHT: ReadonlySet<TrackingType> = new Set<TrackingType>([
+  'bodyweight_reps',
+  'weighted_bodyweight',
+  'assisted_bodyweight',
+]);
+
 // ---------------------------------------------------------------------------
 // Sets
 // ---------------------------------------------------------------------------

@@ -9,11 +9,11 @@ import {
   Button,
   Card,
   Divider,
-  EmptyState,
   ListRow,
   Screen,
   SectionHeader,
-  StatTile,
+  splitMeasure,
+  StatBand,
   Text,
 } from '@/components/ui';
 import {
@@ -76,21 +76,32 @@ export default function HomeScreen() {
     }, []),
   );
 
-  // Screen width less the card's outer margin and its inner padding.
-  const chartWidth = width - spacing.lg * 4;
+  // Screen width less the page margin. The charts are unboxed, so they measure
+  // against the same gutter as every other element here.
+  const chartWidth = width - spacing.lg * 2;
 
-  if (stats && stats.totalWorkouts === 0) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="flame-outline"
-          title="Let's get started"
-          description="Log your first workout and your stats, records and progress charts will build from there."
-          action={<Button title="Start a Workout" onPress={() => router.push('/(tabs)/workout')} />}
-        />
-      </Screen>
-    );
-  }
+  /*
+   * Hold the frame until the first aggregate lands, and then show the
+   * dashboard whatever it says.
+   *
+   * This screen used to paint twice before it was right: `stats` starts null,
+   * so the first frame was a 40px "0 kg" masthead over a zeroed streak, and
+   * then, if the query came back with no workouts, the whole thing was replaced
+   * by a full-page "Let's get started". Wrong figures, then a dead end where
+   * the dashboard belongs.
+   *
+   * Holding on `!stats` removes the first; deleting the empty branch removes
+   * the second. A zeroed dashboard is the honest first-run state — the charts
+   * already say "Not enough data yet" in their own words, and the layout the
+   * user is about to inhabit is legible from launch rather than hidden behind a
+   * poster. Only the recent-workouts block hides, because an empty box is not a
+   * layout, it is a hole.
+   */
+  if (!stats) return <Screen>{null}</Screen>;
+
+  const [weekVolume, weekVolumeUnit] = splitMeasure(
+    formatVolume(stats.thisWeekVolumeKg, weightUnit),
+  );
 
   const volumeData = weekly.map((point) => ({ x: point.weekStart, y: point.volumeKg }));
   const distributionData: BarDatum[] = distribution.map((entry) => ({
@@ -101,48 +112,59 @@ export default function HomeScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.statRow}>
-          <StatTile
-            icon="flame"
-            label="Week streak"
-            value={String(stats?.weekStreak ?? 0)}
-            tone="warning"
-          />
-          <StatTile
-            icon="barbell"
-            label="Workouts"
-            value={String(stats?.totalWorkouts ?? 0)}
-            tone="accent"
-          />
-          <StatTile
-            icon="calendar"
-            label="Active days"
-            value={String(stats?.activeDays ?? 0)}
-            tone="success"
-          />
+        {/*
+         * One block where there were two.
+         *
+         * This screen used to open with a row of three tiles — streak,
+         * workouts, active days — and then, immediately below, a card headed
+         * "This week" carrying workouts and volume. Two stat blocks stacked,
+         * with "workouts" appearing in both at two different scopes and no
+         * indication of which was which. Home now answers exactly one
+         * question — how is this week going — and the lifetime totals live on
+         * Profile, where "lifetime" is the whole point.
+         *
+         * The figure is plain text and the kicker above it carries the accent,
+         * which is the opposite of the obvious pairing. In the light palette
+         * the accent is a dark olive chosen to be legible as text, so accenting
+         * the 40px number made the loudest thing on the screen quieter than the
+         * label under it. Colouring the small word instead holds in both
+         * schemes with no branching on the colour scheme — do not swap these
+         * back.
+         */}
+        <View style={styles.masthead}>
+          <Text variant="overline" color="accent">
+            Volume this week
+          </Text>
+          <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
+            {weekVolume}
+            {weekVolumeUnit ? (
+              <Text variant="subheading" color="textTertiary">
+                {` ${weekVolumeUnit}`}
+              </Text>
+            ) : null}
+          </Text>
         </View>
 
-        <SectionHeader title="This week" />
-        <Card style={styles.weekCard}>
-          <View style={styles.weekStat}>
-            <Text variant="overline" color="textTertiary">
-              Workouts
-            </Text>
-            <Text variant="numericLarge">{stats?.thisWeekWorkouts ?? 0}</Text>
-          </View>
-          <Divider style={styles.weekDivider} />
-          <View style={styles.weekStat}>
-            <Text variant="overline" color="textTertiary">
-              Volume
-            </Text>
-            <Text variant="numericLarge" numberOfLines={1} adjustsFontSizeToFit>
-              {formatVolume(stats?.thisWeekVolumeKg ?? 0, weightUnit)}
-            </Text>
-          </View>
-        </Card>
+        <StatBand
+          style={styles.band}
+          items={[
+            { label: 'Sessions', value: String(stats.thisWeekWorkouts) },
+            { label: 'Week streak', value: String(stats.weekStreak) },
+          ]}
+        />
 
-        <SectionHeader title="Volume · Last 12 weeks" />
-        <Card style={styles.chartCard}>
+        {/*
+         * The charts are not boxed.
+         *
+         * They used to sit in Cards, which pushed them to x=32 while the
+         * masthead, the stat band and the section headers all sat at x=16 —
+         * the one place on the screen where the grid broke, and it broke around
+         * the two elements least able to spare the width. Unboxed, the screen
+         * states a rule you can say out loud: boxed means you can touch it. The
+         * recent-workouts list below keeps its Card because its rows are taps.
+         */}
+        <SectionHeader title="Volume · last 12 weeks" />
+        <View style={styles.chart}>
           <LineChart
             data={volumeData}
             width={chartWidth}
@@ -151,40 +173,44 @@ export default function HomeScreen() {
               new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
             }
           />
-        </Card>
+        </View>
 
         <SectionHeader title="Sets by body part · 30 days" />
-        <Card style={styles.chartCard}>
+        <View style={styles.chart}>
           <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
-        </Card>
+        </View>
 
-        <SectionHeader
-          title="Recent workouts"
-          action={
-            <Button
-              title="See all"
-              variant="ghost"
-              size="sm"
-              onPress={() => router.push('/(tabs)/history')}
+        {recent.length > 0 ? (
+          <>
+            <SectionHeader
+              title="Recent workouts"
+              action={
+                <Button
+                  title="History"
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => router.push('/(tabs)/history')}
+                />
+              }
             />
-          }
-        />
-        <Card padded={false} style={styles.recentCard}>
-          {recent.map((workout, index) => (
-            <View key={workout.id}>
-              {index > 0 && <Divider inset={spacing.lg} />}
-              <ListRow
-                title={workout.name}
-                subtitle={`${workout.startedAt.toLocaleDateString()} · ${formatDurationShort(
-                  workout.durationSeconds ?? 0,
-                )} · ${formatVolume(workout.totalVolumeKg, weightUnit)}`}
-                onPress={() =>
-                  router.push({ pathname: '/workout/[id]', params: { id: workout.id } })
-                }
-              />
-            </View>
-          ))}
-        </Card>
+            <Card padded={false} style={styles.recentCard}>
+              {recent.map((workout, index) => (
+                <View key={workout.id}>
+                  {index > 0 && <Divider inset={spacing.lg} />}
+                  <ListRow
+                    title={workout.name}
+                    subtitle={`${workout.startedAt.toLocaleDateString()} · ${formatDurationShort(
+                      workout.durationSeconds ?? 0,
+                    )} · ${formatVolume(workout.totalVolumeKg, weightUnit)}`}
+                    onPress={() =>
+                      router.push({ pathname: '/workout/[id]', params: { id: workout.id } })
+                    }
+                  />
+                </View>
+              ))}
+            </Card>
+          </>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -192,22 +218,13 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.huge },
-  statRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  masthead: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.xs,
   },
-  weekCard: {
-    marginHorizontal: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  weekStat: { flex: 1, alignItems: 'center', gap: spacing.xs },
-  // A vertical rule between the two figures, so they read as two measurements
-  // rather than one wrapped number. `alignSelf: stretch` overrides the card's
-  // `alignItems: center` to give the rule the full content height.
-  weekDivider: { width: StyleSheet.hairlineWidth, height: undefined, alignSelf: 'stretch' },
-  chartCard: { marginHorizontal: spacing.lg },
+  band: { marginHorizontal: spacing.lg },
+  chart: { marginHorizontal: spacing.lg },
   recentCard: { marginHorizontal: spacing.lg },
 });

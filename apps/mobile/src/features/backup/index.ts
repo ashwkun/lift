@@ -6,10 +6,12 @@
  * the app.
  */
 
+import { SYNCABLE_TABLES, type SyncableTable } from '@lift/shared';
 import { eq, isNull } from 'drizzle-orm';
 import { File, Paths } from 'expo-file-system';
 
 import { db } from '@/db/client';
+import { trackUpsert } from '@/db/mutations';
 import {
   bodyMeasurements,
   exercises,
@@ -18,10 +20,12 @@ import {
   routineFolders,
   routineSets,
   routines,
+  SYNC_TABLE_MAP,
   workoutExercises,
   workoutSets,
   workouts,
 } from '@/db/schema';
+import { authClient } from '@/features/sync/auth-client';
 
 /** Bumped whenever the shape changes incompatibly, so imports can refuse. */
 export const BACKUP_FORMAT_VERSION = 1;
@@ -187,7 +191,19 @@ function csvEscape(value: string): string {
 export interface ImportResult {
   imported: Record<string, number>;
   skipped: number;
+  /**
+   * Restored rows the sync engine will push. Zero while signed out — the oplog
+   * entries are still written, but there is no account to promise them to.
+   */
+  queued: number;
 }
+
+/**
+ * Rows are inserted 50 at a time, matching the seeder's margin under SQLite's
+ * cap on bound parameters per statement. A restore of a long training history
+ * is tens of thousands of rows, and one statement each makes it a visible wait.
+ */
+const CHUNK_SIZE = 50;
 
 /**
  * Restores a backup.
@@ -196,9 +212,21 @@ export interface ImportResult {
  * idempotent — re-importing the same file changes nothing, and importing onto a
  * device that already has data merges rather than destroys. Because IDs are
  * UUIDv7, collisions between genuinely different rows are not a concern.
+ *
+ * Every row that is genuinely written is logged to the sync oplog, exactly as
+ * if it had been typed in. Skipping that step is what made restore a dead end:
+ * a workout recovered from a backup lived on the device and never reached the
+ * account, and nothing anywhere said so.
  */
 export async function restoreBackup(json: string): Promise<ImportResult> {
-  const parsed = JSON.parse(json) as BackupFile;
+  let parsed: BackupFile;
+  try {
+    parsed = JSON.parse(json) as BackupFile;
+  } catch {
+    // The parser's own message is a character offset, which tells the user
+    // nothing about the file they picked.
+    throw new Error('That file is not readable. Nothing on this device changed.');
+  }
 
   if (!ACCEPTED_FORMATS.includes(parsed.format)) {
     throw new Error('Not a Lift backup file.');
@@ -209,49 +237,134 @@ export async function restoreBackup(json: string): Promise<ImportResult> {
     );
   }
 
-  const tables = [
-    ['exercises', exercises],
-    ['routine_folders', routineFolders],
-    ['routines', routines],
-    ['routine_exercises', routineExercises],
-    ['routine_sets', routineSets],
-    ['workouts', workouts],
-    ['workout_exercises', workoutExercises],
-    ['workout_sets', workoutSets],
-    ['personal_records', personalRecords],
-    ['body_measurements', bodyMeasurements],
-  ] as const;
+  // The same signal the sync client authenticates with, so "queued" means the
+  // rows have somewhere to go rather than merely somewhere to sit.
+  const signedIn = authClient.getCookie().length > 0;
 
   const imported: Record<string, number> = {};
   let skipped = 0;
+  let queued = 0;
 
-  // Insert in dependency order so foreign keys always resolve.
-  for (const [name, table] of tables) {
+  // SYNCABLE_TABLES is ordered parents-before-children, so foreign keys always
+  // resolve and an oplog entry never references a row the server hasn't seen.
+  for (const name of SYNCABLE_TABLES) {
     const rows = parsed.data[name];
     if (!Array.isArray(rows) || rows.length === 0) continue;
 
+    const table = SYNC_TABLE_MAP[name];
     let count = 0;
-    for (const row of rows) {
-      try {
-        await db
-          .insert(table as never)
-          .values(reviveDates(row as Record<string, unknown>) as never)
-          .onConflictDoNothing();
-        count += 1;
-      } catch {
-        // A single malformed row shouldn't abort the whole restore.
-        skipped += 1;
+
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk: RestoreRow[] = [];
+
+      for (const row of rows.slice(i, i + CHUNK_SIZE)) {
+        const restorable = toRestoreRow(row);
+        if (restorable) chunk.push(restorable);
+        else skipped += 1;
+      }
+
+      if (chunk.length === 0) continue;
+
+      const { insertedIds, failed } = await insertRows(table, chunk);
+      skipped += failed;
+      count += insertedIds.length;
+
+      const byId = new Map(chunk.map((row) => [row.id, row]));
+
+      for (const id of insertedIds) {
+        const row = byId.get(id);
+        if (!row || !isSyncable(name, row)) continue;
+
+        await trackUpsert(name, toWireRow(row));
+        queued += 1;
       }
     }
+
     imported[name] = count;
   }
 
-  return { imported, skipped };
+  return { imported, skipped, queued: signedIn ? queued : 0 };
+}
+
+type RestoreTable = (typeof SYNC_TABLE_MAP)[SyncableTable];
+
+interface RestoreRow {
+  id: string;
+  updatedAt: number;
+  [column: string]: unknown;
 }
 
 /**
- * JSON has no Date type, so timestamp columns come back as ISO strings.
- * Drizzle's `timestamp_ms` mode expects real Date objects on insert.
+ * Narrows a value from the file to something both insertable and trackable.
+ *
+ * `id` and `updatedAt` are the two columns the oplog cannot work without: the
+ * server addresses the row by one and resolves conflicts on the other. A row
+ * missing either is not repairable by guessing, so it counts as skipped.
+ */
+function toRestoreRow(value: unknown): RestoreRow | null {
+  if (typeof value !== 'object' || value === null) return null;
+
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== 'string' || row.id.length === 0) return null;
+  if (typeof row.updatedAt !== 'number' || !Number.isFinite(row.updatedAt)) return null;
+
+  return { ...row, id: row.id, updatedAt: row.updatedAt };
+}
+
+/**
+ * Inserts a chunk and reports which rows were genuinely written.
+ *
+ * `.returning` is the point of the exercise: with `onConflictDoNothing` a row
+ * the device already has produces no id, so it is neither counted as an import
+ * nor logged for sync. Counting it would have claimed an import that didn't
+ * happen and queued a mutation for a row this device never wrote.
+ *
+ * A chunk that throws is retried row by row, so one malformed row costs itself
+ * rather than the forty-nine beside it.
+ */
+async function insertRows(
+  table: RestoreTable,
+  rows: RestoreRow[],
+): Promise<{ insertedIds: string[]; failed: number }> {
+  try {
+    const returned = await db
+      .insert(table)
+      .values(rows.map(toLocalRow) as never)
+      .onConflictDoNothing()
+      .returning({ id: table.id });
+
+    return { insertedIds: returned.map((row) => row.id), failed: 0 };
+  } catch {
+    if (rows.length === 1) return { insertedIds: [], failed: 1 };
+
+    const insertedIds: string[] = [];
+    let failed = 0;
+
+    for (const row of rows) {
+      const result = await insertRows(table, [row]);
+      insertedIds.push(...result.insertedIds);
+      failed += result.failed;
+    }
+
+    return { insertedIds, failed };
+  }
+}
+
+/**
+ * Built-in exercises are identical on every device and are excluded from
+ * backups, so a built-in row here came from a hand-edited file. Inserting it is
+ * harmless; pushing 6,800 of them to the server is not.
+ */
+function isSyncable(name: SyncableTable, row: RestoreRow): boolean {
+  return name !== 'exercises' || row.isCustom === true;
+}
+
+/**
+ * JSON has no Date type, so timestamp columns come back as ISO strings. The two
+ * consumers want them differently: Drizzle's `timestamp_ms` mode expects real
+ * Date objects on insert, while the sync wire contract carries epoch-ms
+ * integers (`packages/shared/src/sync.ts`). Sending a Date there would arrive
+ * as a string and fail the server's schema.
  */
 const DATE_COLUMNS = new Set([
   'startedAt',
@@ -262,7 +375,7 @@ const DATE_COLUMNS = new Set([
   'lastPerformedAt',
 ]);
 
-function reviveDates(row: Record<string, unknown>): Record<string, unknown> {
+function toLocalRow(row: RestoreRow): Record<string, unknown> {
   const result: Record<string, unknown> = { ...row };
 
   for (const key of DATE_COLUMNS) {
@@ -270,6 +383,20 @@ function reviveDates(row: Record<string, unknown>): Record<string, unknown> {
     if (typeof value === 'string' || typeof value === 'number') {
       const date = new Date(value);
       result[key] = Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+
+  return result;
+}
+
+function toWireRow(row: RestoreRow): RestoreRow {
+  const result: RestoreRow = { ...row };
+
+  for (const key of DATE_COLUMNS) {
+    const value = result[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      const ms = new Date(value).getTime();
+      result[key] = Number.isNaN(ms) ? null : ms;
     }
   }
 

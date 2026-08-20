@@ -8,10 +8,9 @@ import {
   fromDisplayWeight,
   type MeasurementKind,
 } from '@lift/shared';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
 
 import { LineChart } from '@/components/charts/line-chart';
 import { Card, Divider, PromptModal, Screen, SectionHeader, Text } from '@/components/ui';
@@ -22,7 +21,7 @@ import {
   recordMeasurement,
 } from '@/features/measurements/repository';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
 export default function MeasurementsScreen() {
   const colors = useColors();
@@ -89,29 +88,49 @@ export default function MeasurementsScreen() {
               <View key={kind}>
                 {index > 0 && <Divider inset={spacing.lg} />}
 
-                <Pressable
-                  onPress={() => void openHistory(kind)}
-                  style={({ pressed }) => [
-                    styles.row,
-                    pressed && { backgroundColor: colors.surfacePressed },
-                  ]}
-                >
-                  <Text variant="body" style={styles.rowLabel}>
-                    {MEASUREMENT_KIND_LABELS[kind]}
-                  </Text>
+                {/* Two siblings under a plain View, not a Pressable inside a
+                    Pressable: Android's touch handling gives the whole area to
+                    the outer one, so the nested "add" button was unreachable
+                    there and only ever worked on iOS. Each half now carries its
+                    own 44pt of padding, which also removes the hitSlop that
+                    would have overlapped its neighbour. */}
+                <View style={styles.row}>
+                  <Pressable
+                    onPress={() => void openHistory(kind)}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      current
+                        ? `${MEASUREMENT_KIND_LABELS[kind]}, ${format(kind, current.value)}`
+                        : `${MEASUREMENT_KIND_LABELS[kind]}, not recorded`
+                    }
+                    accessibilityHint="Shows the trend for this measurement."
+                    accessibilityState={{ expanded: isOpen }}
+                    style={({ pressed }) => [
+                      styles.rowMain,
+                      pressed && { backgroundColor: colors.surfacePressed },
+                    ]}
+                  >
+                    <Text variant="body" style={styles.rowLabel}>
+                      {MEASUREMENT_KIND_LABELS[kind]}
+                    </Text>
 
-                  <Text variant="numeric" color={current ? 'text' : 'textTertiary'}>
-                    {current ? format(kind, current.value) : '—'}
-                  </Text>
+                    <Text variant="numeric" color={current ? 'text' : 'textTertiary'}>
+                      {current ? format(kind, current.value) : '—'}
+                    </Text>
+                  </Pressable>
 
                   <Pressable
                     onPress={() => setEntering(kind)}
-                    hitSlop={10}
-                    accessibilityLabel={`Add ${MEASUREMENT_KIND_LABELS[kind]}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Log ${MEASUREMENT_KIND_LABELS[kind]}`}
+                    style={({ pressed }) => [
+                      styles.add,
+                      pressed && { backgroundColor: colors.surfacePressed },
+                    ]}
                   >
                     <Ionicons name="add-circle-outline" size={22} color={colors.accent} />
                   </Pressable>
-                </Pressable>
+                </View>
 
                 {isOpen && history.length > 1 && (
                   <View style={styles.chart}>
@@ -174,12 +193,22 @@ export default function MeasurementsScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge },
-  row: {
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  rowMain: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
+    minHeight: MIN_TOUCH_SIZE,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
     paddingVertical: spacing.lg,
+  },
+  add: {
+    minWidth: MIN_TOUCH_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingRight: spacing.lg - spacing.sm,
   },
   rowLabel: { flex: 1 },
   chart: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },

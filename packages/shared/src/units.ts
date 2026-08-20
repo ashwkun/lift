@@ -40,6 +40,12 @@ export function fromDisplayWeight(value: number, unit: WeightUnit): number {
  *
  * Gym weights are rarely more precise than 0.25 (micro-plates), so two decimals
  * is the ceiling — but 100 should render as "100", not "100.00".
+ *
+ * With `withUnit: false` this is also the correct value for an editable weight
+ * field. Two decimals absorbs the float noise of the kg↔lb round trip (an
+ * lb-entered 225 comes back as 225.00000000000003) and the zero trimming keeps
+ * it from reappearing in the field as "225.0", which the user then has to
+ * delete before typing.
  */
 export function formatWeight(
   kg: number,
@@ -149,8 +155,14 @@ function pad(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-/** "100.00" → "100", "102.50" → "102.5", "102.55" → "102.55" */
-function trimZeros(text: string): string {
+/**
+ * "100.00" → "100", "102.50" → "102.5", "102.55" → "102.55"
+ *
+ * Exported because the editable distance field needs the same treatment and
+ * cannot use `formatDistance` — that formatter switches to metres below 1 km,
+ * which is unusable in a field the user is typing kilometres into.
+ */
+export function trimZeros(text: string): string {
   return text.includes('.') ? text.replace(/\.?0+$/, '') : text;
 }
 

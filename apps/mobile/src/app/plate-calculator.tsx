@@ -1,29 +1,57 @@
 import {
   calculatePlates,
-  defaultBarKg,
   defaultPlates,
   formatWeight,
   fromDisplayWeight,
-  toDisplayWeight,
+  type WeightUnit,
 } from '@lift/shared';
-import { Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { Fragment, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, Chip, Screen, SectionHeader, Text, TextField } from '@/components/ui';
+import { Chip, Divider, Screen, Text, TextField } from '@/components/ui';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { fontSize, spacing } from '@/theme';
 
-const BAR_OPTIONS_KG = [20, 15, 10, 7.5];
+/**
+ * Bars that exist, listed in the unit they were manufactured in.
+ *
+ * A kg gym stocks 20/15/10/7.5 and an lb gym stocks 45/35/15. Converting one
+ * list into the other invents bars nobody owns: the single kg list used to be
+ * shown to lb users as "44.1 lb", which is a 20 kg bar wearing a costume. The
+ * chosen value is converted to storage (kg) at read time, so the chip labelled
+ * 45 lb sets the bar to 45 lb exactly rather than to the nearest kilogram.
+ */
+const BAR_OPTIONS: Record<WeightUnit, readonly number[]> = {
+  kg: [20, 15, 10, 7.5],
+  lb: [45, 35, 15],
+};
 
 export default function PlateCalculatorScreen() {
-  const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
+  // The configured bar *is* the state — there is no local copy to drift from
+  // it. Zustand reads synchronously, so tapping a chip repaints this frame and
+  // the choice is still there the next time the screen opens, and for the plate
+  // line printed under every barbell block during a session.
+  const barKg = useSettings((state) => state.barWeightKg);
+  const updateSetting = useSettings((state) => state.update);
 
-  const [targetText, setTargetText] = useState('100');
-  const [barKg, setBarKg] = useState(() => defaultBarKg(weightUnit));
+  // Seeds the field, rather than controlling it: callers that already know the
+  // weight (the plate line in an exercise block) pass it through so the number
+  // does not have to be retyped, but from there the field is the user's.
+  const { targetKg } = useLocalSearchParams<{ targetKg?: string }>();
+  const seeded = Number(targetKg);
+  const hasSeed = Number.isFinite(seeded) && seeded > 0;
+
+  const [targetText, setTargetText] = useState(() =>
+    hasSeed ? formatWeight(seeded, weightUnit, { withUnit: false }) : '100',
+  );
 
   const inventory = useMemo(() => defaultPlates(weightUnit), [weightUnit]);
+  const barOptions = useMemo(
+    () => BAR_OPTIONS[weightUnit].map((display) => fromDisplayWeight(display, weightUnit)),
+    [weightUnit],
+  );
 
   const result = useMemo(() => {
     const entered = Number(targetText.replace(',', '.'));
@@ -33,16 +61,20 @@ export default function PlateCalculatorScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Plate Calculator' }} />
+      <Stack.Screen options={{ title: 'Plate calculator' }} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <TextField
           label={`Target weight (${weightUnit})`}
+          accessibilityLabel={`Target weight in ${weightUnit}`}
           value={targetText}
           onChangeText={setTargetText}
           keyboardType="decimal-pad"
           selectTextOnFocus
-          autoFocus
+          // A seeded target arrived because someone wanted to *read* the
+          // loading, not edit it; raising the keypad over the answer would be
+          // the screen arguing with the reason it was opened.
+          autoFocus={!hasSeed}
         />
 
         <View style={styles.barRow}>
@@ -50,76 +82,80 @@ export default function PlateCalculatorScreen() {
             Bar weight
           </Text>
           <View style={styles.choices}>
-            {BAR_OPTIONS_KG.map((option) => (
+            {barOptions.map((option) => (
               <Chip
                 key={option}
-                label={formatWeight(option, weightUnit, { decimals: 1 })}
+                label={formatWeight(option, weightUnit)}
                 selected={Math.abs(barKg - option) < 0.01}
-                onPress={() => setBarKg(option)}
+                // Vertical only, plus a leading sliver into the 8pt gap. The
+                // chips are horizontal neighbours and the later sibling wins an
+                // overlapping hit test, so symmetric slop here would hand the
+                // 20 kg bar's right edge to the 15 kg chip.
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 0 }}
+                onPress={() => updateSetting('barWeightKg', option)}
               />
             ))}
           </View>
         </View>
 
         {result && (
-          <>
-            <SectionHeader title="Per Side" />
-            <Card style={styles.plateCard}>
-              {result.belowBar ? (
-                <Text variant="body" color="danger">
-                  Target is lighter than the bar itself.
-                </Text>
-              ) : result.plates.length === 0 ? (
-                <Text variant="body" color="textSecondary">
-                  Empty bar — no plates needed.
-                </Text>
-              ) : (
-                <View style={styles.plateList}>
-                  {result.plates.map((plate) => (
+          <View style={styles.result}>
+            <Text variant="overline" color="textSecondary">
+              {`Per side · ${weightUnit}`}
+            </Text>
+
+            {result.belowBar ? (
+              <Text variant="body" color="danger">
+                Target is lighter than the bar itself.
+              </Text>
+            ) : result.plates.length === 0 ? (
+              <Text variant="body" color="textSecondary">
+                Empty bar — no plates needed.
+              </Text>
+            ) : (
+              <View>
+                <Divider />
+                {result.plates.map((plate, index) => (
+                  <Fragment key={plate.weightKg}>
+                    {index > 0 && <Divider />}
                     <View
-                      key={plate.weightKg}
-                      style={[styles.plate, { backgroundColor: colors.accentSurface, borderColor: colors.accent }]}
+                      style={styles.plateRow}
+                      accessible
+                      accessibilityLabel={`${plate.perSide} × ${formatWeight(
+                        plate.weightKg,
+                        weightUnit,
+                      )} per side`}
                     >
-                      <Text variant="numeric" color="accent">
-                        {formatWeight(plate.weightKg, weightUnit, {
-                          decimals: 2,
-                          withUnit: false,
-                        })}
+                      <Text variant="numericLarge" style={styles.plateFigure}>
+                        {formatWeight(plate.weightKg, weightUnit, { withUnit: false })}
                       </Text>
-                      <Text variant="caption" color="textSecondary">
-                        × {plate.perSide}
+                      <Text variant="numeric" color="textSecondary">
+                        {`× ${plate.perSide}`}
                       </Text>
                     </View>
-                  ))}
-                </View>
-              )}
-            </Card>
-
-            <Card style={styles.summaryCard}>
-              <SummaryRow
-                label="Loaded"
-                value={formatWeight(result.achievedKg, weightUnit, { decimals: 2 })}
-              />
-              <SummaryRow
-                label="Bar"
-                value={formatWeight(barKg, weightUnit, { decimals: 2 })}
-              />
-              {!result.exact && !result.belowBar && (
-                <SummaryRow
-                  label="Short by"
-                  value={formatWeight(Math.abs(result.remainderKg), weightUnit, { decimals: 2 })}
-                  danger
-                />
-              )}
-            </Card>
-
-            {!result.exact && !result.belowBar && (
-              <Text variant="caption" color="textTertiary" style={styles.hint}>
-                Not loadable with a standard plate set — {formatWeight(result.achievedKg, weightUnit, { decimals: 2 })}{' '}
-                is the closest you can make.
-              </Text>
+                  </Fragment>
+                ))}
+                <Divider />
+              </View>
             )}
-          </>
+          </View>
+        )}
+
+        {result && (
+          <View style={styles.summary}>
+            <SummaryRow label="Loaded" value={formatWeight(result.achievedKg, weightUnit)} />
+            <SummaryRow label="Bar" value={formatWeight(barKg, weightUnit)} />
+            {/* Only appears when the target cannot be made, which is the whole
+                announcement — a line reading "loadable" under every exact
+                answer would be the screen talking for the sake of it. */}
+            {!result.exact && !result.belowBar && (
+              <SummaryRow
+                label="Short by"
+                value={formatWeight(Math.abs(result.remainderKg), weightUnit)}
+                danger
+              />
+            )}
+          </View>
         )}
       </ScrollView>
     </Screen>
@@ -148,20 +184,23 @@ function SummaryRow({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
+  content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.xl },
   barRow: { gap: spacing.sm },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  plateCard: { minHeight: 80, justifyContent: 'center' },
-  plateList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  plate: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    minWidth: 72,
+  result: { gap: spacing.sm },
+  plateRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
   },
-  summaryCard: { gap: spacing.sm },
+  // The denominations are the answer, and the question gets asked with the
+  // phone on the floor and chalk on both hands, so they are set at the display
+  // size — larger than anything else on the screen, including the field they
+  // were derived from. Ruled rather than boxed: elsewhere in the app a box
+  // means the thing inside it can be pressed, and these are read, not touched.
+  // `numericLarge` supplies the tabular figures that keep the column aligned.
+  plateFigure: { fontSize: fontSize.display },
+  summary: { gap: spacing.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  hint: { paddingHorizontal: spacing.xs },
 });

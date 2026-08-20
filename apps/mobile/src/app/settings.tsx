@@ -6,13 +6,17 @@ import {
   THEME_PREFERENCES,
   WEIGHT_UNITS,
   formatDurationShort,
+  formatWeight,
+  fromDisplayWeight,
 } from '@lift/shared';
 import { Stack } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, Chip, Screen, SectionHeader, Text, Toggle } from '@/components/ui';
+import { Card, Chip, PromptModal, Screen, SectionHeader, Text, Toggle } from '@/components/ui';
+import { recordBodyweight } from '@/features/measurements/repository';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
-import { spacing } from '@/theme';
+import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
 const REST_PRESETS = [60, 90, 120, 150, 180, 240];
 
@@ -22,9 +26,29 @@ const THEME_LABELS: Record<(typeof THEME_PREFERENCES)[number], string> = {
   dark: 'Dark',
 };
 
+/** The two numbers on this screen that are typed rather than chosen. */
+type NumberField = 'bodyweight' | 'barWeight';
+
 export default function SettingsScreen() {
   const settings = useSettings();
   const update = useSettings((state) => state.update);
+
+  const [editing, setEditing] = useState<NumberField | null>(null);
+
+  const weightUnit = settings.weightUnit;
+  const asField = (kg: number) => formatWeight(kg, weightUnit, { withUnit: false });
+
+  const prompt =
+    editing === 'bodyweight'
+      ? {
+          title: 'Bodyweight',
+          initialValue: settings.bodyweightKg == null ? '' : asField(settings.bodyweightKg),
+        }
+      : editing === 'barWeight'
+        ? { title: 'Bar weight', initialValue: asField(settings.barWeightKg) }
+        : null;
+
+  const restOff = !settings.restTimerEnabled;
 
   return (
     <Screen>
@@ -53,8 +77,8 @@ export default function SettingsScreen() {
           />
         </Card>
         <Text variant="caption" color="textTertiary" style={styles.hint}>
-          Changing units only affects display. Everything is stored in kilograms and centimetres, so
-          your history stays consistent.
+          Changing units only affects display. Everything is stored in kilograms, kilometres and
+          centimetres, so your history stays consistent.
         </Text>
 
         <SectionHeader title="Appearance" />
@@ -67,7 +91,7 @@ export default function SettingsScreen() {
           />
         </Card>
 
-        <SectionHeader title="Rest Timer" />
+        <SectionHeader title="Rest timer" />
         <Card style={styles.card}>
           <ToggleRow
             label="Enable rest timer"
@@ -79,13 +103,31 @@ export default function SettingsScreen() {
             description="Begins the moment you check off a set."
             value={settings.restTimerAutoStart}
             onChange={(value) => update('restTimerAutoStart', value)}
-            disabled={!settings.restTimerEnabled}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
           />
           <ToggleRow
             label="Notify when finished"
+            description="Rings even with the app closed."
             value={settings.restTimerNotifications}
             onChange={(value) => update('restTimerNotifications', value)}
-            disabled={!settings.restTimerEnabled}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
+          />
+          <ToggleRow
+            label="Alert sound"
+            value={settings.soundEnabled}
+            onChange={(value) => update('soundEnabled', value)}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
+          />
+          <ToggleRow
+            label="Countdown buzz"
+            description="A tap on each of the last three seconds."
+            value={settings.restTimerCountdownCues}
+            onChange={(value) => update('restTimerCountdownCues', value)}
+            disabled={restOff || !settings.hapticsEnabled}
+            disabledReason={restOff ? 'The rest timer is off.' : 'Haptic feedback is off.'}
           />
           <ChoiceRow
             label="Default rest"
@@ -97,8 +139,12 @@ export default function SettingsScreen() {
             onSelect={(value) => update('defaultRestSeconds', value)}
           />
         </Card>
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          This is only the fallback. Tap the timer next to an exercise while logging to set its own
+          rest, and every future workout containing that exercise will use it.
+        </Text>
 
-        <SectionHeader title="During Workout" />
+        <SectionHeader title="During workout" />
         <Card style={styles.card}>
           <ToggleRow
             label="Haptic feedback"
@@ -113,6 +159,25 @@ export default function SettingsScreen() {
           />
         </Card>
 
+        <SectionHeader title="Body" />
+        <Card style={styles.card}>
+          <ValueRow
+            label="Bodyweight"
+            value={
+              settings.bodyweightKg == null
+                ? 'Not set'
+                : formatWeight(settings.bodyweightKg, weightUnit, { decimals: 1 })
+            }
+            hint="Opens a field to enter your bodyweight."
+            onPress={() => setEditing('bodyweight')}
+          />
+        </Card>
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          Push-ups, pull-ups and dips are valued at your bodyweight. Without it they count as zero
+          volume. Logging a bodyweight under Measurements sets this too, and entering it here files
+          it there.
+        </Text>
+
         <SectionHeader title="Calculations" />
         <Card style={styles.card}>
           <ChoiceRow
@@ -124,10 +189,17 @@ export default function SettingsScreen() {
             selected={settings.oneRepMaxFormula}
             onSelect={(value) => update('oneRepMaxFormula', value)}
           />
+          <ValueRow
+            label="Bar weight"
+            value={formatWeight(settings.barWeightKg, weightUnit, { decimals: 1 })}
+            hint="Opens a field to enter the weight of your barbell."
+            onPress={() => setEditing('barWeight')}
+          />
         </Card>
         <Text variant="caption" color="textTertiary" style={styles.hint}>
           Estimates diverge past about 12 reps — all of these are population regressions, not
-          measurements.
+          measurements. The bar weight is what the plate line under each barbell exercise counts up
+          from.
         </Text>
 
         <Text variant="caption" color="textTertiary" align="center" style={styles.reset}>
@@ -135,6 +207,36 @@ export default function SettingsScreen() {
           {formatDurationShort(DEFAULT_SETTINGS.defaultRestSeconds)} rest
         </Text>
       </ScrollView>
+
+      <PromptModal
+        visible={prompt !== null}
+        title={prompt?.title ?? ''}
+        message={`Entered in ${weightUnit}`}
+        initialValue={prompt?.initialValue ?? ''}
+        placeholder="0"
+        confirmLabel="Save"
+        onCancel={() => setEditing(null)}
+        onConfirm={(raw) => {
+          const field = editing;
+          setEditing(null);
+          if (!field) return;
+
+          const parsed = Number(raw.replace(',', '.'));
+          if (!Number.isFinite(parsed) || parsed <= 0) return;
+          const kg = fromDisplayWeight(parsed, weightUnit);
+
+          if (field === 'barWeight') {
+            update('barWeightKg', kg);
+            return;
+          }
+
+          // Filed as a measurement rather than written straight to the store:
+          // the repository mirrors it back into settings, and this way the entry
+          // also lands on the bodyweight chart instead of being a second number
+          // that quietly disagrees with it.
+          void recordBodyweight(kg);
+        }}
+      />
     </Screen>
   );
 }
@@ -145,27 +247,86 @@ function ToggleRow({
   value,
   onChange,
   disabled = false,
+  disabledReason,
 }: {
   label: string;
   description?: string;
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  /** Why the row is dead. Replaces the description, and is read out with the label. */
+  disabledReason?: string;
 }) {
+  const colors = useColors();
+
+  // A disabled row describes behaviour that is not happening, so the reason it
+  // is dead is the more useful of the two lines — and the only one that tells
+  // the user which switch above to turn back on.
+  const detail = disabled ? disabledReason : description;
+
   return (
-    <View style={styles.row}>
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled }}
+      // The reason is folded in rather than left to the visual line beside it,
+      // because a screen reader announcing a disabled switch with no explanation
+      // is a dead end.
+      accessibilityLabel={disabled && disabledReason ? `${label}. ${disabledReason}` : label}
+      accessibilityHint={disabled ? undefined : description}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && { backgroundColor: colors.surfacePressed },
+      ]}
+    >
       {/* Only the label dims. `Toggle` dims itself when disabled, and nesting
           that inside a dimmed row would multiply the two into near-invisibility. */}
       <View style={[styles.rowLabel, disabled && styles.disabled]}>
         <Text variant="body">{label}</Text>
-        {description && (
+        {detail && (
           <Text variant="caption" color="textTertiary">
-            {description}
+            {detail}
           </Text>
         )}
       </View>
-      <Toggle value={value} onValueChange={onChange} disabled={disabled} />
-    </View>
+      {/* The row is the 44pt target; the switch is only its readout. */}
+      <Toggle presentational value={value} onValueChange={onChange} disabled={disabled} />
+    </Pressable>
+  );
+}
+
+function ValueRow({
+  label,
+  value,
+  hint,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${value}`}
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && { backgroundColor: colors.surfacePressed },
+      ]}
+    >
+      <Text variant="body" style={styles.rowLabel}>
+        {label}
+      </Text>
+      <Text variant="numeric" color="textSecondary">
+        {value}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -189,6 +350,12 @@ function ChoiceRow<T extends string | number>({
             key={String(option.value)}
             label={option.label}
             selected={selected === option.value}
+            // A chip is ~34pt tall; 6pt each way makes the 44. Vertical only —
+            // horizontal slop on a row of chips would let a neighbour's slop
+            // overlap the chip beside it, and the later sibling silently wins.
+            // The wrapped rows sit `rowGap` 12 apart precisely so the two halves
+            // tile instead of overlapping.
+            hitSlop={CHIP_HIT_SLOP}
             onPress={() => onSelect(option.value)}
           />
         ))}
@@ -197,14 +364,26 @@ function ChoiceRow<T extends string | number>({
   );
 }
 
+const CHIP_HIT_SLOP = { top: 6, bottom: 6 } as const;
+
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge },
   card: { gap: spacing.lg },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    minHeight: MIN_TOUCH_SIZE,
+    // Bled out to the card's edge and back so the pressed fill spans the full
+    // width of the row it belongs to; the card clips it to its own radius.
+    marginHorizontal: -spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
   rowLabel: { flex: 1, gap: 2 },
   disabled: { opacity: 0.4 },
   choiceRow: { gap: spacing.sm },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm, rowGap: spacing.md },
   hint: { paddingHorizontal: spacing.xs, paddingTop: spacing.sm },
   reset: { marginTop: spacing.xxl },
 });

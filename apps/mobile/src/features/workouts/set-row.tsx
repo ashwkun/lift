@@ -1,20 +1,42 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  formatDistance,
   formatDuration,
+  formatWeight,
   fromDisplayWeight,
   parseDuration,
   SET_TYPE_BADGE,
-  toDisplayWeight,
+  SET_TYPE_LABELS,
   TRACKING_FIELDS,
+  trimZeros,
   type SetType,
   type TrackingType,
 } from '@lift/shared';
-import { memo, useCallback } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { memo, useCallback, useEffect, useRef } from 'react';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  View,
+  type AccessibilityActionEvent,
+} from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { NumericField, Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
+import { haptics } from '@/features/feedback/haptics';
+import { canLogSet } from '@/features/workouts/repository';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -26,7 +48,12 @@ export interface SetRowProps {
   /** Same-position set from the previous session, shown as a ghost target. */
   previous?: WorkoutSet;
   onChange: (patch: Partial<WorkoutSet>) => void;
-  onToggleComplete: () => void;
+  /**
+   * Resolves `false` when the write was refused or lost, so the row can take
+   * its optimistic check back down. A caller with nothing to report may return
+   * nothing, and the row then keeps the state the press asserted.
+   */
+  onToggleComplete: () => void | Promise<boolean>;
   onDelete: () => void;
   onChangeSetType: (setType: SetType) => void;
 }
@@ -43,13 +70,13 @@ function formatPrevious(
   const parts: string[] = [];
 
   if (fields.weight && previous.weightKg != null) {
-    parts.push(`${round(toDisplayWeight(previous.weightKg, unit))} ${unit}`);
+    parts.push(formatWeight(previous.weightKg, unit));
   }
   if (fields.duration && previous.durationSeconds != null) {
     parts.push(formatDuration(previous.durationSeconds));
   }
   if (fields.distance && previous.distanceKm != null) {
-    parts.push(`${round(previous.distanceKm)} km`);
+    parts.push(formatDistance(previous.distanceKm, 'km'));
   }
   if (fields.reps && previous.reps != null) {
     parts.push(parts.length > 0 ? `× ${previous.reps}` : `${previous.reps} reps`);
@@ -58,9 +85,81 @@ function formatPrevious(
   return parts.length > 0 ? parts.join(' ') : '—';
 }
 
-function round(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
+/**
+ * How a typed time comes back out of storage, for the duration field's own
+ * echo check. Nothing else in a set row needs one: a weight, a rep count and a
+ * distance render back as they were typed, but seconds are always re-spelled
+ * as M:SS, so "4" returns as "0:04". Module scope so every row shares the one
+ * function and the field is not handed a new prop on each render.
+ *
+ * An unparseable string maps to '' to agree with `handleDurationChange`, which
+ * writes null only for the empty string.
+ */
+const normalizeDuration = (text: string) => {
+  const seconds = parseDuration(text);
+  return seconds == null ? '' : formatDuration(seconds);
+};
+
+/**
+ * Motion for the check-off, which is the gesture this app exists to perform.
+ *
+ * Everything here is driven by shared values rather than React state, so the
+ * animation runs on the UI thread and never contends with the set row's
+ * controlled text inputs — the row can be mid-transition while a weight is
+ * being typed and neither notices the other. `ReduceMotion.System` is passed on
+ * each config rather than checked once in JS, so the OS setting is honoured
+ * without a re-render to observe it.
+ */
+const TINT = {
+  duration: 170,
+  easing: Easing.out(Easing.quad),
+  reduceMotion: ReduceMotion.System,
+};
+
+const SQUASH = {
+  duration: 90,
+  easing: Easing.out(Easing.quad),
+  reduceMotion: ReduceMotion.System,
+};
+
+const RELEASE = {
+  damping: 11,
+  stiffness: 340,
+  mass: 0.5,
+  reduceMotion: ReduceMotion.System,
+};
+
+/**
+ * Asymmetric on purpose, and not the shared `HIT_SLOP` token.
+ *
+ * Rows are 44 tall with 4pt of vertical padding, so the 30pt check plates of
+ * two stacked rows sit 14pt apart: a symmetric 8pt slop overlaps by 2pt, and
+ * iOS hit-tests siblings in reverse order, which hands that overlap to the
+ * *lower* row — a near-miss would complete the wrong set and start its rest
+ * timer. 7 tiles the gap exactly and still reaches the 44pt minimum. The left
+ * edge stays inside the row's 8pt column gap because this Pressable is the last
+ * child and would win any overlap against the reps field beside it. Only the
+ * right edge, which faces the screen margin, is free to be generous.
+ */
+const CHECK_HIT_SLOP = { top: 7, bottom: 7, left: 6, right: spacing.lg };
+
+/**
+ * Mirrors CHECK_HIT_SLOP at the other end of the row.
+ *
+ * `alignSelf: 'stretch'` only reaches 36pt — `minHeight: 44` is border-box and
+ * the row carries 4pt of vertical padding — so 4pt of slop tiles the remainder
+ * exactly: 44pt of target inside a 44pt row, with no overlap for the row below
+ * to steal. The left edge faces the row's 16pt margin, which holds nothing
+ * pressable, so it can be generous. The right edge stays at 0, because the
+ * previous-set cell is the next sibling and would win any overlap anyway.
+ */
+const INDEX_HIT_SLOP = { top: 4, bottom: 4, left: spacing.lg, right: 0 };
+
+/**
+ * Deleting a set is a swipe, and a screen reader cannot swipe. The action hangs
+ * off the two controls a user lands on when they reach the row.
+ */
+const DELETE_ACTIONS = [{ name: 'delete', label: 'Delete set' }];
 
 export const SetRow = memo(function SetRow({
   set,
@@ -75,8 +174,59 @@ export const SetRow = memo(function SetRow({
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
 
+  // 0 = open, 1 = checked off. Seeded from the current value so a screen opened
+  // on a half-finished workout renders its state rather than animating into it.
+  const done = useSharedValue(set.isCompleted ? 1 : 0);
+  const pop = useSharedValue(1);
+  const settled = useRef(false);
+
+  // What the last press asserted, held until the row agrees. The check-off is
+  // driven by the press rather than by the write it starts: that write is four
+  // SQLite statements and a live-query re-emit away, and a plate that waits for
+  // them reads as a dropped tap on the one control this app exists to press.
+  // The latch is what keeps the reconcile effect below from animating a second
+  // time when its own echo arrives.
+  const pending = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (pending.current !== null) {
+      if (pending.current === set.isCompleted) pending.current = null;
+      return;
+    }
+
+    done.value = withTiming(set.isCompleted ? 1 : 0, TINT);
+
+    // The squash-and-release belongs to the tap, so it is skipped on the first
+    // pass — otherwise every already-completed row bounces when the screen opens.
+    if (!settled.current) {
+      settled.current = true;
+      return;
+    }
+    if (!set.isCompleted) return;
+
+    pop.value = withSequence(withTiming(0.85, SQUASH), withSpring(1, RELEASE));
+  }, [set.isCompleted, done, pop]);
+
+  // A tint layer rather than an animated `backgroundColor`: interpolating out of
+  // `transparent` runs through rgba(0,0,0,0) and greys the row on the way past.
+  const tintStyle = useAnimatedStyle(() => ({ opacity: done.value }));
+  const checkStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const fillStyle = useAnimatedStyle(() => ({ opacity: done.value }));
+  const idleGlyphStyle = useAnimatedStyle(() => ({ opacity: 1 - done.value }));
+  const doneGlyphStyle = useAnimatedStyle(() => ({ opacity: done.value }));
+
   const fields = TRACKING_FIELDS[trackingType];
   const badge = SET_TYPE_BADGE[set.setType];
+
+  // How the row names itself to a screen reader. Warm-ups are left out of the
+  // working-set count on purpose, so they answer with their type rather than
+  // borrowing the ordinal of the set that follows them.
+  const setName =
+    set.setType === 'warmup'
+      ? SET_TYPE_LABELS.warmup
+      : set.setType === 'normal'
+        ? `Set ${workingIndex}`
+        : `Set ${workingIndex}, ${SET_TYPE_LABELS[set.setType]}`;
 
   const badgeColor =
     set.setType === 'warmup'
@@ -108,7 +258,15 @@ export const SetRow = memo(function SetRow({
 
   const handleDurationChange = useCallback(
     (text: string) => {
-      onChange({ durationSeconds: text === '' ? null : parseDuration(text) });
+      if (text === '') {
+        onChange({ durationSeconds: null });
+        return;
+      }
+      // A stray "." or a fourth colon is a keystroke on the way somewhere, not
+      // an instruction to forget the time that is already logged.
+      const parsed = parseDuration(text);
+      if (parsed == null) return;
+      onChange({ durationSeconds: parsed });
     },
     [onChange],
   );
@@ -122,123 +280,238 @@ export const SetRow = memo(function SetRow({
     [onChange],
   );
 
+  const handleCopyPrevious = useCallback(() => {
+    if (!previous) return;
+
+    // Only fields this exercise tracks, and only the ones last session actually
+    // holds a number for. A blanket copy writes the previous row's nulls over
+    // whatever is already typed here — so tapping this cell for the reps would
+    // silently erase the weight you had just entered.
+    const patch: Partial<WorkoutSet> = {};
+    if (fields.weight && previous.weightKg != null) patch.weightKg = previous.weightKg;
+    if (fields.reps && previous.reps != null) patch.reps = previous.reps;
+    if (fields.duration && previous.durationSeconds != null) {
+      patch.durationSeconds = previous.durationSeconds;
+    }
+    if (fields.distance && previous.distanceKm != null) patch.distanceKm = previous.distanceKm;
+    if (Object.keys(patch).length === 0) return;
+
+    haptics.selection();
+    onChange(patch);
+  }, [previous, fields, onChange]);
+
+  // A set with nothing in the field it is measured by has nothing to log, and
+  // the screen refuses to complete it. Both sides ask the same function rather
+  // than each restating the rule, so the press only asserts a state the write
+  // can actually reach. The previous session counts, because the screen folds
+  // those numbers into the write. Should the two ever part company again, a
+  // refused write now reports it and the plate goes back down.
+  const loggable = canLogSet(fields, set, previous);
+
+  const handleToggle = useCallback(() => {
+    const next = !set.isCompleted;
+    const latched = !next || loggable;
+
+    if (latched) {
+      pending.current = next;
+      done.value = withTiming(next ? 1 : 0, TINT);
+      if (next) pop.value = withSequence(withTiming(0.85, SQUASH), withSpring(1, RELEASE));
+    }
+
+    // A write that never landed leaves the latch asserting a state the database
+    // does not hold, and the row would sit green under the screen's own "not
+    // saving" banner until it was unmounted. `false` is the only answer that
+    // unwinds it: a caller that reports nothing keeps the old behaviour.
+    void Promise.resolve(onToggleComplete()).then((ok) => {
+      // Only ever unwind our own latch. A press that arrived while this write
+      // was in flight owns `pending` now, and its assertion has to stand.
+      if (ok !== false || !latched || pending.current !== next) return;
+      pending.current = null;
+      done.value = withTiming(set.isCompleted ? 1 : 0, TINT);
+    });
+  }, [set.isCompleted, loggable, done, pop, onToggleComplete]);
+
+  const confirmDelete = useCallback(() => {
+    Alert.alert('Delete set', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+    ]);
+  }, [onDelete]);
+
+  const handleAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      if (event.nativeEvent.actionName === 'delete') confirmDelete();
+    },
+    [confirmDelete],
+  );
+
   const weightValue =
-    set.weightKg == null ? '' : round(toDisplayWeight(set.weightKg, weightUnit));
+    set.weightKg == null ? '' : formatWeight(set.weightKg, weightUnit, { withUnit: false });
 
   return (
-    <ReanimatedSwipeable
-      friction={2}
-      rightThreshold={40}
-      renderRightActions={() => (
-        <Pressable
-          onPress={onDelete}
-          accessibilityLabel="Delete set"
-          style={[styles.deleteAction, { backgroundColor: colors.danger }]}
-        >
-          <Ionicons name="trash" size={20} color={colors.textOnDanger} />
-        </Pressable>
-      )}
+    <Animated.View
+      // Added and swiped-away sets fade rather than pop in and out of the list.
+      entering={FadeIn.duration(140).reduceMotion(ReduceMotion.System)}
+      exiting={FadeOut.duration(110).reduceMotion(ReduceMotion.System)}
     >
-      <View
-        style={[
-          styles.row,
-          {
-            backgroundColor: set.isCompleted ? colors.accentSurface : 'transparent',
-          },
-        ]}
+      <ReanimatedSwipeable
+        friction={2}
+        rightThreshold={40}
+        renderRightActions={() => (
+          <Pressable
+            onPress={onDelete}
+            accessibilityLabel="Delete set"
+            // Hidden from the accessibility tree: this button only exists once
+            // a swipe has revealed it, but it is mounted the whole time, so a
+            // screen reader announced a delete for every set on the screen.
+            // Without the gesture, delete arrives through the `accessibilityActions`
+            // on the set number and the check plate instead.
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.deleteAction, { backgroundColor: colors.danger }]}
+          >
+            <Ionicons name="trash" size={20} color={colors.textOnDanger} />
+          </Pressable>
+        )}
       >
-        {/* Set number / type badge */}
-        <Pressable
-          onPress={() => onChangeSetType(nextSetType(set.setType))}
-          accessibilityLabel={`Set type: ${set.setType}`}
-          style={styles.indexCell}
-        >
-          <Text variant="numeric" style={{ color: badgeColor }}>
-            {badge ?? workingIndex}
-          </Text>
-        </Pressable>
+        <View style={styles.row}>
+          <Animated.View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, tintStyle, { backgroundColor: colors.accentSurface }]}
+          />
 
-        {/* Previous session */}
-        <Pressable
-          style={styles.previousCell}
-          disabled={!previous}
-          onPress={() =>
-            previous &&
-            onChange({
-              weightKg: previous.weightKg,
-              reps: previous.reps,
-              durationSeconds: previous.durationSeconds,
-              distanceKm: previous.distanceKm,
-            })
-          }
-        >
-          <Text variant="label" color="textTertiary" numberOfLines={1}>
-            {formatPrevious(previous, trackingType, weightUnit)}
-          </Text>
-        </Pressable>
+          {/* Set number / type badge */}
+          <Pressable
+            onPress={() => onChangeSetType(nextSetType(set.setType))}
+            onLongPress={confirmDelete}
+            hitSlop={INDEX_HIT_SLOP}
+            accessibilityRole="button"
+            accessibilityLabel={setName}
+            accessibilityHint="Changes the set type"
+            accessibilityActions={DELETE_ACTIONS}
+            onAccessibilityAction={handleAccessibilityAction}
+            style={styles.indexCell}
+          >
+            <Text variant="numeric" style={{ color: badgeColor }}>
+              {badge ?? workingIndex}
+            </Text>
+          </Pressable>
 
-        {fields.weight && (
-          <NumericField
-            value={weightValue}
-            onChangeText={handleWeightChange}
-            placeholder={
-              previous?.weightKg != null
-                ? round(toDisplayWeight(previous.weightKg, weightUnit))
-                : '0'
+          {/* Previous session. One brightness step and one glyph, not a chip:
+              five hairline boxes per exercise would clutter the column whose
+              whole job is to sit quietly beside the numbers being typed. */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.previousCell,
+              // `surfacePressed`, not `accentSurface` — the accent tint already
+              // means "checked off" one row width away.
+              pressed && { backgroundColor: colors.surfacePressed },
+            ]}
+            disabled={!previous}
+            onPress={handleCopyPrevious}
+            accessibilityRole="button"
+            accessibilityLabel={
+              previous
+                ? `Previous, ${formatPrevious(previous, trackingType, weightUnit)}`
+                : 'No previous set'
             }
-            style={styles.input}
-          />
-        )}
+            accessibilityHint={previous ? 'Copies these numbers into this set' : undefined}
+          >
+            <Text
+              variant="label"
+              color={previous ? 'textSecondary' : 'textTertiary'}
+              numberOfLines={1}
+              style={styles.previousText}
+            >
+              {formatPrevious(previous, trackingType, weightUnit)}
+            </Text>
+            {previous && (
+              <Ionicons name="return-down-forward" size={11} color={colors.textTertiary} />
+            )}
+          </Pressable>
 
-        {fields.duration && (
-          <NumericField
-            value={set.durationSeconds == null ? '' : formatDuration(set.durationSeconds)}
-            onChangeText={handleDurationChange}
-            keyboardType="numbers-and-punctuation"
-            placeholder="0:00"
-            style={styles.input}
-          />
-        )}
+          {fields.weight && (
+            <NumericField
+              value={weightValue}
+              onChangeText={handleWeightChange}
+              accessibilityLabel={`${setName}, weight in ${weightUnit}`}
+              placeholder={
+                previous?.weightKg != null
+                  ? formatWeight(previous.weightKg, weightUnit, { withUnit: false })
+                  : '0'
+              }
+              style={styles.input}
+            />
+          )}
 
-        {fields.distance && (
-          <NumericField
-            value={set.distanceKm == null ? '' : round(set.distanceKm)}
-            onChangeText={handleDistanceChange}
-            placeholder="0"
-            style={styles.input}
-          />
-        )}
+          {fields.duration && (
+            <NumericField
+              value={set.durationSeconds == null ? '' : formatDuration(set.durationSeconds)}
+              onChangeText={handleDurationChange}
+              normalize={normalizeDuration}
+              accessibilityLabel={`${setName}, time`}
+              keyboardType="numbers-and-punctuation"
+              placeholder={
+                previous?.durationSeconds != null
+                  ? formatDuration(previous.durationSeconds)
+                  : '0:00'
+              }
+              style={styles.input}
+            />
+          )}
 
-        {fields.reps && (
-          <NumericField
-            value={set.reps == null ? '' : String(set.reps)}
-            onChangeText={handleRepsChange}
-            keyboardType="number-pad"
-            placeholder={previous?.reps != null ? String(previous.reps) : '0'}
-            style={styles.input}
-          />
-        )}
+          {fields.distance && (
+            <NumericField
+              value={set.distanceKm == null ? '' : trimZeros(set.distanceKm.toFixed(2))}
+              onChangeText={handleDistanceChange}
+              accessibilityLabel={`${setName}, distance in km`}
+              placeholder={
+                previous?.distanceKm != null ? trimZeros(previous.distanceKm.toFixed(2)) : '0'
+              }
+              style={styles.input}
+            />
+          )}
 
-        <Pressable
-          onPress={onToggleComplete}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: set.isCompleted }}
-          accessibilityLabel="Complete set"
-          style={[
-            styles.checkCell,
-            {
-              backgroundColor: set.isCompleted ? colors.success : colors.surfaceMuted,
-            },
-          ]}
-        >
-          <Ionicons
-            name="checkmark"
-            size={18}
-            color={set.isCompleted ? colors.textOnSuccess : colors.textTertiary}
-          />
-        </Pressable>
-      </View>
-    </ReanimatedSwipeable>
+          {fields.reps && (
+            <NumericField
+              value={set.reps == null ? '' : String(set.reps)}
+              onChangeText={handleRepsChange}
+              accessibilityLabel={`${setName}, reps`}
+              keyboardType="number-pad"
+              placeholder={previous?.reps != null ? String(previous.reps) : '0'}
+              style={styles.input}
+            />
+          )}
+
+          <Pressable
+            onPress={handleToggle}
+            hitSlop={CHECK_HIT_SLOP}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: set.isCompleted }}
+            accessibilityLabel={`Complete ${setName}`}
+            accessibilityActions={DELETE_ACTIONS}
+            onAccessibilityAction={handleAccessibilityAction}
+          >
+            <Animated.View
+              style={[styles.checkCell, { backgroundColor: colors.surfaceMuted }, checkStyle]}
+            >
+              {/* The green fills in over the resting grey, and the two glyphs
+                  cross-fade above it — a single glyph would have to swap colour
+                  on one frame while the plate underneath was still arriving. */}
+              <Animated.View
+                style={[StyleSheet.absoluteFill, fillStyle, { backgroundColor: colors.success }]}
+              />
+              <Animated.View style={[styles.glyph, idleGlyphStyle]}>
+                <Ionicons name="checkmark" size={18} color={colors.textTertiary} />
+              </Animated.View>
+              <Animated.View style={[styles.glyph, doneGlyphStyle]}>
+                <Ionicons name="checkmark" size={18} color={colors.textOnSuccess} />
+              </Animated.View>
+            </Animated.View>
+          </Pressable>
+        </View>
+      </ReanimatedSwipeable>
+    </Animated.View>
   );
 });
 
@@ -258,13 +531,45 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     minHeight: 44,
   },
-  indexCell: { width: 32, alignItems: 'center' },
-  previousCell: { flex: 1, minWidth: 60 },
+  // Stretched to the row's content box so the tap target is the height of the
+  // row rather than of the one glyph inside it. Visually identical: the row
+  // centres its children anyway.
+  indexCell: {
+    width: 32,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Stretched rather than centred so the pressed fill covers the whole cell,
+  // and with no padding of its own so the text stays under its column heading.
+  previousCell: {
+    flex: 1,
+    minWidth: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    gap: 3,
+    borderRadius: radius.sm,
+  },
+  // Shrinks before the copy glyph does, so a long previous set truncates rather
+  // than pushing the affordance out of the cell.
+  previousText: { flexShrink: 1 },
   input: { flex: 0 },
   checkCell: {
     width: 38,
     height: 30,
     borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Keeps the success fill inside the rounded plate.
+    overflow: 'hidden',
+  },
+  glyph: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

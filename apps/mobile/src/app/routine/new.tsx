@@ -1,5 +1,5 @@
 import { router, Stack } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Screen, TextField } from '@/components/ui';
@@ -9,9 +9,14 @@ import { spacing } from '@/theme';
 export default function NewRoutineScreen() {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  // The latch is the ref, not the state that dims the button: the return key
+  // and the button can both fire inside one frame, and both would read `saving`
+  // as false and create a routine.
+  const inFlight = useRef(false);
 
   const create = async () => {
-    if (saving) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
 
     try {
@@ -20,14 +25,18 @@ export default function NewRoutineScreen() {
       // the routines list, not to this naming step.
       router.replace({ pathname: '/routine/[id]', params: { id: routine.id } });
     } catch (error) {
-      Alert.alert('Could not create routine', (error as Error).message);
+      Alert.alert(
+        'Could not create routine',
+        error instanceof Error ? error.message : 'Nothing was saved.',
+      );
+      inFlight.current = false;
       setSaving(false);
     }
   };
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'New Routine' }} />
+      <Stack.Screen options={{ title: 'New routine' }} />
 
       <View style={styles.content}>
         <TextField
@@ -41,7 +50,7 @@ export default function NewRoutineScreen() {
           returnKeyType="done"
         />
         <Button
-          title="Create Routine"
+          title="Create routine"
           size="lg"
           fullWidth
           loading={saving}

@@ -7,17 +7,40 @@ import {
   SET_TYPE_BADGE,
 } from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Divider, PromptModal, Screen, Text } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Divider,
+  HeaderAction,
+  PromptModal,
+  Screen,
+  splitMeasure,
+  StatBand,
+  Text,
+} from '@/components/ui';
 import { db } from '@/db/client';
-import { touch, trackDelete, trackUpsertCoalesced } from '@/db/mutations';
+import { touch, trackUpsertCoalesced } from '@/db/mutations';
 import { personalRecords, workouts } from '@/db/schema';
-import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
+import {
+  deleteWorkout,
+  getWorkoutDetail,
+  repeatWorkout,
+  type WorkoutDetail,
+} from '@/features/workouts/repository';
+import { startSession } from '@/features/workouts/start-session';
 import { useSettings } from '@/store/settings';
 import { spacing, useColors } from '@/theme';
+
+/**
+ * The name sits in a `Card` with `gap: spacing.sm`, so the target is grown with
+ * slop rather than padding: padding would push the name away from the divider
+ * on every exercise card, while slop moves nothing.
+ */
+const EXERCISE_TITLE_SLOP = { top: 12, bottom: 12 };
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +50,8 @@ export default function WorkoutDetailScreen() {
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [prSetIds, setPrSetIds] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState(false);
+  const [repeating, setRepeating] = useState(false);
+  const inFlight = useRef(false);
 
   const reload = useCallback(async () => {
     const loaded = await getWorkoutDetail(id);
@@ -40,9 +65,15 @@ export default function WorkoutDetailScreen() {
     setPrSetIds(new Set(records.map((row) => row.setId).filter((value): value is string => !!value)));
   }, [id]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  // Read on focus rather than in a mount effect. Nothing on this screen is a
+  // live query, so a mount-only read would go on showing whatever storage held
+  // when it was first opened; running it on focus also keeps the setState off
+  // the render path, where it forces a second pass before the first frame.
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   const rename = async (name: string) => {
     await db
@@ -61,25 +92,59 @@ export default function WorkoutDetailScreen() {
     await reload();
   };
 
+  const openActive = () => router.push('/workout/active');
+
+  const repeat = async () => {
+    // The latch is the ref, not the state that drives the spinner: two taps
+    // inside one frame would both read the pre-render state and get through.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setRepeating(true);
+
+    try {
+      // No `resumes` predicate: repeating always means a new session, so an
+      // open one is never the thing being asked for, even when it came from the
+      // same routine.
+      const outcome = await startSession({
+        create: () => repeatWorkout(id),
+        openExisting: openActive,
+      });
+
+      if (outcome === 'started') openActive();
+    } finally {
+      inFlight.current = false;
+      setRepeating(false);
+    }
+  };
+
   const confirmDelete = () => {
-    Alert.alert('Delete workout', 'This session and its sets will be removed.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            const deletedAt = Date.now();
-            await db
-              .update(workouts)
-              .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
-              .where(eq(workouts.id, id));
-            await trackDelete('workouts', id, deletedAt);
-            router.back();
-          })();
+    Alert.alert(
+      'Delete workout',
+      'This session, its sets and any records it set will be removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                // The repository owns the order — records, then sets, then the
+                // session. Deleting the row here left a mistyped record behind
+                // to gate every future PR for that exercise.
+                await deleteWorkout(id);
+                router.back();
+              } catch (error) {
+                Alert.alert(
+                  'Could not delete the workout',
+                  error instanceof Error ? error.message : 'The session is still here.',
+                );
+              }
+            })();
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   if (!detail) {
@@ -92,38 +157,69 @@ export default function WorkoutDetailScreen() {
 
   const { workout, exercises } = detail;
 
+  const startedAt = workout.startedAt.toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const [volume, volumeUnit] = splitMeasure(formatVolume(workout.totalVolumeKg, weightUnit));
+
   return (
     <Screen>
       <Stack.Screen
         options={{
           title: workout.name,
           headerRight: () => (
-            <Pressable onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete workout">
-              <Ionicons name="trash-outline" size={20} color={colors.danger} />
-            </Pressable>
+            <HeaderAction
+              label="Delete workout"
+              icon="trash-outline"
+              tone="danger"
+              onPress={confirmDelete}
+            />
           ),
         }}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => setRenaming(true)} style={styles.titleBlock}>
-          <Text variant="heading">{workout.name}</Text>
+        {/* `title`, the same size the summary screen sets this same object at.
+            The date has to stay inside the label: supplying one on the
+            Pressable replaces the merged child text, so naming only the workout
+            would tell a screen reader less than the silent version did. */}
+        <Pressable
+          onPress={() => setRenaming(true)}
+          style={styles.titleBlock}
+          accessibilityRole="button"
+          accessibilityLabel={`${workout.name}, ${startedAt}`}
+          accessibilityHint="Renames this workout"
+        >
+          <Text variant="title">{workout.name}</Text>
           <Text variant="label" color="textSecondary">
-            {workout.startedAt.toLocaleDateString(undefined, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
+            {startedAt}
           </Text>
         </Pressable>
 
-        <Card style={styles.stats}>
-          <Stat label="Duration" value={formatDurationShort(workout.durationSeconds ?? 0)} />
-          <Stat label="Volume" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
-          <Stat label="Sets" value={String(workout.totalSets)} />
-          <Stat label="Records" value={String(workout.prCount)} />
-        </Card>
+        {/* One stat grammar across the app: hairline rules, overline labels,
+            tabular figures — not 15px numbers in a rounded box, which is what
+            made this session's four figures read differently here than on the
+            summary screen one tap away. Four across a phone is one too many for
+            a single band, so they run as two of two, paired by kind. */}
+        <View>
+          <StatBand
+            items={[
+              { label: 'Duration', value: formatDurationShort(workout.durationSeconds ?? 0) },
+              { label: 'Volume', value: volume, unit: volumeUnit },
+            ]}
+          />
+          <StatBand
+            style={styles.totalsLower}
+            items={[
+              { label: 'Sets', value: String(workout.totalSets) },
+              { label: 'Records', value: String(workout.prCount) },
+            ]}
+          />
+        </View>
 
         {workout.notes ? (
           <Card style={styles.notes}>
@@ -138,14 +234,24 @@ export default function WorkoutDetailScreen() {
 
           return (
             <Card key={entry.workoutExercise.id} style={styles.exerciseCard}>
+              {/* Announced the same way as the block on the active screen, and
+                  set the same way: subheading, no accent. The accent is
+                  budgeted at roughly one element per view (`theme/tokens.ts`)
+                  and this list was spending it once per exercise. The chevron
+                  is what says the name is a link now that the colour doesn't. */}
               <Pressable
+                style={styles.exerciseTitleRow}
+                hitSlop={EXERCISE_TITLE_SLOP}
                 onPress={() =>
                   router.push({ pathname: '/exercise/[id]', params: { id: entry.exercise.id } })
                 }
+                accessibilityRole="link"
+                accessibilityLabel={`${entry.exercise.name}, view history and records`}
               >
-                <Text variant="bodyMedium" color="accent" numberOfLines={1}>
+                <Text variant="subheading" color="text" numberOfLines={1} style={styles.flex}>
                   {entry.exercise.name}
                 </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
               </Pressable>
 
               {entry.workoutExercise.notes ? (
@@ -180,18 +286,21 @@ export default function WorkoutDetailScreen() {
           );
         })}
 
-        <Button
-          title="Repeat Workout"
-          variant="secondary"
-          fullWidth
-          onPress={() =>
-            Alert.alert(
-              'Repeat workout',
-              'Creating routines from past workouts is coming next.',
-            )
-          }
-          style={styles.repeat}
-        />
+        <View style={styles.repeat}>
+          <Button
+            title="Repeat workout"
+            variant="secondary"
+            fullWidth
+            loading={repeating}
+            onPress={() => void repeat()}
+          />
+          {/* Said plainly here so the empty fields are not a surprise: the copy
+              carries the structure, and the numbers are already one column away
+              in Previous. */}
+          <Text variant="caption" color="textTertiary">
+            Copies the exercises and set structure, not the weights and reps.
+          </Text>
+        </View>
       </ScrollView>
 
       <PromptModal
@@ -208,26 +317,18 @@ export default function WorkoutDetailScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="caption" color="textTertiary">
-        {label}
-      </Text>
-      <Text variant="numeric">{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
   titleBlock: { gap: spacing.xs },
-  stats: { flexDirection: 'row', justifyContent: 'space-between' },
-  stat: { gap: 2 },
+  // The bands stack, so the second drops its top rule rather than doubling the
+  // first one's bottom.
+  totalsLower: { borderTopWidth: 0 },
   notes: {},
   exerciseCard: { gap: spacing.sm },
+  exerciseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  flex: { flex: 1 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   setIndex: { width: 20 },
   setValue: { flex: 1 },
-  repeat: { marginTop: spacing.lg },
+  repeat: { marginTop: spacing.lg, gap: spacing.sm },
 });

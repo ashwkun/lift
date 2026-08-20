@@ -13,13 +13,13 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Confetti } from '@/components/celebration/confetti';
-import { Button, Card, Screen, Text } from '@/components/ui';
+import { Button, Card, Screen, splitMeasure, Text } from '@/components/ui';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
 import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { spacing, useColors } from '@/theme';
 
 interface PrSummary {
   kind: PrKind;
@@ -69,74 +69,77 @@ export default function WorkoutSummaryScreen() {
     };
   }, [id]);
 
-  if (!detail) {
-    return (
-      <Screen>
-        <Stack.Screen options={{ title: 'Summary' }} />
-      </Screen>
-    );
-  }
+  // Declared once and rendered in both branches. A native-stack screen reads
+  // its options as the push animation starts, so setting them only in the
+  // loaded branch meant the header slid in labelled "Summary" and relabelled
+  // itself a beat later, mid-transition.
+  const header = (
+    <Stack.Screen
+      options={{
+        title: 'Workout complete',
+        // Back would return to the now-finished logging screen, so the only
+        // way out is forward.
+        headerBackVisible: false,
+      }}
+    />
+  );
+
+  if (!detail) return <Screen>{header}</Screen>;
 
   const { workout, exercises } = detail;
 
-  // Gold-led when the session set records, the standard palette otherwise.
-  const confettiColors =
-    prs.length > 0
-      ? [colors.record, colors.warning, colors.success, colors.accent]
-      : [colors.accent, colors.success, colors.record];
+  // Gold-led: this burst only ever runs for a record.
+  const confettiColors = [colors.record, colors.warning, colors.success, colors.accent];
 
   return (
     <Screen>
-      <Stack.Screen
-        options={{
-          title: 'Workout Complete',
-          // Back would return to the now-finished logging screen, so the only
-          // way out is forward.
-          headerBackVisible: false,
-        }}
-      />
+      {header}
 
-      {/* Fires once the detail resolves, so the burst lands with the numbers
-          rather than over an empty screen. A PR run gets the gold palette. */}
-      {!reduceMotion && (
-        <Confetti
-          runKey={prs.length > 0 ? 2 : 1}
-          count={prs.length > 0 ? 70 : 48}
-          durationMs={3200}
-          colors={confettiColors}
-        />
+      {/* Records only. Firing on every finished session made the burst mean
+          "you stopped logging", which is not an achievement — and it left the
+          app with nothing louder to say on the day someone actually beat a
+          number. It mounts when the record query resolves, so the burst lands
+          with the numbers rather than over an empty screen. */}
+      {!reduceMotion && prs.length > 0 && (
+        <Confetti runKey={prs.length} count={70} durationMs={3200} colors={confettiColors} />
       )}
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/*
+         * A colophon, not a trophy screen.
+         *
+         * The header already says "Workout complete"; a 72px lime disc with a
+         * checkmark in it was the second time in one viewport that the screen
+         * congratulated the user, and it pushed the numbers they actually came
+         * for below the fold. The date leads as a tracked overline, the session
+         * name is the headline, and the record itself starts immediately.
+         */}
         <View style={styles.hero}>
-          <View style={[styles.heroIcon, { backgroundColor: colors.accentSurface }]}>
-            <Ionicons name="checkmark" size={34} color={colors.accent} />
-          </View>
-          <Text variant="heading" align="center">
-            {workout.name}
-          </Text>
-          <Text variant="body" color="textSecondary" align="center">
+          <Text variant="overline" color="textTertiary">
             {workout.startedAt.toLocaleDateString(undefined, {
               weekday: 'long',
               day: 'numeric',
               month: 'long',
             })}
           </Text>
+          <Text variant="title">{workout.name}</Text>
         </View>
 
-        <Card style={styles.statsCard}>
-          <Stat label="Duration" value={formatDurationShort(workout.durationSeconds ?? 0)} />
-          <Stat label="Volume" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
-          <Stat label="Sets" value={String(workout.totalSets)} />
-          <Stat label="Reps" value={String(workout.totalReps)} />
-        </Card>
-
+        {/*
+         * Records come before the totals.
+         *
+         * This is the one screen read sitting down, and on a session that set
+         * one, the record is the only thing on it the user did not already
+         * watch accumulate in the header for an hour. Under the four-figure
+         * grid it was the fourth thing read and, on a short phone, below the
+         * fold.
+         */}
         {prs.length > 0 && (
           <Card style={[styles.prCard, { borderColor: colors.record }]}>
             <View style={styles.prHeader}>
               <Ionicons name="trophy" size={18} color={colors.record} />
               <Text variant="bodyMedium" color="record">
-                {prs.length} Personal {prs.length === 1 ? 'Record' : 'Records'}
+                {prs.length === 1 ? '1 personal record' : `${prs.length} personal records`}
               </Text>
             </View>
             {prs.map((pr, index) => (
@@ -154,6 +157,16 @@ export default function WorkoutSummaryScreen() {
             ))}
           </Card>
         )}
+
+        {/* Volume leads the grid: it is the figure the rest of the app treats
+            as a session's size, and duration is the one number the user
+            already watched tick over on the logging screen. */}
+        <View style={styles.stats}>
+          <Stat label="Volume" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
+          <Stat label="Duration" value={formatDurationShort(workout.durationSeconds ?? 0)} />
+          <Stat label="Sets" value={String(workout.totalSets)} />
+          <Stat label="Reps" value={String(workout.totalReps)} />
+        </View>
 
         <View style={styles.exerciseList}>
           {exercises.map((entry) => {
@@ -199,30 +212,43 @@ function formatPrValue(kind: PrKind, value: number, unit: 'kg' | 'lb'): string {
   }
 }
 
+/** Label above figure, on a hairline-ruled band — the same grid as `StatBand`. */
 function Stat({ label, value }: { label: string; value: string }) {
+  const colors = useColors();
+  const [figure, unit] = splitMeasure(value);
+
   return (
-    <View style={styles.stat}>
-      <Text variant="caption" color="textTertiary">
+    <View style={[styles.stat, { borderTopColor: colors.border }]}>
+      <Text variant="overline" color="textTertiary">
         {label}
       </Text>
-      <Text variant="numeric">{value}</Text>
+      <Text variant="numericLarge" numberOfLines={1} adjustsFontSizeToFit>
+        {figure}
+        {unit ? (
+          <Text variant="label" color="textTertiary">
+            {` ${unit}`}
+          </Text>
+        ) : null}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.lg },
-  hero: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
-  heroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
+  hero: { gap: spacing.xs, paddingTop: spacing.xl, paddingBottom: spacing.sm },
+  // Two columns rather than four across: at `numericLarge` a four-up row makes
+  // every figure shrink to fit, which is how four numbers end up at four
+  // different sizes. The rules meet in the middle and read as a table.
+  stats: { flexDirection: 'row', flexWrap: 'wrap' },
+  stat: {
+    width: '50%',
+    paddingRight: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    gap: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  statsCard: { flexDirection: 'row', justifyContent: 'space-between' },
-  stat: { gap: 2 },
   prCard: { gap: spacing.sm, borderWidth: 1 },
   prHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   prRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

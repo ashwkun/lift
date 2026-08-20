@@ -13,7 +13,7 @@ import {
   type MuscleGroup,
   type SetLike,
 } from '@lift/shared';
-import { and, asc, desc, eq, gte, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { exercises, workoutExercises, workoutSets, workouts } from '@/db/schema';
@@ -25,6 +25,13 @@ export interface DashboardStats {
   thisWeekWorkouts: number;
   thisWeekVolumeKg: number;
   lastWorkoutAt: Date | null;
+  /**
+   * Every kilogram ever moved. Included here rather than left to the one screen
+   * that shows it, because the query below already reads the volume of every
+   * completed workout — Profile was running the identical full-table scan a
+   * second time to sum the same column.
+   */
+  lifetimeVolumeKg: number;
 }
 
 /** Monday 00:00 of the week containing `date`. */
@@ -57,6 +64,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     thisWeekWorkouts: thisWeek.length,
     thisWeekVolumeKg: thisWeek.reduce((sum, row) => sum + row.totalVolumeKg, 0),
     lastWorkoutAt: dates[0] ?? null,
+    lifetimeVolumeKg: completed.reduce((sum, row) => sum + row.totalVolumeKg, 0),
   };
 }
 
@@ -511,20 +519,43 @@ async function getMuscleBreakdown(since: Date | null): Promise<{
   ];
   if (since) filters.push(gte(workouts.startedAt, since));
 
+  // Just the columns `setVolumeKg` and the tallies below read. Selecting the
+  // whole `workoutSets` row decoded every timestamp, id and sync column of tens
+  // of thousands of rows to reach six fields.
   const rows = await db
     .select({
-      set: workoutSets,
-      exerciseId: exercises.id,
-      primaryMuscle: exercises.primaryMuscle,
-      secondaryMuscles: exercises.secondaryMuscles,
-      trackingType: exercises.trackingType,
+      weightKg: workoutSets.weightKg,
+      reps: workoutSets.reps,
+      durationSeconds: workoutSets.durationSeconds,
+      distanceKm: workoutSets.distanceKm,
+      setType: workoutSets.setType,
+      isCompleted: workoutSets.isCompleted,
+      exerciseId: workoutExercises.exerciseId,
       startedAt: workouts.startedAt,
     })
     .from(workoutSets)
     .innerJoin(workoutExercises, eq(workoutSets.workoutExerciseId, workoutExercises.id))
-    .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
     .innerJoin(workouts, eq(workoutExercises.workoutId, workouts.id))
     .where(and(...filters));
+
+  // The exercise columns come from a second, small query keyed by the ids the
+  // sets actually reference. `secondaryMuscles` is a JSON column, so joining it
+  // in above meant drizzle parsing the same handful of arrays once per set —
+  // roughly fifteen thousand parses to learn about a hundred exercises.
+  const exerciseIds = [...new Set(rows.map((row) => row.exerciseId))];
+  const catalogue = exerciseIds.length
+    ? await db
+        .select({
+          id: exercises.id,
+          primaryMuscle: exercises.primaryMuscle,
+          secondaryMuscles: exercises.secondaryMuscles,
+          trackingType: exercises.trackingType,
+        })
+        .from(exercises)
+        .where(inArray(exercises.id, exerciseIds))
+    : [];
+
+  const exerciseById = new Map(catalogue.map((row) => [row.id, row]));
 
   const byMuscle = new Map<MuscleGroup, MuscleBreakdownEntry>();
   // Tracked separately from the entry so `exercises` counts distinct ids rather
@@ -553,23 +584,28 @@ async function getMuscleBreakdown(since: Date | null): Promise<{
   };
 
   for (const row of rows) {
-    if (row.set.setType === 'warmup') continue;
+    if (row.setType === 'warmup') continue;
 
-    const muscle = row.primaryMuscle;
+    // An exercise deleted out from under its history: the join used to drop
+    // these rows, and the lookup drops them the same way.
+    const exercise = exerciseById.get(row.exerciseId);
+    if (!exercise) continue;
+
+    const muscle = exercise.primaryMuscle;
     const bodyPart = MUSCLE_TO_BODY_PART[muscle];
-    const volume = setVolumeKg(row.set as SetLike, { trackingType: row.trackingType });
+    const volume = setVolumeKg(row, { trackingType: exercise.trackingType });
     earliest = Math.min(earliest, row.startedAt.getTime());
 
     const entry = touch(muscle);
     entry.sets += 1;
     entry.directSets += 1;
-    entry.reps += row.set.reps ?? 0;
+    entry.reps += row.reps ?? 0;
     entry.volumeKg += volume;
     seenExercises.get(muscle)!.add(row.exerciseId);
 
     // Seeded exercises always carry an array, but a row written by an older
     // build — or by a sync peer — may not.
-    const secondary = Array.isArray(row.secondaryMuscles) ? row.secondaryMuscles : [];
+    const secondary = Array.isArray(exercise.secondaryMuscles) ? exercise.secondaryMuscles : [];
     for (const other of secondary) {
       if (other === muscle) continue;
       const assisted = touch(other);

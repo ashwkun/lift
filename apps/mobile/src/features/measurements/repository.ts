@@ -12,6 +12,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { trackDelete, trackUpsert } from '@/db/mutations';
 import { bodyMeasurements, type BodyMeasurement } from '@/db/schema';
+import { useSettings } from '@/store/settings';
 
 export async function recordMeasurement(input: {
   kind: MeasurementKind;
@@ -37,7 +38,35 @@ export async function recordMeasurement(input: {
   await db.insert(bodyMeasurements).values(row);
   await trackUpsert('body_measurements', { ...row, measuredAt: measuredAt.getTime() });
 
+  if (input.kind === 'bodyweight') await mirrorBodyweightToSettings();
+
   return row;
+}
+
+/** Records a bodyweight and mirrors it into settings. */
+export async function recordBodyweight(kg: number): Promise<BodyMeasurement> {
+  return recordMeasurement({ kind: 'bodyweight', value: kg });
+}
+
+/**
+ * Copies the newest bodyweight into the settings store.
+ *
+ * Volume for push-ups, pull-ups and dips is computed from
+ * `settings.bodyweightKg`, and until this existed nothing ever wrote it — a
+ * calisthenics session logged 0 kg and Home read 0 with no explanation. Mirrored
+ * here rather than at the call site so logging a bodyweight *anywhere* is
+ * enough, and re-read from the table rather than taken from the row just
+ * inserted so a backdated entry cannot overwrite a newer one.
+ */
+async function mirrorBodyweightToSettings(): Promise<void> {
+  const [newest] = await db
+    .select({ value: bodyMeasurements.value })
+    .from(bodyMeasurements)
+    .where(and(eq(bodyMeasurements.kind, 'bodyweight'), isNull(bodyMeasurements.deletedAt)))
+    .orderBy(desc(bodyMeasurements.measuredAt))
+    .limit(1);
+
+  useSettings.getState().update('bodyweightKg', newest?.value ?? null);
 }
 
 /** Full history for one measurement, oldest first (chart-ready). */
@@ -68,10 +97,16 @@ export async function getLatestMeasurements(): Promise<Map<MeasurementKind, Body
 export async function deleteMeasurement(id: string): Promise<void> {
   const deletedAt = Date.now();
 
-  await db
+  const [removed] = await db
     .update(bodyMeasurements)
     .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
-    .where(eq(bodyMeasurements.id, id));
+    .where(eq(bodyMeasurements.id, id))
+    .returning({ kind: bodyMeasurements.kind });
 
   await trackDelete('body_measurements', id, deletedAt);
+
+  // Re-derive rather than leave the settings copy pointing at a row that is now
+  // a tombstone. Only for bodyweight: any other kind would clear a value the
+  // user may have typed in Settings without ever logging a measurement.
+  if (removed?.kind === 'bodyweight') await mirrorBodyweightToSettings();
 }

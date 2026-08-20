@@ -8,7 +8,7 @@
  * a new app release actually ships a different catalog.
  */
 
-import { EXERCISE_LIBRARY } from '@lift/shared';
+import { EXERCISE_LIBRARY } from '@lift/shared/exercises';
 import { eq, sql } from 'drizzle-orm';
 
 import { db } from './client';
@@ -50,59 +50,59 @@ export async function seedExerciseLibrary(): Promise<void> {
   const now = Date.now();
 
   /**
-   * One transaction around all ~137 chunks.
+   * ~137 chunked upserts, and deliberately no transaction around them.
    *
-   * Outside a transaction SQLite commits — and fsyncs — after every statement,
-   * which turns the first launch into a visibly long splash while 6,800 rows
-   * are written one commit at a time. Batching them into a single commit takes
-   * that from tens of seconds to well under one.
+   * The chunking is what actually pays: SQLite commits and fsyncs once per
+   * statement, so 137 statements instead of 6,800 is the difference between a
+   * visibly long splash and well under a second. Wrapping the loop in
+   * `db.transaction` looks like it would help further, but this driver runs
+   * `begin`, the callback and `commit` synchronously — an async callback
+   * commits at its first `await`, leaving every chunk after the first outside
+   * the transaction. It would buy one chunk's worth of nothing.
    */
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < EXERCISE_LIBRARY.length; i += CHUNK_SIZE) {
-      const chunk = EXERCISE_LIBRARY.slice(i, i + CHUNK_SIZE);
+  for (let i = 0; i < EXERCISE_LIBRARY.length; i += CHUNK_SIZE) {
+    const chunk = EXERCISE_LIBRARY.slice(i, i + CHUNK_SIZE);
 
-      await tx
-        .insert(exercises)
-        .values(
-          chunk.map((exercise) => ({
-            id: exercise.id,
-            name: exercise.name,
-            equipment: exercise.equipment,
-            primaryMuscle: exercise.primaryMuscle,
-            secondaryMuscles: exercise.secondaryMuscles,
-            trackingType: exercise.trackingType,
-            thumbnailUrl: exercise.thumbnailUrl,
-            videoUrl: exercise.videoUrl,
-            isCustom: false,
-            createdAt: now,
-            updatedAt: now,
-            // Built-ins are identical on every device and never cross the wire.
-            syncState: 'synced' as const,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: exercises.id,
-          /**
-           * Refresh only canonical library data. `isArchived`, `notes` and
-           * `defaultRestSeconds` are deliberately excluded — those are the
-           * user's, and overwriting them would undo their customisations.
-           */
-          set: {
-            name: sqlExcluded('name'),
-            equipment: sqlExcluded('equipment'),
-            primaryMuscle: sqlExcluded('primary_muscle'),
-            secondaryMuscles: sqlExcluded('secondary_muscles'),
-            trackingType: sqlExcluded('tracking_type'),
-            thumbnailUrl: sqlExcluded('thumbnail_url'),
-            videoUrl: sqlExcluded('video_url'),
-          },
-        });
-    }
-  });
+    await db
+      .insert(exercises)
+      .values(
+        chunk.map((exercise) => ({
+          id: exercise.id,
+          name: exercise.name,
+          equipment: exercise.equipment,
+          primaryMuscle: exercise.primaryMuscle,
+          secondaryMuscles: exercise.secondaryMuscles,
+          trackingType: exercise.trackingType,
+          thumbnailUrl: exercise.thumbnailUrl,
+          videoUrl: exercise.videoUrl,
+          isCustom: false,
+          createdAt: now,
+          updatedAt: now,
+          // Built-ins are identical on every device and never cross the wire.
+          syncState: 'synced' as const,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: exercises.id,
+        /**
+         * Refresh only canonical library data. `isArchived`, `notes` and
+         * `defaultRestSeconds` are deliberately excluded — those are the
+         * user's, and overwriting them would undo their customisations.
+         */
+        set: {
+          name: sqlExcluded('name'),
+          equipment: sqlExcluded('equipment'),
+          primaryMuscle: sqlExcluded('primary_muscle'),
+          secondaryMuscles: sqlExcluded('secondary_muscles'),
+          trackingType: sqlExcluded('tracking_type'),
+          thumbnailUrl: sqlExcluded('thumbnail_url'),
+          videoUrl: sqlExcluded('video_url'),
+        },
+      });
+  }
 
-  // Written last, and outside the transaction: a crash mid-seed leaves the
-  // fingerprint absent, so the next launch retries rather than declaring a
-  // half-populated library complete.
+  // Written last: a crash mid-seed leaves the fingerprint absent, so the next
+  // launch retries rather than declaring a half-populated library complete.
   await db
     .insert(syncMeta)
     .values({ key: CATALOG_FINGERPRINT_KEY, value: CATALOG_FINGERPRINT })

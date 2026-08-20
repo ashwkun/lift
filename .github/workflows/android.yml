@@ -1,0 +1,140 @@
+name: Android APK
+
+# Builds a sideloadable release APK.
+#
+# `android/` is gitignored (see .gitignore), so every run regenerates it with
+# `expo prebuild` before Gradle ever sees it. Nothing native is committed.
+#
+# The APK is signed with the debug key that Expo's prebuild template ships —
+# the generated app/build.gradle points `release` at `signingConfigs.debug`.
+# That is fine for sideloading onto your own device and needs no secrets, but
+# it is not publishable to the Play Store. To move to a real keystore, add the
+# four ANDROID_* secrets and a signingConfigs block via a config plugin.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "EXPO_PUBLIC_API_URL baked into the build (e.g. https://api.example.com)"
+        required: false
+        type: string
+      architectures:
+        description: "ABIs to build"
+        required: false
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - arm64-v8a,armeabi-v7a
+          - armeabi-v7a,arm64-v8a,x86,x86_64
+  # Tagging a version builds it and attaches the APK to a GitHub Release.
+  #
+  # Deliberately no `branches: [main]` trigger: a build is ~10 minutes of the
+  # 2000 free minutes/month a private repo gets, and most commits do not need
+  # an APK. Add the two commented lines below if you want one per push — but
+  # note that mixing `branches` and `tags` under a single `push` makes the
+  # `paths` filter apply to tag pushes too, which can silently skip releases.
+  push:
+    tags: ["v*"]
+    # branches: [main]
+    # paths: ["apps/mobile/**", "packages/shared/**", "pnpm-lock.yaml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Release builds have no Metro server to infer a LAN address from, so
+  # resolveApiUrl() would fall through to http://localhost:3000 — which on a
+  # phone means the phone itself. Set the repo variable API_URL (Settings →
+  # Secrets and variables → Actions → Variables) to point at your deployed API.
+  EXPO_PUBLIC_API_URL: ${{ inputs.api_url || vars.API_URL }}
+  EXPO_NO_TELEMETRY: "1"
+  # arm64-v8a covers every phone sold in the last decade. Building all four
+  # ABIs roughly triples both the build time and the APK size.
+  RN_ARCHS: ${{ inputs.architectures || 'arm64-v8a' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must precede setup-node so that `cache: pnpm` can find the binary.
+      # Version comes from the root package.json `packageManager` field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Restores the Gradle cache and writes a build report to the job summary.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The runner ships an Android SDK, but Gradle may pull a build-tools or
+      # platform revision that has no license on record yet.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Warn if API URL is unset
+        if: env.EXPO_PUBLIC_API_URL == ''
+        run: |
+          echo "::warning title=No API URL::EXPO_PUBLIC_API_URL is empty, so the app will fall back to http://localhost:3000 and sync will not work. Set the API_URL repository variable."
+
+      - name: Generate native project
+        working-directory: apps/mobile
+        run: pnpm exec expo prebuild --platform android --no-install
+
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures="$RN_ARCHS" --console=plain
+
+      - name: Stage APK
+        id: stage
+        run: |
+          src=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          version=$(node -p "require('./apps/mobile/app.json').expo.version")
+          name="lift-${version}-${GITHUB_RUN_NUMBER}-$(git rev-parse --short HEAD).apk"
+          mkdir -p dist && cp "$src" "dist/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "path=dist/$name" >> "$GITHUB_OUTPUT"
+          {
+            echo "### APK ready"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| File | \`$name\` |"
+            echo "| Size | $(du -h "dist/$name" | cut -f1) |"
+            echo "| ABIs | \`$RN_ARCHS\` |"
+            echo "| API URL | \`${EXPO_PUBLIC_API_URL:-(unset — sync disabled)}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stage.outputs.name }}
+          path: ${{ steps.stage.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # Artifacts are zipped and need a logged-in GitHub session to download,
+      # which is awkward on a phone. Tagged builds also publish the raw APK as
+      # a release asset so it can be downloaded directly in a mobile browser.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" --generate-notes || gh release upload "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" --clobber

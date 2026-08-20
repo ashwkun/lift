@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { controlHeight, radius, spacing, useColors } from '@/theme';
+import { controlHeight, HIT_SLOP, radius, spacing, useColors } from '@/theme';
 
 import { Divider } from './surfaces';
 import { Text } from './text';
@@ -88,11 +88,26 @@ export function FilterSelect<T extends string>({
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        {/*
+          `accessible={false}` on both Pressables, deliberately.
+
+          Pressable defaults to `accessible`, which collapses everything under
+          it into one element — so the backdrop announced the entire sheet as a
+          single button reading all 21 muscle groups in a row, and no option
+          inside it could be reached. This is the control that gates every
+          search on the exercise library, so it cannot be a blob.
+        */}
         <Pressable
+          accessible={false}
           style={[styles.backdrop, { backgroundColor: colors.overlay }]}
           onPress={() => setOpen(false)}
         >
           <Pressable
+            accessible={false}
+            // Hides the list behind the sheet from VoiceOver, so focus lands on
+            // the sheet's own heading when it opens and a swipe past the last
+            // option comes back to it.
+            accessibilityViewIsModal
             style={[
               styles.sheet,
               {
@@ -104,9 +119,35 @@ export function FilterSelect<T extends string>({
             ]}
             onPress={(event) => event.stopPropagation()}
           >
-            <Text variant="overline" color="textTertiary" style={styles.sheetTitle}>
-              {label}
-            </Text>
+            {/*
+              The close button is the sheet's only dismissal for anyone not
+              using the backdrop: tapping the dim area has no screen reader
+              equivalent, and it is also the part sighted users have to guess
+              at. It names the dimension it closes, since "Close" alone reads
+              the same on both filters in the bar.
+            */}
+            <View style={styles.sheetHeader}>
+              <Text
+                variant="overline"
+                color="textTertiary"
+                accessibilityRole="header"
+                style={styles.flex}
+              >
+                {label}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Close ${label.toLowerCase()} filter`}
+                onPress={() => setOpen(false)}
+                hitSlop={HIT_SLOP}
+                style={({ pressed }) => [
+                  styles.close,
+                  pressed && { backgroundColor: colors.surfacePressed },
+                ]}
+              >
+                <Ionicons name="close" size={18} color={colors.textSecondary} />
+              </Pressable>
+            </View>
 
             <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
               <OptionRow label={allLabel} selected={!active} onPress={() => choose(null)} />
@@ -169,7 +210,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    height: controlHeight.sm,
+    // `md`, not `sm`: the trigger sits in a free-standing filter bar, so nothing
+    // around it carries the target the way a set row carries its stepper's. At
+    // `sm` it measured 36pt, and it is the control that gates every search on
+    // the exercise library.
+    height: controlHeight.md,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     borderWidth: 1,
@@ -184,7 +229,26 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     paddingTop: spacing.lg,
   },
-  sheetTitle: { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingLeft: spacing.xl,
+    // Shorter than the left: the close button carries its own inset, so the
+    // full gutter would push it away from the edge the thumb reaches for.
+    paddingRight: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  flex: { flex: 1 },
+  // 32 plus the standard 8pt slop is 48, and there is nothing pressable in any
+  // direction for that slop to contest.
+  close: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+  },
   list: { flexGrow: 0 },
   listContent: { paddingBottom: spacing.md },
   option: {

@@ -33,9 +33,23 @@ export const ExerciseRow = memo(function ExerciseRow({
     EQUIPMENT_LABELS[exercise.equipment]
   }`;
 
+  // Spelled out rather than left to the reading order of the children. The
+  // middle dot in the subtitle is announced literally by both platforms, and
+  // the "Custom" tag would otherwise land between the name and its muscle.
+  const label = [
+    exercise.name,
+    MUSCLE_GROUP_LABELS[exercise.primaryMuscle],
+    EQUIPMENT_LABELS[exercise.equipment],
+    exercise.isCustom ? 'Custom exercise' : null,
+    badge,
+  ]
+    .filter((part): part is string => part !== null && part !== undefined)
+    .join(', ');
+
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={selectable ? { selected } : undefined}
       onPress={() => onPress?.(exercise)}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfacePressed }]}

@@ -7,7 +7,6 @@ import {
   type WeightUnit,
 } from '@lift/shared';
 import { and, desc, isNotNull, isNull } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -20,12 +19,14 @@ import {
   Card,
   EmptyState,
   Screen,
-  SectionHeader,
   SegmentedControl,
+  splitMeasure,
+  StatBand,
   Text,
 } from '@/components/ui';
 import { db } from '@/db/client';
 import { workouts, type Workout } from '@/db/schema';
+import { useRows } from '@/db/use-rows';
 import {
   getHistoryAnalytics,
   HISTORY_METRICS,
@@ -44,7 +45,7 @@ import {
   VOLUME_ZONE_LABELS,
 } from '@/features/analytics/volume-landmarks';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { fontSize, radius, spacing, useColors } from '@/theme';
 
 interface MonthSection {
   title: string;
@@ -96,7 +97,7 @@ export default function HistoryScreen() {
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | null>(null);
 
-  const { data: completed = [] } = useLiveQuery(
+  const { rows: completed, loaded } = useRows(
     db
       .select()
       .from(workouts)
@@ -121,6 +122,15 @@ export default function HistoryScreen() {
       };
     }, [range]),
   );
+
+  // The query is asynchronous, so `analytics` still describes the range the user
+  // just moved off for as long as it takes to run. Every figure on this screen
+  // is unlabelled by range — the segmented control is the only thing that says
+  // which window they belong to — so leaving them up puts three-month totals
+  // under "Year" and they are read as fact. Matching on the range the result
+  // carries drops them the instant the control moves, and needs no reset in the
+  // handler that a later range source could forget.
+  const ranged = analytics?.range === range ? analytics : null;
 
   const sections = useMemo<MonthSection[]>(() => {
     const byMonth = new Map<string, MonthSection>();
@@ -150,20 +160,25 @@ export default function HistoryScreen() {
 
   const columns = useMemo<ColumnDatum[]>(
     () =>
-      (analytics?.buckets ?? []).map((bucket) => ({
+      (ranged?.buckets ?? []).map((bucket) => ({
         key: bucket.start,
         label: bucket.label,
         value: METRICS[metric].pick(bucket),
       })),
-    [analytics, metric],
+    [ranged, metric],
   );
 
   // Denominator for each muscle's share. Sums working sets across muscles, which
   // is not `totals.sets` — that counts warm-ups too.
   const totalMuscleSets = useMemo(
-    () => (analytics?.muscles ?? []).reduce((sum, entry) => sum + entry.sets, 0),
-    [analytics],
+    () => (ranged?.muscles ?? []).reduce((sum, entry) => sum + entry.sets, 0),
+    [ranged],
   );
+
+  // The list query answers a tick after mount and seeds `[]` until it does, so
+  // the empty state has to wait for it: otherwise every visit to this tab opens
+  // on "No workouts yet" and corrects itself a frame later.
+  if (!loaded) return <Screen>{null}</Screen>;
 
   if (completed.length === 0) {
     return (
@@ -172,15 +187,13 @@ export default function HistoryScreen() {
           icon="time-outline"
           title="No workouts yet"
           description="Finished sessions show up here with their volume, duration and records."
-          action={
-            <Button title="Start a Workout" onPress={() => router.push('/(tabs)/workout')} />
-          }
+          action={<Button title="Go to Workout" onPress={() => router.push('/(tabs)/workout')} />}
         />
       </Screen>
     );
   }
 
-  const active = analytics?.buckets.find((bucket) => bucket.start === selectedBucket) ?? null;
+  const active = ranged?.buckets.find((bucket) => bucket.start === selectedBucket) ?? null;
 
   return (
     <Screen>
@@ -201,7 +214,7 @@ export default function HistoryScreen() {
               label="Time range"
             />
 
-            <RangeTotals analytics={analytics} weightUnit={weightUnit} />
+            <RangeTotals analytics={ranged} weightUnit={weightUnit} />
 
             <Card style={styles.card}>
               <SegmentedControl
@@ -215,7 +228,7 @@ export default function HistoryScreen() {
 
               <ChartReadout
                 bucket={active}
-                analytics={analytics}
+                analytics={ranged}
                 metric={metric}
                 weightUnit={weightUnit}
               />
@@ -229,13 +242,22 @@ export default function HistoryScreen() {
               />
             </Card>
 
-            <SectionHeader title="Muscles trained" />
+            {/* Written as a plain overline rather than `SectionHeader`, whose
+                own 32px indent is right on the grouped-list screens and wrong
+                here: this list is already inset by `styles.list`, so the shared
+                component put this header 16px to the right of the month rules
+                below it and of every card it sits above. */}
+            <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
+              Muscles trained
+            </Text>
             <Card style={styles.card}>
-              {analytics && analytics.muscles.length > 0 ? (
+              {/* Nothing at all until the muscles belong to the range on screen:
+                  a map coloured from the last window reads as this one's. */}
+              {!ranged ? null : ranged.muscles.length > 0 ? (
                 <>
                   <BodyMap
                     width={chartWidth}
-                    setsPerWeek={muscleSetsPerWeek(analytics)}
+                    setsPerWeek={muscleSetsPerWeek(ranged)}
                     selected={selectedMuscle}
                     onSelect={setSelectedMuscle}
                   />
@@ -263,7 +285,7 @@ export default function HistoryScreen() {
                   </Text>
 
                   <View style={styles.breakdown}>
-                    {analytics.muscles.map((entry) => (
+                    {ranged.muscles.map((entry) => (
                       <MuscleRow
                         key={entry.muscle}
                         entry={entry}
@@ -283,8 +305,6 @@ export default function HistoryScreen() {
                 </Text>
               )}
             </Card>
-
-            <SectionHeader title="Workouts" />
           </View>
         }
         renderSectionHeader={({ section }) => (
@@ -315,6 +335,14 @@ function muscleSetsPerWeek(analytics: HistoryAnalytics): Partial<Record<MuscleGr
   return result;
 }
 
+/**
+ * What a figure reads while its range is still being counted.
+ *
+ * Not zero: "0 workouts" is a claim about the user's training, and it was the
+ * wrong one every time they changed the range.
+ */
+const PENDING = '—';
+
 function RangeTotals({
   analytics,
   weightUnit,
@@ -322,28 +350,30 @@ function RangeTotals({
   analytics: HistoryAnalytics | null;
   weightUnit: WeightUnit;
 }) {
-  const colors = useColors();
   const totals = analytics?.totals;
 
-  const items = [
-    { label: 'Workouts', value: String(totals?.workouts ?? 0) },
-    { label: 'Volume', value: formatVolume(totals?.volumeKg ?? 0, weightUnit) },
-    { label: 'Time', value: formatDurationShort(totals?.durationSeconds ?? 0) },
-    { label: 'Sets', value: String(totals?.sets ?? 0) },
-  ];
+  // Four figures across a phone is one too many for a single ruled band, so
+  // these run as two bands of two — which also pairs them by kind: what was
+  // done, and how much of it.
+  const [volume, volumeUnit]: [string, string | undefined] = totals
+    ? splitMeasure(formatVolume(totals.volumeKg, weightUnit))
+    : [PENDING, undefined];
 
   return (
-    <View style={[styles.totals, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      {items.map((item) => (
-        <View key={item.label} style={styles.total}>
-          <Text variant="numeric" numberOfLines={1} adjustsFontSizeToFit>
-            {item.value}
-          </Text>
-          <Text variant="caption" color="textTertiary" numberOfLines={1}>
-            {item.label}
-          </Text>
-        </View>
-      ))}
+    <View>
+      <StatBand
+        items={[
+          { label: 'Workouts', value: totals ? String(totals.workouts) : PENDING },
+          { label: 'Time', value: totals ? formatDurationShort(totals.durationSeconds) : PENDING },
+        ]}
+      />
+      <StatBand
+        style={styles.totalsLower}
+        items={[
+          { label: 'Volume', value: volume, unit: volumeUnit },
+          { label: 'Sets', value: totals ? String(totals.sets) : PENDING },
+        ]}
+      />
     </View>
   );
 }
@@ -365,7 +395,22 @@ function ChartReadout({
   weightUnit: WeightUnit;
 }) {
   const config = METRICS[metric];
-  const granularity = analytics?.granularity ?? 'week';
+
+  // The figure holds its line while the range is being counted — and the second
+  // line is deliberately blank rather than absent, so the chart below it doesn't
+  // step up and back down under a thumb already reaching for a bar.
+  if (!analytics) {
+    return (
+      <View style={styles.readout}>
+        <Text variant="numericLarge">{PENDING}</Text>
+        <Text variant="caption" color="textTertiary">
+          {' '}
+        </Text>
+      </View>
+    );
+  }
+
+  const granularity = analytics.granularity;
 
   if (bucket) {
     return (
@@ -381,16 +426,16 @@ function ChartReadout({
     );
   }
 
-  const totals = analytics?.totals;
+  const totals = analytics.totals;
   const total =
     metric === 'volume'
-      ? (totals?.volumeKg ?? 0)
+      ? totals.volumeKg
       : metric === 'duration'
-        ? (totals?.durationSeconds ?? 0)
-        : (totals?.reps ?? 0);
+        ? totals.durationSeconds
+        : totals.reps;
 
-  const buckets = analytics?.buckets.length ?? 0;
-  const trained = analytics?.buckets.filter((item) => item.workouts > 0).length ?? 0;
+  const buckets = analytics.buckets.length;
+  const trained = analytics.buckets.filter((item) => item.workouts > 0).length;
 
   return (
     <View style={styles.readout}>
@@ -502,14 +547,14 @@ function WorkoutCard({ workout, weightUnit }: { workout: Workout; weightUnit: We
         )}
       </View>
 
+      {/* Date only. Nobody scans a training log by clock time, and the hour it
+          cost was the width that truncated the session name. */}
       <Text variant="caption" color="textTertiary">
         {workout.startedAt.toLocaleDateString(undefined, {
           weekday: 'short',
           day: 'numeric',
           month: 'short',
         })}
-        {' · '}
-        {workout.startedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
       </Text>
 
       <View style={styles.metrics}>
@@ -521,12 +566,20 @@ function WorkoutCard({ workout, weightUnit }: { workout: Workout; weightUnit: We
   );
 }
 
+/**
+ * One figure from a session, with its kind carried by the icon.
+ *
+ * `numeric` rather than `label`: these three columns are read down the list, and
+ * `label` has no tabular figures — a 1 is narrower than a 4 in Inter's
+ * proportional set, so "48:12" and "1:05:30" put their colons in different
+ * places and the column visibly jitters as you scroll.
+ */
 function Metric({ icon, value }: { icon: keyof typeof Ionicons.glyphMap; value: string }) {
   const colors = useColors();
   return (
     <View style={styles.metric}>
       <Ionicons name={icon} size={13} color={colors.textTertiary} />
-      <Text variant="label" color="textSecondary">
+      <Text variant="numeric" color="textSecondary" style={styles.metricValue}>
         {value}
       </Text>
     </View>
@@ -536,14 +589,9 @@ function Metric({ icon, value }: { icon: keyof typeof Ionicons.glyphMap; value: 
 const styles = StyleSheet.create({
   list: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
   header: { gap: spacing.md, marginBottom: spacing.xs },
-  totals: {
-    flexDirection: 'row',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  total: { flex: 1, alignItems: 'center', gap: 2 },
+  // The two bands stack directly, so the lower one drops its top rule rather
+  // than doubling up with the upper one's bottom.
+  totalsLower: { borderTopWidth: 0 },
   card: { gap: spacing.md },
   metricTabs: { marginBottom: spacing.xs },
   readout: { gap: 2 },
@@ -576,4 +624,8 @@ const styles = StyleSheet.create({
   cardTitle: { flex: 1 },
   metrics: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.xs },
   metric: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  // `numeric` for the tabular figures, stepped back down to the label size it
+  // replaced: at its own 15px semibold these three secondary numbers would sit
+  // heavier than the session name above them.
+  metricValue: { fontSize: fontSize.sm },
 });

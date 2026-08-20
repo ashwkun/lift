@@ -1,18 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { fromDisplayWeight, toDisplayWeight } from '@lift/shared';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { and, desc, isNull } from 'drizzle-orm';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
   Divider,
   EmptyState,
+  HeaderAction,
   NumericField,
   PromptModal,
   Screen,
   Text,
 } from '@/components/ui';
+import { db } from '@/db/client';
+import { workouts } from '@/db/schema';
 import {
   addExerciseToRoutine,
   addRoutineSet,
@@ -25,29 +30,65 @@ import {
   type RoutineDetail,
 } from '@/features/routines/repository';
 import { startWorkout } from '@/features/workouts/repository';
-import { useExercisePicker } from '@/store/exercise-picker';
+import { startSession } from '@/features/workouts/start-session';
+import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
+
+/**
+ * Matches the identical control in `exercise-block.tsx`: 34pt of row plus 8pt
+ * above and below is 50pt of target. No horizontal slop — the row is full
+ * width, so there is nothing either side of it to reach into or steal from.
+ */
+const ADD_SET_SLOP = { top: 8, bottom: 8 };
 
 export default function RoutineEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const pendingExerciseIds = useExercisePicker((state) => state.pending);
+  // Addressed per routine, not per screen: this editor has one instance per
+  // routine id, and returning to a *different* routine must not collect a
+  // delivery meant for the one that was left.
+  const pickerAddress = `routine:${id}`;
+  const pendingExerciseIds = usePickedExercises(pickerAddress);
   const clearPendingExercises = useExercisePicker((state) => state.clear);
+  const openPicker = useExercisePicker((state) => state.open);
 
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [detail, setDetail] = useState<RoutineDetail | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const inFlight = useRef(false);
+
+  // Whether the session that is already running came from this routine, so the
+  // action can say what the tap will really do.
+  const { data: openRows = [] } = useLiveQuery(
+    db
+      .select({ routineId: workouts.routineId })
+      .from(workouts)
+      .where(and(isNull(workouts.finishedAt), isNull(workouts.deletedAt)))
+      .orderBy(desc(workouts.startedAt))
+      .limit(1),
+    [id],
+  );
+
+  const resuming = openRows[0]?.routineId === id;
 
   const reload = useCallback(async () => {
     setDetail((await getRoutineDetail(id)) ?? null);
   }, [id]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  // Read on focus rather than in a mount effect. Nothing on this screen is a
+  // live query, so a mount-only read would go on showing whatever storage held
+  // when the editor was first opened; running it on focus also keeps the
+  // setState off the render path, where it forces a second pass before the
+  // first frame.
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   // Exercises picked in the modal arrive through the hand-off store.
   useEffect(() => {
@@ -57,10 +98,36 @@ export default function RoutineEditorScreen() {
       for (const exerciseId of pendingExerciseIds) {
         await addExerciseToRoutine(id, exerciseId);
       }
-      clearPendingExercises();
+      clearPendingExercises(pickerAddress);
       await reload();
     })();
-  }, [pendingExerciseIds, id, reload, clearPendingExercises]);
+  }, [pendingExerciseIds, id, reload, clearPendingExercises, pickerAddress]);
+
+  // Replace rather than push: once the session is running, backing out of it
+  // should land on the workout tab, not on the editor for the routine that is
+  // already open on screen behind it.
+  const goToActive = () => router.replace('/workout/active');
+
+  const begin = async () => {
+    // The latch is the ref, not the state that drives the spinner: two taps
+    // inside one frame would both read the pre-render state and get through.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setStarting(true);
+
+    try {
+      const outcome = await startSession({
+        create: () => startWorkout({ routineId: id }),
+        resumes: (open) => open.routineId === id,
+        openExisting: goToActive,
+      });
+
+      if (outcome === 'started' || outcome === 'resumed') goToActive();
+    } finally {
+      inFlight.current = false;
+      setStarting(false);
+    }
+  };
 
   const confirmDelete = () => {
     Alert.alert('Delete routine', 'This cannot be undone.', [
@@ -92,9 +159,12 @@ export default function RoutineEditorScreen() {
         options={{
           title: detail.routine.name,
           headerRight: () => (
-            <Pressable onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete routine">
-              <Ionicons name="trash-outline" size={20} color={colors.danger} />
-            </Pressable>
+            <HeaderAction
+              label="Delete routine"
+              icon="trash-outline"
+              tone="danger"
+              onPress={confirmDelete}
+            />
           ),
         }}
       />
@@ -104,8 +174,22 @@ export default function RoutineEditorScreen() {
           <Text variant="overline" color="textTertiary">
             Routine name
           </Text>
-          <Pressable onPress={() => setRenaming(true)}>
-            <Text variant="subheading">{detail.routine.name}</Text>
+          {/* The name is the only way to rename a routine, and it said none of
+              that: no role, no cue for a sighted user, and a ~24pt line box for
+              a target. The pencil is the part a gym user notices; the frame is
+              what a thumb finds. The label stays the visible text so Voice
+              Control's "tap <routine name>" keeps working. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={detail.routine.name}
+            accessibilityHint="Renames this routine"
+            onPress={() => setRenaming(true)}
+            style={styles.nameButton}
+          >
+            <Text variant="subheading" numberOfLines={1} style={styles.nameText}>
+              {detail.routine.name}
+            </Text>
+            <Ionicons name="pencil" size={14} color={colors.textTertiary} />
           </Pressable>
         </View>
 
@@ -121,7 +205,15 @@ export default function RoutineEditorScreen() {
               {index > 0 && <Divider />}
 
               <View style={styles.exerciseHeader}>
-                <Text variant="bodyMedium" color="accent" numberOfLines={1} style={styles.flex}>
+                {/* No accent, and a heavier variant to carry the row instead.
+                    The accent is budgeted at roughly one element per view
+                    (`theme/tokens.ts`) and this list was spending it once per
+                    exercise; at body size the name then reads lighter than the
+                    numbers stacked under it, which is what left the column
+                    undifferentiated. No chevron either — unlike the workout
+                    screens this name is not a link, and a chevron would promise
+                    navigation that never happens. */}
+                <Text variant="subheading" color="text" numberOfLines={1} style={styles.flex}>
                   {entry.exercise.name}
                 </Text>
                 <Pressable
@@ -191,6 +283,7 @@ export default function RoutineEditorScreen() {
               ))}
 
               <Pressable
+                hitSlop={ADD_SET_SLOP}
                 onPress={() => {
                   const last = entry.sets[entry.sets.length - 1];
                   void addRoutineSet(entry.routineExercise.id, {
@@ -205,7 +298,7 @@ export default function RoutineEditorScreen() {
               >
                 <Ionicons name="add" size={16} color={colors.textSecondary} />
                 <Text variant="label" color="textSecondary">
-                  Add Set
+                  Add set
                 </Text>
               </Pressable>
             </View>
@@ -214,22 +307,23 @@ export default function RoutineEditorScreen() {
 
         <View style={styles.actions}>
           <Button
-            title="Add Exercise"
+            title="Add exercise"
             icon="add"
             fullWidth
-            onPress={() => router.push('/exercise/picker')}
+            onPress={() => {
+              openPicker(pickerAddress);
+              router.push('/exercise/picker');
+            }}
           />
           <Button
-            title="Start Routine"
+            // With this routine's own session already open, going through is a
+            // resume; the old label promised a fresh session it never created.
+            title={resuming ? 'Resume routine' : 'Start routine'}
             variant="success"
             fullWidth
+            loading={starting}
             disabled={detail.exercises.length === 0}
-            onPress={() => {
-              void (async () => {
-                await startWorkout({ routineId: id });
-                router.push('/workout/active');
-              })();
-            }}
+            onPress={() => void begin()}
           />
         </View>
       </ScrollView>
@@ -253,6 +347,15 @@ export default function RoutineEditorScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.huge },
   nameField: { padding: spacing.lg, gap: spacing.xs },
+  nameButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minHeight: MIN_TOUCH_SIZE,
+  },
+  // Shrinks rather than grows, so the pencil stays beside the name instead of
+  // being pushed to the far margin where it stops reading as part of it.
+  nameText: { flexShrink: 1 },
   flex: { flex: 1 },
   exerciseHeader: {
     flexDirection: 'row',

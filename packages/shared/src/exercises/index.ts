@@ -58,10 +58,6 @@ function expand(entry: CatalogEntry): LibraryExercise {
 
 export const EXERCISE_LIBRARY: readonly LibraryExercise[] = EXERCISE_CATALOG.map(expand);
 
-export const EXERCISE_LIBRARY_BY_ID: ReadonlyMap<string, LibraryExercise> = new Map(
-  EXERCISE_LIBRARY.map((exercise) => [exercise.id, exercise]),
-);
-
 /**
  * Guards against two seeds slugifying to the same key, which would silently
  * drop an exercise from the library and corrupt any routine pointing at it.

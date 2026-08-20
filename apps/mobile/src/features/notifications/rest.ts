@@ -4,51 +4,73 @@
  * The timer itself is driven by an absolute deadline in JS, but that only fires
  * while the app is foregrounded. A scheduled local notification is what actually
  * tells the user rest is over once they've pocketed their phone.
+ *
+ * While the app *is* foregrounded the notification stays silent and invisible —
+ * `RestCues` already rings the same bell and the timer bar is on screen, so
+ * presenting it too would double the sound and cover the workout with a banner
+ * describing something the user is looking at.
  */
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-const ANDROID_CHANNEL_ID = 'rest-timer';
+import { useTimer } from '@/store/timer';
 
-let configured = false;
-let scheduledId: string | null = null;
+import { configureNotificationHandler } from './presentation';
 
 /**
- * Shows the alert even when the app is in the foreground — the default is to
- * suppress it, which would mean no cue at all for someone staring at the
- * logging screen.
+ * Bumped from `rest-timer` when the bell replaced the system sound.
+ *
+ * An Android channel's sound is fixed at creation and cannot be changed
+ * afterwards — updating the existing channel is silently ignored, so anyone
+ * who had already opened the app would keep the old tone forever. A new id is
+ * the only way to move them across.
  */
-function configureHandler() {
-  if (configured) return;
-  configured = true;
+const ANDROID_CHANNEL_ID = 'rest-timer-v2';
+const LEGACY_ANDROID_CHANNEL_ID = 'rest-timer';
 
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: false,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-}
+/**
+ * Bundled by the `expo-notifications` config plugin (see `app.json`), which
+ * copies it into the iOS bundle and Android's `res/raw`. Referenced by bare
+ * filename on both platforms, and only resolvable in a dev/EAS build — Expo Go
+ * has no way to carry a custom sound.
+ */
+const SOUND_FILE = 'rest_complete.wav';
+
+/**
+ * There is one rest period at a time, so there is one notification at a time.
+ *
+ * Fixing the identifier makes that structural: re-scheduling replaces the
+ * pending request instead of adding a second one, and cancelling works from a
+ * cold start, where a module-level handle from the previous process is gone but
+ * the request the OS is holding is not.
+ */
+const REST_NOTIFICATION_ID = 'rest-timer-complete';
 
 /**
  * Requests permission and prepares the Android channel.
  * Returns whether notifications can actually be delivered.
  */
 export async function prepareRestNotifications(): Promise<boolean> {
-  configureHandler();
+  configureNotificationHandler();
 
   if (Platform.OS === 'android') {
     // Android requires a channel before anything can be posted; importance
-    // HIGH is what allows a heads-up banner over the workout screen.
+    // HIGH is what allows a heads-up banner over the lock screen.
     await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
       name: 'Rest Timer',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 150, 250],
-      sound: 'default',
+      sound: SOUND_FILE,
+      // The bell is the point of the alert, so it should not be muted by Do Not
+      // Disturb's default bypass rules any more than an alarm would be.
+      bypassDnd: false,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
+
+    // Leaves the pre-bell channel behind rather than orphaning it in the
+    // system settings list under the same user-facing name.
+    await Notifications.deleteNotificationChannelAsync(LEGACY_ANDROID_CHANNEL_ID).catch(() => {});
   }
 
   const existing = await Notifications.getPermissionsAsync();
@@ -62,7 +84,13 @@ export async function prepareRestNotifications(): Promise<boolean> {
   return requested.granted;
 }
 
-/** Schedules the "rest over" alert, replacing any previously scheduled one. */
+/**
+ * Schedules the "rest over" alert, replacing any previously scheduled one.
+ *
+ * Called on every start, adjustment, pause and resume — the scheduled time and
+ * the on-screen countdown have to agree, and the only way to move a scheduled
+ * notification is to cancel it and post a new one.
+ */
 export async function scheduleRestNotification(
   seconds: number,
   exerciseName?: string,
@@ -71,11 +99,17 @@ export async function scheduleRestNotification(
 
   await cancelRestNotification();
 
-  scheduledId = await Notifications.scheduleNotificationAsync({
+  await Notifications.scheduleNotificationAsync({
+    identifier: REST_NOTIFICATION_ID,
     content: {
       title: 'Rest complete',
       body: exerciseName ? `Time for your next set of ${exerciseName}.` : 'Time for your next set.',
-      sound: 'default',
+      sound: SOUND_FILE,
+      // A rest timer is the one alert that is useless if it arrives late, so it
+      // asks to break through Focus modes. iOS honours this only with the
+      // time-sensitive entitlement and quietly downgrades to a normal alert
+      // otherwise, which is the behaviour we'd have had anyway.
+      ...(Platform.OS === 'ios' ? { interruptionLevel: 'timeSensitive' as const } : {}),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -85,16 +119,45 @@ export async function scheduleRestNotification(
   });
 }
 
-/** Cancels the pending alert — called when rest is skipped or adjusted. */
+/**
+ * Cancels the pending alert — called when rest is skipped, paused or adjusted.
+ *
+ * Unconditional, and it dismisses as well as cancels. Cancelling only reaches a
+ * request that has not fired yet; a bell that already rang sits in the shade
+ * saying rest is over for a timer the user has since skipped, and tapping it
+ * later reopens the app on a set they finished. The two calls together are what
+ * "there is no rest notification" actually means.
+ */
 export async function cancelRestNotification(): Promise<void> {
-  if (!scheduledId) return;
-
-  const id = scheduledId;
-  scheduledId = null;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(REST_NOTIFICATION_ID);
+  } catch {
+    // Nothing pending under that id; the dismissal below still has work to do.
+  }
 
   try {
-    await Notifications.cancelScheduledNotificationAsync(id);
+    await Notifications.dismissNotificationAsync(REST_NOTIFICATION_ID);
   } catch {
-    // Already fired or dismissed; nothing to clean up.
+    // Nothing delivered under that id either. Both halves are best-effort.
   }
+}
+
+/**
+ * Clears a bell left behind by a process that no longer exists.
+ *
+ * Killing the app during rest leaves the scheduled notification alive; if the
+ * countdown behind it did not survive (an expired deadline restores as idle,
+ * see `store/timer`), the alert would fire mid-set for nothing. This is called
+ * from the active workout screen, next to the permission prompt, rather than at
+ * launch — asking in context is a deliberate decision, and a sweep at bootstrap
+ * would drag notification setup back to app start where it was refused.
+ *
+ * Safe to call at any time: a rest period that is genuinely still running keeps
+ * its notification.
+ */
+export async function sweepRestNotifications(): Promise<void> {
+  const { restEndsAt } = useTimer.getState();
+  if (restEndsAt !== null && restEndsAt > Date.now()) return;
+
+  await cancelRestNotification();
 }
