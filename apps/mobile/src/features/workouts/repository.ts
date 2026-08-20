@@ -903,10 +903,31 @@ export interface FinishResult {
  *
  * `summarizeSets` and `detectPrs` both skip incomplete sets themselves, so
  * working from the pre-deletion snapshot changes no number.
+ *
+ * `name` and `notes` arrive from the save screen that sits in front of this
+ * call, and they are folded into the *same* statement as the totals rather than
+ * written by one of their own. Two statements can half-land — a session finished
+ * under yesterday's name, or renamed and left open — and they would also publish
+ * as two versions of the row, so a device receiving the sync would see a rename
+ * and a finish rather than one saved workout.
+ *
+ * A blank name is ignored rather than stored. Every screen titles the session by
+ * it and `defaultWorkoutName` guarantees there is one, so an emptied field means
+ * the user cleared the box, not that this workout is to be called nothing. An
+ * emptied *note* is stored as null, because "I have nothing to say about this
+ * session" is a thing someone can mean — matching what the per-exercise note
+ * editor writes for the same gesture.
  */
 export async function finishWorkout(
   workoutId: string,
-  options: { bodyweightKg?: number; formula?: AnalyticsContext['formula'] } = {},
+  options: {
+    bodyweightKg?: number;
+    formula?: AnalyticsContext['formula'];
+    /** Renames the session. Blank or whitespace-only keeps the existing name. */
+    name?: string;
+    /** Replaces the session's note. `null` or blank clears it; omitted leaves it. */
+    notes?: string | null;
+  } = {},
 ): Promise<FinishResult> {
   const detail = await getWorkoutDetail(workoutId);
   if (!detail) throw new Error(`Workout ${workoutId} not found`);
@@ -967,7 +988,15 @@ export async function finishWorkout(
     Math.round((finishedAt - detail.workout.startedAt.getTime()) / 1000),
   );
 
+  // Spread rather than assigned, so a caller that said nothing about the name or
+  // the note leaves those columns untouched instead of writing an undefined
+  // Drizzle would have to decide what to do with.
+  const name = options.name?.trim();
+  const notes = options.notes === undefined ? undefined : options.notes?.trim() || null;
+
   const updates = {
+    ...(name ? { name } : {}),
+    ...(notes === undefined ? {} : { notes }),
     finishedAt: new Date(finishedAt),
     durationSeconds,
     totalVolumeKg: totalVolume,
