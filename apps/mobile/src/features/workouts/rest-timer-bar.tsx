@@ -1,580 +1,407 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDuration } from '@lift/shared';
-import { useCallback, useEffect, useState, type ComponentProps } from 'react';
-import { Animated, AppState, Easing, Pressable, StyleSheet, View } from 'react-native';
-import Reanimated, {
-  Easing as ReanimatedEasing,
-  FadeOut,
+import { useEffect, useState } from 'react';
+import {
+  Keyboard,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import Animated, {
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text } from '@/components/ui';
-import { haptics } from '@/features/feedback/haptics';
-import { cancelRestNotification, scheduleRestNotification } from '@/features/notifications/rest';
+import { Button, PressableScale, Text } from '@/components/ui';
 import { useTicker } from '@/hooks/use-ticker';
-import { useSettings } from '@/store/settings';
+import { readRest, useTimer } from '@/store/timer';
 import {
-  OVERTIME_LIMIT_SECONDS,
-  readRest,
-  useTimer,
-  type RestKind,
-  type RestSnapshot,
-} from '@/store/timer';
-import { fontSize, radius, spacing, stroke, useColors, type Palette } from '@/theme';
+  duration,
+  easing,
+  fontSize,
+  MIN_TOUCH_SIZE,
+  PRESS_SCALE_SMALL,
+  radius,
+  spacing,
+  stroke,
+  timing,
+  useColors,
+} from '@/theme';
 
-/** Below this the readout turns amber — the "get back under the bar" window. */
-const WARNING_SECONDS = 10;
+import { ADJUST_SECONDS, describeRest, useRestControls, useRestProgress } from './rest-controls';
 
 /**
- * The open/close of the bar's own height.
+ * The progress line's thickness.
  *
- * Reanimated rather than the `Animated` this file already uses for the fill:
- * a height is a layout prop, so RN's driver would have to run it on the JS
- * thread — the one busy with a controlled text input every time the user types
- * a weight while resting. `ReduceMotion.System` then honours the OS setting
- * without a re-render to observe it.
+ * Not `stroke.rule`, which is one physical pixel and belongs to dividers. This
+ * line carries the whole state of the countdown at a glance from across the
+ * gym, and a hairline of it disappears against the surface it sits on.
  */
-const COLLAPSE = {
-  duration: 180,
-  easing: ReanimatedEasing.out(ReanimatedEasing.quad),
-  reduceMotion: ReduceMotion.System,
-};
+const TRACK_HEIGHT = 3;
 
-/*
- * Touch targets for the control row, tiled rather than uniform.
- *
- * The five controls sit `spacing.sm` apart and each used to declare a bare
- * `hitSlop={8}`, so both sides of every gap claimed all of it. React Native
- * hit-tests siblings in reverse order, which means the later one silently wins
- * a contested point: a tap at the right edge of Pause landed on −15 and took
- * time off the rest instead of holding it. Half a gap each is the most either
- * side can take without the other reaching the same point.
- *
- * Vertically the controls are 34 tall and reach 46. Four up tiles the header's
- * `gap: spacing.xs` without reaching the chip that sits above it; eight down
- * stays inside the container's own `paddingBottom`.
- */
-const CONTROL_SLOP_V = { top: 4, bottom: 8 };
-const PAUSE_SLOP = { ...CONTROL_SLOP_V, left: 8, right: 4 };
-const MINUS_SLOP = { ...CONTROL_SLOP_V, left: 4, right: 8 };
-const PLUS_SLOP = { ...CONTROL_SLOP_V, left: 8, right: 4 };
-const CLOSE_SLOP = { ...CONTROL_SLOP_V, left: 4, right: 8 };
+/** The control row. Every target in it is a real 44, so nothing needs hit slop. */
+const ROW_HEIGHT = MIN_TOUCH_SIZE;
 
-/*
- * The chip's row holds nothing else pressable, so its slop only has to make up
- * height: `minHeight: 32` on the chip plus eight up and four down is exactly
- * 44. Four at the bottom rather than eight because below it is the controls
- * row, where Pause's own top slop is already waiting.
+/**
+ * The bar's height, excluding the safe-area inset it adds underneath itself.
+ *
+ * Exported because the bar is `position: 'absolute'` and therefore invisible to
+ * layout: the screen that mounts it has to reserve this much at the bottom of
+ * its scroll or the last set row spends the whole rest period underneath the
+ * countdown. The row's height is fixed rather than intrinsic for exactly this
+ * reason — a promise the caller reserves against cannot be "however tall the
+ * readout came out this time".
  */
-const CHIP_SLOP = { top: 8, bottom: 4, left: 8, right: 8 };
+export const REST_BAR_HEIGHT = stroke.rule + TRACK_HEIGHT + spacing.sm + ROW_HEIGHT + spacing.sm;
 
 export interface RestTimerBarProps {
   /**
-   * The rest this exercise is configured for. Shown as a chip that opens the
-   * duration editor; omitting it (or `onEditRest`) hides the chip.
+   * Opens the expanded timer. The caller owns the sheet's visibility, because
+   * the sheet is also reachable from the header while nothing is resting — a
+   * bar that owned it would have to be mounted, and visible, to be asked.
+   *
+   * Nothing else is passed in. The rest-duration chip and the exercise name
+   * live in the sheet: this row has space for a countdown and four controls,
+   * and everything that was competing for that space was a thing to read
+   * rather than a thing to press.
    */
-  targetSeconds?: number | null;
-  onEditRest?: () => void;
+  onExpand?: () => void;
 }
 
 /**
- * The countdown between sets.
+ * The countdown between sets, docked to the bottom of the screen.
  *
- * Occupies no height when idle, so callers can mount it unconditionally — but
- * it gets there by animating its own height closed rather than unmounting.
- * Ninety points of layout that appears and vanishes under a thumb already
- * travelling towards the next checkbox is how a mis-tap completes the wrong
- * set. Permanently reserving the space would cost more than it saves, so the
- * bar keeps drawing its final state while it slides shut.
+ * It is deliberately one row and nothing more. The previous version was a card
+ * in the flow of the workout that grew and collapsed the layout under a thumb
+ * already travelling towards the next checkbox — ninety points of movement that
+ * is how a mis-tap completes the wrong set. Pinning it to the bottom edge takes
+ * it out of layout entirely: the list above never moves, and the bar arrives and
+ * leaves by sliding past the edge of the screen rather than by pushing anything.
  *
- * The progress fill is a single native-driven animation whose duration is the
- * time actually left, not a value nudged once a second from JS. That matters
- * twice over: the sweep is smooth instead of stepping, and it costs nothing on
- * the JS thread — which is busy with a controlled text input every time the
- * user types a weight while resting.
+ * Everything the compact row has no space for — the exercise it belongs to, the
+ * rest-duration chip, pause, start — lives in the sheet behind `onExpand`.
  */
-export function RestTimerBar({ targetSeconds, onEditRest }: RestTimerBarProps) {
+export function RestTimerBar({ onExpand }: RestTimerBarProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const controls = useRestControls();
 
   const restEndsAt = useTimer((state) => state.restEndsAt);
   const restPausedSeconds = useTimer((state) => state.restPausedSeconds);
   const restTotalSeconds = useTimer((state) => state.restTotalSeconds);
-  const restExerciseName = useTimer((state) => state.restExerciseName);
   const restKind = useTimer((state) => state.restKind);
-  const adjustRest = useTimer((state) => state.adjustRest);
-  const pauseRest = useTimer((state) => state.pauseRest);
-  const resumeRest = useTimer((state) => state.resumeRest);
-  const stopRest = useTimer((state) => state.stopRest);
 
-  const notificationsEnabled = useSettings((state) => state.restTimerNotifications);
+  const resting = restEndsAt !== null || restPausedSeconds !== null;
 
   // Only tick while the clock is actually moving. A paused timer shows a frozen
-  // number, and an idle one is collapsed to nothing.
+  // number, and an idle one is off the bottom of the screen.
   const now = useTicker(1000, restEndsAt !== null);
-  const rest = readRest({ restEndsAt, restPausedSeconds, restTotalSeconds }, now);
-
-  const [trackWidth, setTrackWidth] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
-  // Lazy initialiser rather than a ref: the value is read during render to
-  // build the interpolation, which is exactly what a ref is not for.
-  const [fill] = useState(() => new Animated.Value(0));
-
-  const height = useSharedValue(0);
-
-  const visible = rest !== null;
 
   /*
-   * A native animation is driven by the UI thread, which stops while the app is
-   * backgrounded — it resumes from where it froze rather than from where the
-   * wall clock has since moved to. Re-running the animation on every return to
-   * the foreground snaps the fill back onto the real deadline.
+   * The store's rest fields, mirrored, and *not* cleared when the store clears.
+   *
+   * The bar is still on screen for the length of its slide-out, so it needs
+   * something to draw during it — reading the store directly would blank the
+   * row on the frame the timer stops and leave an empty bar sliding away. This
+   * mirror keeps the final reading, and the slide is driven off `resting`
+   * instead. The re-seed happens during render against the values it was last
+   * seeded from, the same shape `rest-duration-sheet` uses: an effect would do
+   * the same job a commit later, showing the stale number for a frame.
    */
-  const [resyncToken, setResyncToken] = useState(0);
+  const [held, setHeld] = useState({ restEndsAt, restPausedSeconds, restTotalSeconds, restKind });
+
+  if (
+    resting &&
+    (held.restEndsAt !== restEndsAt ||
+      held.restPausedSeconds !== restPausedSeconds ||
+      held.restTotalSeconds !== restTotalSeconds ||
+      held.restKind !== restKind)
+  ) {
+    setHeld({ restEndsAt, restPausedSeconds, restTotalSeconds, restKind });
+  }
+
+  const rest = readRest(held, now);
+  const frame = rest === null ? null : describeRest(rest, held.restKind, colors);
+
+  const remaining = useRestProgress();
+
+  // The line is drawn full-width and slid left by however much of the period has
+  // gone, so its left edge stays put and its right edge is the clock hand. Slid
+  // rather than scaled: `scaleX` grows from the centre, and correcting that needs
+  // `transformOrigin`, which not every surface this runs on honours. A full-width
+  // layer translated out to the left is the same animation with none of that risk.
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -(1 - remaining.value) * trackWidth }],
+  }));
+
+  /*
+   * 0 docked, 1 parked below the screen. A shared value rather than a mounted or
+   * unmounted subtree, so the bar can finish its exit with its last reading
+   * still drawn — and on the UI thread, because the JS thread is busy with a
+   * controlled text input every time the user types a weight while resting.
+   */
+  const parked = useSharedValue(1);
 
   useEffect(() => {
-    /*
-     * Rest that has been over for minutes is no longer information, so it stops
-     * occupying the screen past the overtime limit. Checked here rather than
-     * from the once-a-second ticker: the only ways to bank three minutes of
-     * overtime are to leave the app or to leave this screen, and a store write
-     * fired out of a render that a clock drives is a re-render loop waiting to
-     * be written.
-     */
-    const dropExpired = () => {
-      const state = useTimer.getState();
-      const snapshot = readRest(state, Date.now());
+    parked.value = withTiming(resting ? 0 : 1, timing.travel);
+  }, [parked, resting]);
 
-      if (snapshot !== null && snapshot.overtime >= OVERTIME_LIMIT_SECONDS) state.stopRest();
-    };
+  const lift = useKeyboardLift(insets.bottom);
+  const travel = REST_BAR_HEIGHT + insets.bottom;
 
-    dropExpired();
+  const barStyle = useAnimatedStyle(() => {
+    const gone = parked.value;
 
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-
-      dropExpired();
-      setResyncToken((token) => token + 1);
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    fill.stopAnimation();
-
-    const totalMs = Math.max(1, restTotalSeconds) * 1000;
-
-    if (restPausedSeconds !== null) {
-      fill.setValue(clamp01(1 - (restPausedSeconds * 1000) / totalMs));
-      return;
-    }
-
-    // Left where it stopped rather than reset: the bar is still on screen for
-    // the length of the collapse, and draining the fill under it would be a
-    // second animation nobody asked for. Every new period sets the value below.
-    if (restEndsAt === null) return;
-
-    const remainingMs = restEndsAt - Date.now();
-
-    if (remainingMs <= 0) {
-      fill.setValue(1);
-      return;
-    }
-
-    fill.setValue(clamp01(1 - remainingMs / totalMs));
-
-    const animation = Animated.timing(fill, {
-      toValue: 1,
-      duration: remainingMs,
-      // Linear because the bar is a clock face: any easing would make it lie
-      // about how much time is left.
-      easing: Easing.linear,
-      useNativeDriver: true,
-    });
-
-    animation.start();
-
-    return () => animation.stop();
-  }, [fill, restEndsAt, restPausedSeconds, restTotalSeconds, resyncToken]);
-
-  useEffect(() => {
-    // Nothing measured yet means nothing has ever been shown, and the bar is
-    // already closed — animating to a height it has not been told is a jump.
-    if (contentHeight === 0) return;
-
-    // `spacing.sm` is the gap to the content below, folded into the animated
-    // height so it closes with the bar instead of surviving it as a stray gap.
-    height.value = withTiming(visible ? contentHeight + spacing.sm : 0, COLLAPSE);
-  }, [contentHeight, height, visible]);
-
-  const wrapperStyle = useAnimatedStyle(() => ({ height: height.value }));
-
-  /** Keeps the scheduled notification in step with whatever the clock now says. */
-  const syncNotification = useCallback(() => {
-    const { restEndsAt: next, restExerciseName: name } = useTimer.getState();
-
-    if (!notificationsEnabled || next === null) {
-      void cancelRestNotification();
-      return;
-    }
-
-    const seconds = Math.ceil((next - Date.now()) / 1000);
-    if (seconds <= 0) {
-      void cancelRestNotification();
-      return;
-    }
-
-    void scheduleRestNotification(seconds, name ?? undefined);
-  }, [notificationsEnabled]);
-
-  const handleAdjust = useCallback(
-    (delta: number) => {
-      // `selection`, not `countdownTick`: the tick belongs to the clock running
-      // out, and it means nothing if four buttons say the same thing.
-      haptics.selection();
-      adjustRest(delta);
-      syncNotification();
-    },
-    [adjustRest, syncNotification],
-  );
-
-  const handleTogglePause = useCallback(() => {
-    haptics.selection();
-    if (useTimer.getState().restPausedSeconds !== null) resumeRest();
-    else pauseRest();
-    syncNotification();
-  }, [pauseRest, resumeRest, syncNotification]);
-
-  const handleStop = useCallback(() => {
-    // Skipping a rest that is still running is finishing it early, so it earns
-    // the cue the clock would have given at zero. Dismissing a bar whose bell
-    // has already rung does not ring it a second time.
-    const snapshot = readRest(useTimer.getState(), Date.now());
-
-    if (snapshot !== null && !snapshot.finished) haptics.restComplete();
-    else haptics.selection();
-
-    stopRest();
-    void cancelRestNotification();
-  }, [stopRest]);
-
-  const frame = rest === null ? null : describeRest(rest, restKind, colors);
-  const showChip = onEditRest !== undefined && targetSeconds != null;
+    // The lift is faded out with the bar rather than applied flat: at rest the
+    // parked position is a full `travel` below the screen, and subtracting a
+    // 300pt keyboard from that would slide an idle bar back into view on top of
+    // the keyboard it was hiding from.
+    return { transform: [{ translateY: gone * travel - (1 - gone) * lift.value }] };
+  });
 
   return (
-    <Reanimated.View style={[styles.wrapper, wrapperStyle]} pointerEvents={visible ? 'auto' : 'none'}>
+    <Animated.View
+      style={[
+        styles.bar,
+        barStyle,
+        {
+          backgroundColor: colors.surfaceElevated,
+          borderTopColor: colors.border,
+          paddingBottom: spacing.sm + insets.bottom,
+        },
+      ]}
+      onLayout={(event: LayoutChangeEvent) => setTrackWidth(event.nativeEvent.layout.width)}
+      // Idle, the bar is still mounted and still drawn — it is simply below the
+      // fold. None of it may be touched or reached by a swipe of the screen
+      // reader while it is down there.
+      pointerEvents={resting ? 'auto' : 'none'}
+      accessibilityElementsHidden={!resting}
+      importantForAccessibility={resting ? 'auto' : 'no-hide-descendants'}
+    >
+      <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+        {frame !== null && trackWidth > 0 && (
+          <Animated.View style={[styles.fill, fillStyle, { backgroundColor: frame.tone }]} />
+        )}
+      </View>
+
       {frame !== null && (
-        <Reanimated.View
-          /*
-           * Out of flow, so it lays out at its natural height whatever the
-           * wrapper is currently animating to and the wrapper clips the
-           * difference. The exiting animation is here to keep the card on
-           * screen while that collapse plays — without it React unmounts the
-           * content on the frame the timer clears and the bar slides shut
-           * empty; the fade is incidental.
-           */
-          style={[
-            styles.container,
-            { backgroundColor: colors.surfaceElevated, borderColor: frame.tone },
-          ]}
-          exiting={FadeOut.duration(COLLAPSE.duration).reduceMotion(ReduceMotion.System)}
-          onLayout={(event) => {
-            setTrackWidth(event.nativeEvent.layout.width);
-            setContentHeight(event.nativeEvent.layout.height);
-          }}
-        >
-          {trackWidth > 0 && (
-            <Animated.View
-              // Translated rather than scaled: `scaleX` grows from the centre, and
-              // correcting that needs `transformOrigin`, which not every surface
-              // this runs on honours. A full-width layer slid in from the left is
-              // the same animation with none of that risk.
-              style={[
-                styles.progress,
-                {
-                  backgroundColor: frame.tone,
-                  transform: [
-                    {
-                      translateX: fill.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-trackWidth, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          )}
+        <View style={styles.row}>
+          <PressableScale
+            onPress={() => controls.adjust(-ADJUST_SECONDS)}
+            accessibilityRole="button"
+            accessibilityLabel={`Subtract ${ADJUST_SECONDS} seconds`}
+            fill={colors.surfaceMuted}
+            fillPressed={colors.surfacePressed}
+            scaleTo={PRESS_SCALE_SMALL}
+            style={[styles.control, { backgroundColor: colors.surfaceMuted }]}
+          >
+            <Text variant="label" color="textSecondary">
+              −{ADJUST_SECONDS}
+            </Text>
+          </PressableScale>
 
-          <View style={styles.header}>
-            <View style={styles.status}>
-              <Ionicons name={frame.icon} size={13} color={frame.tone} />
-              <Text variant="overline" style={{ color: frame.tone }} numberOfLines={1}>
-                {frame.status}
-              </Text>
-              {restExerciseName ? (
-                <Text variant="overline" color="textTertiary" numberOfLines={1} style={styles.flex}>
-                  · {restExerciseName}
-                </Text>
-              ) : null}
-            </View>
+          {/*
+            The expand target, and it is the readout rather than the whole bar.
+            Wrapping everything in one pressable would mean `accessible={false}`
+            on it to stop the row collapsing into a single element (see the
+            sheets for what that looks like), which leaves the expand gesture
+            with no accessible element of its own. This way it has a label and a
+            hint, and it still spans the full height of the row and everything
+            between the two adjusters — most of the bar, without claiming the
+            edges around the controls.
+          */}
+          <PressableScale
+            onPress={onExpand}
+            disabled={onExpand === undefined}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: onExpand === undefined }}
+            accessibilityLabel={frame.readoutLabel}
+            accessibilityHint="Opens the rest timer"
+            scaleTo={1}
+            dimTo={0.6}
+            style={styles.readoutTap}
+          >
+            {/* Paused and complete are otherwise carried by the readout's colour
+                alone, which is not a state anyone can read if the difference
+                between amber and grey is not available to them. */}
+            <Ionicons name={frame.icon} size={14} color={frame.tone} />
 
-            {showChip && (
-              <Pressable
-                onPress={onEditRest}
-                hitSlop={CHIP_SLOP}
-                accessibilityRole="button"
-                accessibilityLabel={`Rest duration, ${formatDuration(targetSeconds)}. Edit`}
-                style={({ pressed }) => [
-                  styles.chip,
-                  {
-                    backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted,
-                  },
-                ]}
-              >
-                <Text variant="caption" color="textSecondary">
-                  {formatDuration(targetSeconds)}
-                </Text>
-                <Ionicons name="chevron-down" size={11} color={colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
-
-          <View style={styles.controls}>
-            <Pressable
-              onPress={handleTogglePause}
-              hitSlop={PAUSE_SLOP}
-              disabled={frame.finished}
-              accessibilityRole="button"
-              accessibilityLabel={frame.paused ? 'Resume rest' : 'Pause rest'}
-              style={({ pressed }) => [
-                styles.control,
-                {
-                  backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted,
-                  opacity: frame.finished ? 0.35 : 1,
-                },
-              ]}
-            >
-              <Ionicons name={frame.paused ? 'play' : 'pause'} size={16} color={colors.text} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleAdjust(-15)}
-              hitSlop={MINUS_SLOP}
-              accessibilityRole="button"
-              accessibilityLabel="Subtract 15 seconds"
-              style={({ pressed }) => [
-                styles.control,
-                { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
-              ]}
-            >
-              <Text variant="label" color="textSecondary">
-                −15
-              </Text>
-            </Pressable>
-
-            {/* `numericLarge` asks for tabular figures so the digits don't jitter
-                as the seconds roll over — at this size a shifting colon is very
-                hard to ignore, which makes this the screen where a family
-                without them shows up worst. */}
+            {/*
+              One of the two figures in the app that stays big, and it asks
+              explicitly rather than inheriting it. `numericLarge` came down to
+              20px when the stat surfaces stopped announcing themselves, and this
+              is not a stat — it is a countdown read from wherever the phone was
+              put down between sets, which is usually the floor. The other
+              exception is the plate calculator, for the same reason and with the
+              same explicitness. Tabular figures matter at this size too: a colon
+              shifting every second is very hard to ignore.
+            */}
             <Text
               variant="numericLarge"
+              numberOfLines={1}
+              // 32px of tabular figures, two controls and a Skip button all fit
+              // across a 390pt phone with room to spare and do not across a
+              // 320pt one. Shrinking the number is the only one of those four
+              // that degrades gracefully — the alternative is "02:…", which is
+              // the countdown failing at its one job.
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
               style={[styles.readout, { color: frame.tone }]}
-              accessibilityLabel={frame.readoutLabel}
             >
               {frame.readout}
             </Text>
+          </PressableScale>
 
-            <Pressable
-              onPress={() => handleAdjust(15)}
-              hitSlop={PLUS_SLOP}
-              accessibilityRole="button"
-              accessibilityLabel="Add 15 seconds"
-              style={({ pressed }) => [
-                styles.control,
-                { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
-              ]}
-            >
-              <Text variant="label" color="textSecondary">
-                +15
-              </Text>
-            </Pressable>
+          <PressableScale
+            onPress={() => controls.adjust(ADJUST_SECONDS)}
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${ADJUST_SECONDS} seconds`}
+            fill={colors.surfaceMuted}
+            fillPressed={colors.surfacePressed}
+            scaleTo={PRESS_SCALE_SMALL}
+            style={[styles.control, { backgroundColor: colors.surfaceMuted }]}
+          >
+            <Text variant="label" color="textSecondary">
+              +{ADJUST_SECONDS}
+            </Text>
+          </PressableScale>
 
-            <Pressable
-              onPress={handleStop}
-              hitSlop={CLOSE_SLOP}
-              accessibilityRole="button"
-              accessibilityLabel={frame.finished ? 'Dismiss rest timer' : 'Skip rest'}
-              style={({ pressed }) => [
-                styles.control,
-                { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
-              ]}
-            >
-              <Ionicons name="close" size={16} color={colors.textSecondary} />
-            </Pressable>
-          </View>
-        </Reanimated.View>
+          {/*
+            Filled but neutral, not accent. The readout beside it is already
+            wearing the app's one saturated colour, and a lime Skip would be the
+            loudest thing on a screen whose actual subject is the set list above
+            it. It carries no hit slop either, deliberately: slop here would have
+            to come out of the readout's tap area, and turning a near-miss on
+            Skip into a *skipped rest* rather than an opened sheet is the wrong
+            way round. Its 44 is real height instead.
+          */}
+          <Button
+            title={frame.finished ? 'Dismiss' : 'Skip'}
+            variant="secondary"
+            size="sm"
+            accessibilityLabel={frame.finished ? 'Dismiss rest timer' : 'Skip rest'}
+            onPress={controls.stop}
+            style={styles.skip}
+          />
+        </View>
       )}
-    </Reanimated.View>
+    </Animated.View>
   );
 }
 
-/** Everything the bar draws, resolved once from a single reading of the clock. */
-interface RestFrame {
-  tone: string;
-  icon: ComponentProps<typeof Ionicons>['name'];
-  status: string;
-  readout: string;
-  readoutLabel: string;
-  paused: boolean;
-  finished: boolean;
-}
+/**
+ * How far the bar has to rise to clear the software keyboard, on the UI thread.
+ *
+ * Android does not need this: `softwareKeyboardLayoutMode: "resize"` in app.json
+ * shrinks the window when the keyboard opens, so anything pinned to the bottom
+ * of it comes along for free. iOS does not resize, and the bar would sit behind
+ * the keyboard at exactly the moment the countdown matters most — the user is
+ * typing the next set's weight while resting.
+ *
+ * Reanimated ships `useAnimatedKeyboard`, which reads the keyboard on the UI
+ * thread and would be the obvious answer, but on Android it calls
+ * `setDecorFitsSystemWindows(false)` and takes over the window's insets for as
+ * long as it is subscribed — which is precisely the resize behaviour this app
+ * relies on, switched off app-wide by a hook mounted for the benefit of the
+ * other platform. Two `Keyboard` listeners that are only ever registered on iOS
+ * cannot do that. They cost one JS event per keyboard transition, at a moment
+ * when a focus change is re-rendering anyway; the movement itself still runs on
+ * the UI thread.
+ */
+function useKeyboardLift(bottomInset: number) {
+  const lift = useSharedValue(0);
+  const { height: windowHeight } = useWindowDimensions();
 
-function describeRest(rest: RestSnapshot, kind: RestKind | null, colors: Palette): RestFrame {
-  const tone = rest.finished
-    ? colors.success
-    : rest.paused
-      ? colors.textSecondary
-      : rest.remaining <= WARNING_SECONDS
-        ? colors.warning
-        : colors.accent;
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
 
-  // Rest after a warm-up is capped short on purpose, and forty-five seconds
-  // where the user expects two minutes reads as a bug unless the bar says why.
-  const status = rest.finished
-    ? 'Rest complete'
-    : rest.paused
-      ? 'Paused'
-      : kind === 'warmup'
-        ? 'Warm-up rest'
-        : 'Rest';
+    const settle = (overlap: number, eventDuration: number) => {
+      // The keyboard covers the home-indicator inset, so the bar's own bottom
+      // padding is already accounted for in the overlap — lifting by the full
+      // keyboard height would leave a gap the width of that inset above it.
+      lift.value = withTiming(Math.max(0, overlap - bottomInset), {
+        // UIKit hands us the duration of its own animation, so the bar travels
+        // with the keyboard rather than chasing it. Zero shows up for keyboards
+        // that appear without animating (a hardware keyboard connecting), and
+        // the token is the fallback for those.
+        duration: eventDuration > 0 ? eventDuration : duration.base,
+        easing: easing.inOut,
+        reduceMotion: ReduceMotion.System,
+      });
+    };
 
-  const readout = rest.finished
-    ? rest.overtime > 0
-      ? `+${formatDuration(rest.overtime)}`
-      : '0:00'
-    : formatDuration(rest.remaining);
+    const changed = Keyboard.addListener('keyboardWillChangeFrame', (event) =>
+      settle(windowHeight - event.endCoordinates.screenY, event.duration),
+    );
+    // `keyboardWillChangeFrame` already reports the dismissal, but the
+    // interactive drag-to-dismiss the workout screen enables does not always
+    // end in one. Both handlers settle on the same target, so the overlap
+    // between them is a no-op rather than a fight.
+    const hidden = Keyboard.addListener('keyboardWillHide', (event) => settle(0, event.duration));
 
-  /*
-   * Spelled out for the screen reader, which reads "1:30" as "one thirty".
-   * Deliberately a label and not a live region: live regions are Android-only,
-   * and pointing one at a number that changes every second turns the screen
-   * reader into a metronome. `RestCues` announces the two moments that matter.
-   */
-  const readoutLabel = rest.finished
-    ? rest.overtime > 0
-      ? `Rest complete, ${spokenDuration(rest.overtime)} over`
-      : 'Rest complete'
-    : `${status}, ${spokenDuration(rest.remaining)} left`;
+    return () => {
+      changed.remove();
+      hidden.remove();
+    };
+  }, [bottomInset, lift, windowHeight]);
 
-  return {
-    tone,
-    icon: rest.finished ? 'checkmark-circle' : rest.paused ? 'pause' : 'timer-outline',
-    status,
-    readout,
-    readoutLabel,
-    paused: rest.paused,
-    finished: rest.finished,
-  };
-}
-
-function clamp01(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
-/** Words rather than a clock face, for the one reader that has to say it aloud. */
-function spokenDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  const parts: string[] = [];
-
-  if (minutes > 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
-  if (remainder > 0 || minutes === 0) {
-    parts.push(`${remainder} second${remainder === 1 ? '' : 's'}`);
-  }
-
-  return parts.join(' ');
+  return lift;
 }
 
 const styles = StyleSheet.create({
-  /** Owns the height the bar occupies, and clips the card while it changes. */
-  wrapper: {
-    overflow: 'hidden',
-    marginHorizontal: spacing.lg,
-  },
-  container: {
+  bar: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    overflow: 'hidden',
-    borderRadius: radius.lg,
-    borderWidth: stroke.outline,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    gap: spacing.xs,
+    bottom: 0,
+    borderTopWidth: stroke.rule,
   },
-  /**
-   * A full-width layer behind the content, slid in from the left by the
-   * animation. `opacity` keeps it a tint rather than a block — the readout sits
-   * on top of it and has to stay legible from either side of the boundary.
-   */
-  progress: {
+  /** Flush against the top edge, so it reads as the bar's own boundary. */
+  track: {
+    height: TRACK_HEIGHT,
+    overflow: 'hidden',
+  },
+  fill: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    opacity: 0.18,
   },
-  header: {
+  row: {
+    height: ROW_HEIGHT,
+    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  status: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1 },
-  flex: { flex: 1 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: spacing.sm,
-    // Real height, because slop alone cannot reach 44 here: there are only 8
-    // points above the chip and 4 below it before the controls row. Around an
-    // 11px caption the old `paddingVertical: 3` measured 21pt.
-    minHeight: 32,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
     gap: spacing.sm,
   },
   control: {
-    minWidth: 44,
-    height: 34,
+    width: MIN_TOUCH_SIZE,
+    height: MIN_TOUCH_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
   },
+  readoutTap: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  readout: { fontSize: fontSize.xxxl, letterSpacing: -0.6 },
   /**
-   * One of the two figures in the app that stays big, and it asks explicitly
-   * rather than inheriting it.
-   *
-   * `numericLarge` came down to 20px when the stat surfaces stopped announcing
-   * themselves, and this is not a stat — it is a countdown read from wherever
-   * the phone was put down between sets, which is usually the floor. The
-   * argument that quietened the dashboards does not reach it: nobody glances at
-   * a volume total mid-set with 40 seconds left. The other exception is the
-   * plate calculator, for the same reason and with the same explicitness.
+   * `size="sm"` for the label and the padding, overridden back to a full touch
+   * target in height. The small size exists for controls inside an
+   * already-tappable row, and this row is not one.
    */
-  readout: { flex: 1, textAlign: 'center', fontSize: fontSize.xxxl, letterSpacing: -0.6 },
+  skip: { height: MIN_TOUCH_SIZE, borderRadius: radius.md },
 });

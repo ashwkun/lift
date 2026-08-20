@@ -33,14 +33,14 @@ import {
   sweepRestNotifications,
 } from '@/features/notifications/rest';
 import { RestDurationSheet } from '@/features/workouts/rest-duration-sheet';
-import { RestTimerBar } from '@/features/workouts/rest-timer-bar';
+import { REST_BAR_HEIGHT, RestTimerBar } from '@/features/workouts/rest-timer-bar';
+import { RestTimerSheet } from '@/features/workouts/rest-timer-sheet';
 import {
   addExerciseToWorkout,
   addSet,
   canLogSet,
   deleteSet,
   discardWorkout,
-  finishWorkout,
   getPreviousPerformance,
   hasRestOverride,
   removeExerciseFromWorkout,
@@ -414,6 +414,21 @@ export default function ActiveWorkoutScreen() {
   const restExerciseId = useTimer((state) => state.restExerciseId);
   const restingDetail = details.find((detail) => detail.exercise.id === restExerciseId);
 
+  const [timerSheetOpen, setTimerSheetOpen] = useState(false);
+
+  /*
+   * Whether the docked bar is occupying the bottom of the screen.
+   *
+   * A boolean selector rather than the clock itself: this re-renders the whole
+   * logging screen, so it has to change twice a rest period — when the
+   * countdown starts and when it clears — and never once a second. It exists
+   * only to reserve scroll room, because the bar floats over the list rather
+   * than sitting in it, and the last thing in that list is Discard workout.
+   */
+  const resting = useTimer(
+    (state) => state.restEndsAt !== null || state.restPausedSeconds !== null,
+  );
+
   const handleSaveRest = useCallback(
     (seconds: number | null) => {
       const detail = restEditorDetail;
@@ -454,6 +469,21 @@ export default function ActiveWorkoutScreen() {
   const closingRef = useRef(false);
   const [closing, setClosing] = useState(false);
 
+  /*
+   * Finish now *goes* somewhere rather than doing something.
+   *
+   * It used to raise a confirmation dialog and write the session on its OK —
+   * which is a modal asking "are you sure?" about the one thing the user came
+   * here to do, and it was also the only place the app admitted that unchecked
+   * sets get dropped. Both belong on a screen with room for them, so the review
+   * screen owns the confirmation, the name, the note and the write, and this is
+   * a plain push.
+   *
+   * The empty-session check stays here anyway. It is two lines and it is the
+   * difference between a rejection at the button the user pressed and a
+   * rejection on a screen they were pushed to for no reason; the review screen
+   * repeats it as a backstop for the session that empties underneath it.
+   */
   const handleFinish = useCallback(() => {
     if (!workout || closingRef.current) return;
 
@@ -464,60 +494,8 @@ export default function ActiveWorkoutScreen() {
       return;
     }
 
-    // Silence when there is nothing to warn about, and the repository's own
-    // word for it when there is: unchecked sets are *dropped*, while "discard"
-    // stays reserved for throwing away the whole session.
-    const unchecked = details.reduce(
-      (total, detail) => total + detail.sets.filter((set) => !set.isCompleted).length,
-      0,
-    );
-    const body =
-      unchecked === 0
-        ? undefined
-        : `${unchecked} unchecked ${unchecked === 1 ? 'set' : 'sets'} will be dropped.`;
-
-    void (async () => {
-      const confirmed = await showConfirm({
-        title: 'Finish workout',
-        message: body,
-        confirmLabel: 'Finish',
-        // The one dialog in the app that completes something rather than
-        // removing it, and `Button`'s `success` variant exists for exactly this
-        // (`components/ui/button.tsx`). Painting it in the destructive red the
-        // other confirmations use would say the opposite of what it does.
-        tone: 'confirm',
-      });
-      // The latch is re-read rather than trusted: this now spans an await, and
-      // the notification tap that opens this screen can land in that window.
-      if (!confirmed || closingRef.current) return;
-
-      closingRef.current = true;
-      setClosing(true);
-
-      try {
-        const result = await finishWorkout(workout.id, {
-          bodyweightKg: settings.bodyweightKg ?? undefined,
-          formula: settings.oneRepMaxFormula,
-        });
-        useTimer.getState().stopRest();
-        void cancelRestNotification();
-        void clearWorkoutNotice();
-        haptics.finished();
-        router.replace({
-          pathname: '/workout/summary/[id]',
-          params: { id: result.workout.id },
-        });
-      } catch {
-        closingRef.current = false;
-        setClosing(false);
-        haptics.rejected();
-        void showAlert(
-          'Could not finish',
-          'The session stayed open. Your sets are still here — try again in a moment.',
-        );
-      }
-    })();
-  }, [workout, details, settings]);
+    router.push('/workout/save');
+  }, [workout, details]);
 
   const handleDiscard = useCallback(() => {
     if (!workout || closingRef.current) return;
@@ -571,13 +549,32 @@ export default function ActiveWorkoutScreen() {
         options={{
           title: workout.name,
           headerRight: () => (
-            <HeaderAction
-              label="Finish workout"
-              title="Finish"
-              tone="success"
-              disabled={closing}
-              onPress={handleFinish}
-            />
+            <View style={styles.headerActions}>
+              {/*
+                The clock, which is the only way to reach the timer when no
+                rest is running: the docked bar exists for the countdown after
+                a set, and between exercises there is nothing to tap. A glyph
+                rather than a word because the pill beside it is the header's
+                one primary action and two words at that end would read as two.
+              */}
+              <HeaderAction
+                label="Rest timer"
+                icon="stopwatch-outline"
+                iconSize={22}
+                onPress={() => {
+                  haptics.selection();
+                  setTimerSheetOpen(true);
+                }}
+              />
+              <HeaderAction
+                label="Finish workout"
+                title="Finish"
+                tone="success"
+                variant="filled"
+                disabled={closing}
+                onPress={handleFinish}
+              />
+            </View>
           ),
         }}
       />
@@ -607,19 +604,17 @@ export default function ActiveWorkoutScreen() {
         </Pressable>
       )}
 
-      <RestTimerBar
-        targetSeconds={
-          restingDetail ? resolveRestSeconds(restingDetail, settings.defaultRestSeconds) : null
-        }
-        onEditRest={
-          restingDetail ? () => setRestEditorId(restingDetail.workoutExercise.id) : undefined
-        }
-      />
-
       <ScrollView
         // The discard button is the last thing in the scroll, so the system
         // navigation inset is added to the content rather than the container.
-        contentContainerStyle={[styles.scroll, { paddingBottom: spacing.huge + insets.bottom }]}
+        // The docked rest bar is added on top of it while one is running: it
+        // floats over this list, and reserving its height only while it is
+        // there costs a scroll that grows at the bottom — where nothing is
+        // being read — instead of a permanent strip of dead space.
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: spacing.huge + insets.bottom + (resting ? REST_BAR_HEIGHT : 0) },
+        ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         // UIScrollView already scrolls the first responder into `bounds` minus
@@ -734,6 +729,35 @@ export default function ActiveWorkoutScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* After the scroll, not before it: the bar is docked over the list now
+          rather than sitting above it, so it has to paint last. */}
+      <RestTimerBar onExpand={() => setTimerSheetOpen(true)} />
+
+      <RestTimerSheet
+        visible={timerSheetOpen}
+        onClose={() => setTimerSheetOpen(false)}
+        // Idle, the sheet still needs a number to offer, and the app default is
+        // the honest one: with nothing resting there is no exercise whose rest
+        // this would be.
+        targetSeconds={
+          restingDetail
+            ? resolveRestSeconds(restingDetail, settings.defaultRestSeconds)
+            : settings.defaultRestSeconds
+        }
+        onEditRest={
+          restingDetail
+            ? () => {
+                // The duration editor is itself a `Modal`, and Android does not
+                // stack two of those reliably — the same reason the measurement
+                // screen drops its sheet before confirming a delete. So this one
+                // goes down first and the editor comes up in its place.
+                setTimerSheetOpen(false);
+                setRestEditorId(restingDetail.workoutExercise.id);
+              }
+            : undefined
+        }
+      />
 
       {restEditorDetail && (
         <RestDurationSheet
@@ -850,7 +874,6 @@ function pairedPreviousSet(
 const styles = StyleSheet.create({
   stats: {
     paddingVertical: spacing.sm,
-    borderTopWidth: 0,
     marginHorizontal: spacing.lg,
   },
   writeFailure: {
@@ -861,6 +884,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   pressed: { opacity: 0.6 },
+  // Two actions at the same end of the header, so they need a gap of their own:
+  // each one's frame already reaches inwards for its touch target, and without
+  // this the clock's frame and the Finish pill's would meet.
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   scroll: { paddingBottom: spacing.huge },
   actions: {
     padding: spacing.lg,
