@@ -5,19 +5,20 @@ import * as Sharing from 'expo-sharing';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import migrations from '../../drizzle/migrations';
 
-import { Button, Text } from '@/components/ui';
+import { Button, DialogHost, Text } from '@/components/ui';
 import { db } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
 import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
 import { RestCues } from '@/features/workouts/rest-cues';
 import { WorkoutNotice } from '@/features/workouts/workout-notice';
+import { showAlert } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { loadPersistedRest } from '@/store/timer-persistence';
 import { AppThemeProvider, font, spacing, useColors, useTheme } from '@/theme';
@@ -46,6 +47,16 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AppThemeProvider>
           <Bootstrap key={attempt} onRetry={() => setAttempt((n) => n + 1)} />
+          {/*
+            Outside `Bootstrap`, not inside `AppNavigator`, and not keyed on
+            `attempt`. `StartupError` is rendered *instead of* the navigator and
+            still raises dialogs — its export button reports where the file went
+            — so a host mounted under the navigator would not exist on the one
+            screen with no other way to say anything. Sitting here it also
+            survives the remount a retry performs, which is what stops a dialog
+            raised by the failing attempt from being torn down mid-read.
+          */}
+          <DialogHost />
         </AppThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -237,7 +248,7 @@ function StartupError({ error, onRetry }: { error: Error; onRetry: () => void })
       const file = await writeBackupFile();
 
       if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert('Sharing unavailable', `File written to:\n${file.uri}`);
+        void showAlert('Sharing unavailable', `File written to:\n${file.uri}`);
         return;
       }
 
@@ -246,7 +257,7 @@ function StartupError({ error, onRetry }: { error: Error; onRetry: () => void })
         dialogTitle: 'Export Lift backup',
       });
     } catch (exportError) {
-      Alert.alert('Export failed', (exportError as Error).message);
+      void showAlert('Export failed', (exportError as Error).message);
     } finally {
       setExporting(false);
     }

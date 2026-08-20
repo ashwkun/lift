@@ -17,7 +17,7 @@ import {
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { LineChart, type DataPoint } from '@/components/charts/line-chart';
 import {
@@ -42,6 +42,7 @@ import {
 } from '@/db/schema';
 import { ExerciseMedia } from '@/features/exercises/exercise-media';
 import { deleteExercise, getExercise } from '@/features/exercises/repository';
+import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { spacing } from '@/theme';
 
@@ -224,20 +225,20 @@ export default function ExerciseDetailScreen() {
 
   const confirmDelete = () => {
     const isCustom = exercise.isCustom;
-    Alert.alert(
-      isCustom ? 'Delete exercise' : 'Archive exercise',
-      isCustom
-        ? 'This removes the exercise. Past workouts keep their history.'
-        : 'Built-in exercises are archived rather than deleted, so they stay out of pickers.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isCustom ? 'Delete' : 'Archive',
-          style: 'destructive',
-          onPress: () => void deleteExercise(id).then(() => router.back()),
-        },
-      ],
-    );
+
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: isCustom ? 'Delete exercise' : 'Archive exercise',
+        message: isCustom
+          ? 'This removes the exercise. Past workouts keep their history.'
+          : 'Built-in exercises are archived rather than deleted, so they stay out of pickers.',
+        confirmLabel: isCustom ? 'Delete' : 'Archive',
+      });
+      if (!confirmed) return;
+
+      await deleteExercise(id);
+      router.back();
+    })();
   };
 
   return (

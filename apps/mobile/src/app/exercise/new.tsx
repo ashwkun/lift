@@ -11,7 +11,7 @@ import {
 import { and, isNull, sql } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View, type TextInput } from 'react-native';
+import { ScrollView, StyleSheet, View, type TextInput } from 'react-native';
 
 import {
   Button,
@@ -25,6 +25,7 @@ import {
 import { db } from '@/db/client';
 import { exercises } from '@/db/schema';
 import { createCustomExercise } from '@/features/exercises/repository';
+import { showAlert } from '@/store/dialog';
 import { spacing } from '@/theme';
 
 const TRACKING_LABELS: Record<TrackingType, string> = {
@@ -106,8 +107,8 @@ export default function NewExerciseScreen() {
       router.back();
     } catch (error) {
       // Only a write that actually failed reaches here — a full disk, a locked
-      // database. There is no field to hang that on, so it stays an alert.
-      Alert.alert('Could not save', (error as Error).message);
+      // database. There is no field to hang that on, so it stays a dialog.
+      void showAlert('Could not save', (error as Error).message);
       setSaving(false);
     }
   };

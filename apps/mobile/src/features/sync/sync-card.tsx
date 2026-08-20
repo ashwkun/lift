@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, IconButton, Text } from '@/components/ui';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { showConfirm } from '@/store/dialog';
 import { useSync, type SyncStatus } from '@/store/sync';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -58,35 +59,28 @@ export function SyncCard() {
     void (async () => {
       // The counts decide the warning and `resetSyncState` drops the whole log
       // moments later, so they are read fresh from the store rather than from
-      // the render that opened the alert. Both counts are changes that never
+      // the render that opened the dialog. Both counts are changes that never
       // reached the account, and sign-out discards them either way, so the
       // warning speaks for both.
       await refreshPending();
       const { pending: queued, rejected: refused } = useSync.getState();
       const unsynced = queued + refused;
 
-      Alert.alert(
-        'Sign out',
-        unsynced > 0
-          ? `${unsynced} change${unsynced === 1 ? '' : 's'} haven't synced yet. They'll stay on this device but won't reach your account.`
-          : 'Your workouts stay on this device.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Sign out',
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                await authClient.signOut();
-                // The cursor belongs to the previous account; keeping it would
-                // make the next sign-in start mid-stream and miss rows.
-                await resetSyncState();
-                markSignedOut();
-              })();
-            },
-          },
-        ],
-      );
+      const confirmed = await showConfirm({
+        title: 'Sign out',
+        message:
+          unsynced > 0
+            ? `${unsynced} change${unsynced === 1 ? '' : 's'} haven't synced yet. They'll stay on this device but won't reach your account.`
+            : 'Your workouts stay on this device.',
+        confirmLabel: 'Sign out',
+      });
+      if (!confirmed) return;
+
+      await authClient.signOut();
+      // The cursor belongs to the previous account; keeping it would make the
+      // next sign-in start mid-stream and miss rows.
+      await resetSyncState();
+      markSignedOut();
     })();
   };
 

@@ -13,13 +13,7 @@ import {
   type TrackingType,
 } from '@lift/shared';
 import { memo, useCallback, useEffect, useRef } from 'react';
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  View,
-  type AccessibilityActionEvent,
-} from 'react-native';
+import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
   Easing,
@@ -37,6 +31,7 @@ import { NumericField, Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { canLogSet } from '@/features/workouts/repository';
+import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -332,10 +327,9 @@ export const SetRow = memo(function SetRow({
   }, [set.isCompleted, loggable, done, pop, onToggleComplete]);
 
   const confirmDelete = useCallback(() => {
-    Alert.alert('Delete set', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-    ]);
+    void (async () => {
+      if (await showConfirm({ title: 'Delete set', confirmLabel: 'Delete' })) onDelete();
+    })();
   }, [onDelete]);
 
   const handleAccessibilityAction = useCallback(

@@ -1,4 +1,5 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
+export { DialogHost } from './dialog';
 export {
   FilterSelect,
   FilterSheet,

@@ -21,7 +21,7 @@ import {
 } from '@lift/shared';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { LineChart, type DataPoint } from '@/components/charts/line-chart';
 import {
@@ -52,6 +52,7 @@ import {
   updateMeasurement,
 } from '@/features/measurements/repository';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
@@ -190,25 +191,31 @@ export default function MeasurementDetailScreen() {
   // an undo bar has nowhere to live on a screen whose bottom half is a list the
   // deletion just changed.
   const confirmDelete = (entry: BodyMeasurement) => {
-    Alert.alert(
-      'Delete this reading?',
-      `${formatMeasurementValue(kind, entry.value, prefs)} on ${longDate(entry.measuredAt)}.`,
-      [
-        { text: 'Keep', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              await deleteMeasurement(entry.id);
-              haptics.destructive();
-              setSheet(null);
-              await reload();
-            })();
-          },
-        },
-      ],
-    );
+    void (async () => {
+      // The sheet this is asked from is itself a `Modal`, and so is the dialog.
+      // Two of those on screen at once is not something Android stacks
+      // reliably, so the sheet goes down first and comes back if the reading is
+      // kept — which is the state the user was in when they asked. Under
+      // `Alert.alert` this did not arise: a platform alert is not a React
+      // Native modal and had nothing to collide with.
+      setSheet(null);
+
+      const confirmed = await showConfirm({
+        title: 'Delete this reading?',
+        message: `${formatMeasurementValue(kind, entry.value, prefs)} on ${longDate(entry.measuredAt)}.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Keep',
+      });
+
+      if (!confirmed) {
+        setSheet({ mode: 'edit', entry });
+        return;
+      }
+
+      await deleteMeasurement(entry.id);
+      haptics.destructive();
+      await reload();
+    })();
   };
 
   const entrySheet = (

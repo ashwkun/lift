@@ -11,7 +11,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Divider, EmptyState, HeaderAction, Screen, StatBand, Text } from '@/components/ui';
@@ -54,6 +54,7 @@ import {
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
 import { useTicker } from '@/hooks/use-ticker';
+import { showAlert, showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
@@ -459,7 +460,7 @@ export default function ActiveWorkoutScreen() {
     const anyCompleted = details.some((detail) => detail.sets.some((set) => set.isCompleted));
     if (!anyCompleted) {
       haptics.rejected();
-      Alert.alert('Nothing logged', 'Complete at least one set before finishing.');
+      void showAlert('Nothing logged', 'Complete at least one set before finishing.');
       return;
     }
 
@@ -475,79 +476,80 @@ export default function ActiveWorkoutScreen() {
         ? undefined
         : `${unchecked} unchecked ${unchecked === 1 ? 'set' : 'sets'} will be dropped.`;
 
-    Alert.alert('Finish workout', body, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Finish',
-        style: 'default',
-        onPress: () => {
-          if (closingRef.current) return;
-          closingRef.current = true;
-          setClosing(true);
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: 'Finish workout',
+        message: body,
+        confirmLabel: 'Finish',
+        // The one dialog in the app that completes something rather than
+        // removing it, and `Button`'s `success` variant exists for exactly this
+        // (`components/ui/button.tsx`). Painting it in the destructive red the
+        // other confirmations use would say the opposite of what it does.
+        tone: 'confirm',
+      });
+      // The latch is re-read rather than trusted: this now spans an await, and
+      // the notification tap that opens this screen can land in that window.
+      if (!confirmed || closingRef.current) return;
 
-          void (async () => {
-            try {
-              const result = await finishWorkout(workout.id, {
-                bodyweightKg: settings.bodyweightKg ?? undefined,
-                formula: settings.oneRepMaxFormula,
-              });
-              useTimer.getState().stopRest();
-              void cancelRestNotification();
-              void clearWorkoutNotice();
-              haptics.finished();
-              router.replace({
-                pathname: '/workout/summary/[id]',
-                params: { id: result.workout.id },
-              });
-            } catch {
-              closingRef.current = false;
-              setClosing(false);
-              haptics.rejected();
-              Alert.alert(
-                'Could not finish',
-                'The session stayed open. Your sets are still here — try again in a moment.',
-              );
-            }
-          })();
-        },
-      },
-    ]);
+      closingRef.current = true;
+      setClosing(true);
+
+      try {
+        const result = await finishWorkout(workout.id, {
+          bodyweightKg: settings.bodyweightKg ?? undefined,
+          formula: settings.oneRepMaxFormula,
+        });
+        useTimer.getState().stopRest();
+        void cancelRestNotification();
+        void clearWorkoutNotice();
+        haptics.finished();
+        router.replace({
+          pathname: '/workout/summary/[id]',
+          params: { id: result.workout.id },
+        });
+      } catch {
+        closingRef.current = false;
+        setClosing(false);
+        haptics.rejected();
+        void showAlert(
+          'Could not finish',
+          'The session stayed open. Your sets are still here — try again in a moment.',
+        );
+      }
+    })();
   }, [workout, details, settings]);
 
   const handleDiscard = useCallback(() => {
     if (!workout || closingRef.current) return;
 
-    Alert.alert('Discard workout', 'This session will be deleted permanently.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Discard',
-        style: 'destructive',
-        onPress: () => {
-          if (closingRef.current) return;
-          closingRef.current = true;
-          setClosing(true);
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: 'Discard workout',
+        message: 'This session will be deleted permanently.',
+        confirmLabel: 'Discard',
+      });
+      if (!confirmed || closingRef.current) return;
 
-          void (async () => {
-            try {
-              await discardWorkout(workout.id);
-              useTimer.getState().stopRest();
-              void cancelRestNotification();
-              void clearWorkoutNotice();
-              haptics.destructive();
-              router.replace('/(tabs)/workout');
-            } catch {
-              closingRef.current = false;
-              setClosing(false);
-              haptics.rejected();
-              Alert.alert(
-                'Could not discard',
-                'The session is still open, and your sets are still here.',
-              );
-            }
-          })();
-        },
-      },
-    ]);
+      closingRef.current = true;
+      setClosing(true);
+
+      try {
+        await discardWorkout(workout.id);
+        useTimer.getState().stopRest();
+        void cancelRestNotification();
+        void clearWorkoutNotice();
+        haptics.destructive();
+        router.replace('/(tabs)/workout');
+      } catch {
+        closingRef.current = false;
+        setClosing(false);
+        haptics.rejected();
+        void showAlert(
+          'Could not discard',
+          'The session is still open, and your sets are still here.',
+        );
+      }
+    })();
   }, [workout]);
 
   if (!workout) {

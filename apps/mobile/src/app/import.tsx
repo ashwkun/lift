@@ -4,7 +4,7 @@ import { IMPORT_RANGES, importCutoff, type ImportRange } from '@lift/shared/impo
 import { File } from 'expo-file-system';
 import { Stack, router } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -31,6 +31,7 @@ import {
   type RangeSelection,
   type WorkoutsPreview,
 } from '@/features/import';
+import { showAlert } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { spacing, useColors } from '@/theme';
 
@@ -115,7 +116,7 @@ export default function ImportScreen() {
       setFile({ name: picked.result.name, text });
       await loadPreview(text, unit);
     } catch (cause) {
-      Alert.alert('Could not open that file', describe(cause));
+      void showAlert('Could not open that file', describe(cause));
     }
   }, [app, loadPreview, unit]);
 
@@ -153,7 +154,7 @@ export default function ImportScreen() {
       });
       setSummary(result);
     } catch (cause) {
-      Alert.alert('Import stopped', describe(cause));
+      void showAlert('Import stopped', describe(cause));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -168,7 +169,7 @@ export default function ImportScreen() {
       const result = await restoreBackup(preview.json);
       setRestored(Object.values(result.imported).reduce((total, count) => total + count, 0));
     } catch (cause) {
-      Alert.alert('Nothing was restored', describe(cause));
+      void showAlert('Nothing was restored', describe(cause));
     } finally {
       setBusy(false);
     }

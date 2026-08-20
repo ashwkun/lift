@@ -9,7 +9,7 @@ import {
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -33,6 +33,7 @@ import {
 } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { showAlert, showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { spacing, useColors } from '@/theme';
 
@@ -119,33 +120,27 @@ export default function WorkoutDetailScreen() {
   };
 
   const confirmDelete = () => {
-    Alert.alert(
-      'Delete workout',
-      'This session, its sets and any records it set will be removed.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              try {
-                // The repository owns the order — records, then sets, then the
-                // session. Deleting the row here left a mistyped record behind
-                // to gate every future PR for that exercise.
-                await deleteWorkout(id);
-                router.back();
-              } catch (error) {
-                Alert.alert(
-                  'Could not delete the workout',
-                  error instanceof Error ? error.message : 'The session is still here.',
-                );
-              }
-            })();
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: 'Delete workout',
+        message: 'This session, its sets and any records it set will be removed.',
+        confirmLabel: 'Delete',
+      });
+      if (!confirmed) return;
+
+      try {
+        // The repository owns the order — records, then sets, then the session.
+        // Deleting the row here left a mistyped record behind to gate every
+        // future PR for that exercise.
+        await deleteWorkout(id);
+        router.back();
+      } catch (error) {
+        void showAlert(
+          'Could not delete the workout',
+          error instanceof Error ? error.message : 'The session is still here.',
+        );
+      }
+    })();
   };
 
   if (!detail) {

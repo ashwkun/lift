@@ -4,7 +4,7 @@ import { and, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -32,6 +32,7 @@ import {
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useSettings } from '@/store/settings';
 import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
@@ -131,19 +132,17 @@ export default function RoutineEditorScreen() {
   };
 
   const confirmDelete = () => {
-    Alert.alert('Delete routine', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            await deleteRoutine(id);
-            router.back();
-          })();
-        },
-      },
-    ]);
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: 'Delete routine',
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+      });
+      if (!confirmed) return;
+
+      await deleteRoutine(id);
+      router.back();
+    })();
   };
 
   if (!detail) {

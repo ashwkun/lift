@@ -9,11 +9,11 @@
  */
 
 import { and, count, eq, isNull } from 'drizzle-orm';
-import { Alert } from 'react-native';
 
 import { db } from '@/db/client';
 import { workoutExercises, workoutSets, type Workout } from '@/db/schema';
 import { cancelRestNotification } from '@/features/notifications/rest';
+import { showAlert, showDialog } from '@/store/dialog';
 import { useTimer } from '@/store/timer';
 
 import { ActiveWorkoutExistsError, discardWorkout } from './repository';
@@ -40,7 +40,7 @@ export interface StartSessionOptions {
    */
   resumes?: (open: Workout) => boolean;
   /**
-   * Runs from the blocking Alert's second button.
+   * Runs from the blocking dialog's second button.
    *
    * Navigation is passed in rather than imported so this module stays out of
    * the router, and so each screen can choose push or replace for itself.
@@ -63,7 +63,7 @@ export async function startSession(options: StartSessionOptions): Promise<StartO
   } catch (error) {
     if (error instanceof ActiveWorkoutExistsError) return resolveConflict(error.workout, options);
 
-    Alert.alert('Could not start the workout', describe(error));
+    void showAlert('Could not start the workout', describe(error));
     return 'failed';
   }
 }
@@ -77,15 +77,18 @@ async function resolveConflict(
   const logged = await countCompletedSets(open.id);
 
   if (logged > 0) {
-    Alert.alert(
-      'A workout is in progress',
-      `${open.name} has ${logged === 1 ? '1 logged set' : `${logged} logged sets`}. ` +
+    // Not awaited: `blocked` is the outcome whichever button is pressed — the
+    // caller's job is to stay put, and `openExisting` navigates on its own.
+    void showDialog({
+      title: 'A workout is in progress',
+      message:
+        `${open.name} has ${logged === 1 ? '1 logged set' : `${logged} logged sets`}. ` +
         'Finish or discard it before starting another.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: `Open ${open.name}`, onPress: openExisting },
+      actions: [
+        { label: 'Cancel', style: 'cancel' },
+        { label: `Open ${open.name}`, onPress: openExisting },
       ],
-    );
+    });
     return 'blocked';
   }
 
@@ -104,7 +107,7 @@ async function resolveConflict(
     await create();
     return 'started';
   } catch (error) {
-    Alert.alert('Could not start the workout', describe(error));
+    void showAlert('Could not start the workout', describe(error));
     return 'failed';
   }
 }

@@ -11,11 +11,12 @@ import {
   type WeightUnit,
 } from '@lift/shared';
 import { useMemo } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ReduceMotion } from 'react-native-reanimated';
 
 import { Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
+import { showConfirm, showDialog } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -107,38 +108,40 @@ export function ExerciseBlock({
   }, [detail.exercise.equipment, detail.sets, barWeightKg, weightUnit]);
 
   const confirmRemove = () => {
-    Alert.alert('Remove exercise', `Remove ${detail.exercise.name} from this workout?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: onRemoveExercise },
-    ]);
+    void (async () => {
+      const confirmed = await showConfirm({
+        title: 'Remove exercise',
+        message: `Remove ${detail.exercise.name} from this workout?`,
+        confirmLabel: 'Remove',
+      });
+      if (confirmed) onRemoveExercise();
+    })();
   };
 
   // Notes moved here when the title became a link to the exercise page, and
   // Replace joined them when substitution stopped meaning "delete and re-add".
   //
-  // Android keeps only the *first three* buttons (`Alert.js` slices the array
-  // before mapping them onto neutral/negative/positive) and drops the rest in
-  // silence, so Cancel goes last and is the one that goes missing there. That
-  // costs nothing as long as the dialog can still be dismissed, which is why
-  // `cancelable` is passed explicitly — React Native defaults it to false on
-  // Android, and a dialog with no visible Cancel and no scrim dismiss is a
-  // trap. iOS shows all four and floats the cancel-styled one to the bottom
-  // regardless of its position here. Rest keeps its own chip in the header.
+  // All four now reach the screen. Under `Alert.alert` only the first three did
+  // on Android — `Alert.js` slices the array before mapping it onto the
+  // neutral/negative/positive slots — so Cancel, last here, was the button that
+  // silently went missing on the platform this app ships to, on a dialog whose
+  // scrim was also not dismissible by default. The in-app dialog stacks however
+  // many actions it is handed and floats Cancel to the bottom itself, which is
+  // where iOS was already putting it regardless of this order. Rest keeps its
+  // own chip in the header.
   const openMenu = () => {
-    Alert.alert(
-      detail.exercise.name,
-      undefined,
-      [
-        { text: 'Replace exercise', onPress: onReplaceExercise },
+    void showDialog({
+      title: detail.exercise.name,
+      actions: [
+        { label: 'Replace exercise', onPress: onReplaceExercise },
         {
-          text: detail.workoutExercise.notes ? 'Edit note' : 'Add note',
+          label: detail.workoutExercise.notes ? 'Edit note' : 'Add note',
           onPress: () => onEditNotes(),
         },
-        { text: 'Remove exercise', style: 'destructive', onPress: confirmRemove },
-        { text: 'Cancel', style: 'cancel' },
+        { label: 'Remove exercise', style: 'destructive', onPress: confirmRemove },
+        { label: 'Cancel', style: 'cancel' },
       ],
-      { cancelable: true },
-    );
+    });
   };
 
   return (

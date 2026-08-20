@@ -2,10 +2,11 @@ import { File } from 'expo-file-system';
 import { Stack, router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Screen, SectionHeader, Text } from '@/components/ui';
 import { buildBackup, restoreBackup, writeBackupFile, writeCsvFile } from '@/features/backup';
+import { showAlert } from '@/store/dialog';
 import { spacing } from '@/theme';
 
 type Task = 'json' | 'csv' | 'import';
@@ -78,7 +79,7 @@ export default function ExportScreen() {
       if (!(await Sharing.isAvailableAsync())) {
         // The file exists either way, so its path is the only thing left that
         // can get it off the device.
-        Alert.alert(
+        void showAlert(
           'No share sheet on this device',
           `The file is written and waiting at:\n${file.uri}`,
         );
@@ -90,7 +91,7 @@ export default function ExportScreen() {
         dialogTitle: kind === 'json' ? 'Lift backup' : 'Lift sets as CSV',
       });
     } catch (error) {
-      Alert.alert(
+      void showAlert(
         kind === 'json' ? 'Backup not written' : 'CSV not written',
         `${reason(error)}\n\nIf the phone is out of storage, freeing some space and trying again is the fix.`,
       );
@@ -123,12 +124,12 @@ export default function ExportScreen() {
         lines.push(`${result.queued.toLocaleString()} are queued for your account.`);
       }
 
-      Alert.alert('Restore finished', lines.join('\n\n'));
+      void showAlert('Restore finished', lines.join('\n\n'));
       await refreshCounts();
     } catch (error) {
       // `restoreBackup` throws in this voice already, and its messages say what
       // survived. The title carries the rest.
-      Alert.alert('Nothing was restored', reason(error));
+      void showAlert('Nothing was restored', reason(error));
     } finally {
       setBusy(null);
     }

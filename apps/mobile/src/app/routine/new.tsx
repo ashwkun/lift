@@ -1,9 +1,10 @@
 import { router, Stack } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Screen, TextField } from '@/components/ui';
 import { createRoutine } from '@/features/routines/repository';
+import { showAlert } from '@/store/dialog';
 import { spacing } from '@/theme';
 
 export default function NewRoutineScreen() {
@@ -25,7 +26,7 @@ export default function NewRoutineScreen() {
       // the routines list, not to this naming step.
       router.replace({ pathname: '/routine/[id]', params: { id: routine.id } });
     } catch (error) {
-      Alert.alert(
+      void showAlert(
         'Could not create routine',
         error instanceof Error ? error.message : 'Nothing was saved.',
       );
