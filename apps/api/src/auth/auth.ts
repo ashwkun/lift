@@ -31,6 +31,30 @@ const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? 'lift://')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+/**
+ * Reverse-proxy hops to skip when resolving the caller's IP.
+ *
+ * better-auth turns rate limiting on by itself in production and keys it on
+ * `x-forwarded-for`. Left unconfigured it only trusts that header when it holds
+ * exactly one address — behind Traefik, anyone who sends an `x-forwarded-for`
+ * of their own makes it two, at which point better-auth can no longer identify
+ * the caller and drops every request into a single shared bucket. Sign-in
+ * allows three attempts per ten seconds, so one client could lock out the rest.
+ *
+ * Naming the proxies instead walks the chain from the right, skips the hops we
+ * put there, and takes the first address we did not add — the real caller, with
+ * any spoofed prefix rendered irrelevant. The default covers Docker's private
+ * ranges, which behind Dokploy is exactly the proxy and nothing else. Set
+ * TRUSTED_PROXIES to pin the subnet, or to extend the chain if a CDN is ever
+ * put in front of Traefik.
+ */
+const trustedProxies = (
+  process.env.TRUSTED_PROXIES ?? '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+)
+  .split(',')
+  .map((range) => range.trim())
+  .filter(Boolean);
+
 const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {};
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -66,6 +90,10 @@ export const auth = betterAuth({
   },
 
   socialProviders,
+
+  advanced: {
+    ipAddress: { trustedProxies },
+  },
 
   session: {
     // Long-lived because a training app is opened in a gym, often on bad

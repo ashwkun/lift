@@ -7,6 +7,10 @@ FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
+# pnpm asks before replacing an existing node_modules and aborts when there is
+# no terminal to ask. Nothing here is interactive.
+ENV CI=true
+
 # ---------------------------------------------------------------- deps ------
 FROM base AS deps
 
@@ -15,7 +19,14 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 
-RUN pnpm install --frozen-lockfile
+# The isolated linker overrides the root .npmrc, which hoists for Metro's sake.
+# That setting is a mobile-development concern the API has no stake in, and
+# under it `pnpm deploy` below cannot map packages back to the store: it falls
+# back to resolving from the registry, quietly installing whatever satisfies the
+# semver ranges rather than what the lockfile pins. That is how this image came
+# to run a better-auth a minor version ahead of the one the schema was written
+# for, which broke sign-up outright.
+RUN pnpm install --frozen-lockfile --config.node-linker=isolated
 
 # --------------------------------------------------------------- build ------
 FROM deps AS build
@@ -28,8 +39,24 @@ COPY apps/api apps/api
 RUN pnpm --filter @lift/shared build
 RUN pnpm --filter @lift/api build
 
-# Drop dev dependencies from the installed tree before it's copied forward.
-RUN pnpm --filter @lift/api --prod deploy /deploy
+# Collect the API and its dependencies into one self-contained directory.
+#
+# `--legacy` because pnpm 10 otherwise insists on `inject-workspace-packages`,
+# which would change how @lift/shared is linked for every other workspace
+# project too. The node-linker is repeated here because deploy reads it again.
+RUN pnpm --filter @lift/api --prod --config.node-linker=isolated deploy --legacy /deploy
+
+# Fail the build, rather than the sign-up endpoint, if that ever happens again.
+# The installed tree above is lockfile-exact; every direct dependency in the
+# deployed copy must be the same version. A drift here is otherwise invisible —
+# the container starts, the healthcheck passes, and only auth is broken.
+RUN set -e; \
+    for pkg in $(node -p "Object.keys(require('/app/apps/api/package.json').dependencies).filter((d) => d !== '@lift/shared').join(' ')"); do \
+      locked=$(node -p "require('/app/apps/api/node_modules/$pkg/package.json').version"); \
+      shipped=$(node -p "require('/deploy/node_modules/$pkg/package.json').version"); \
+      [ "$locked" = "$shipped" ] || { echo "$pkg: lockfile pins $locked, image has $shipped"; exit 1; }; \
+    done; \
+    echo 'every direct dependency matches the lockfile'
 
 # ------------------------------------------------------------- runtime ------
 FROM base AS runtime

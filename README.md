@@ -77,8 +77,12 @@ native is committed.
 ```bash
 cp apps/api/.env.example apps/api/.env   # then set BETTER_AUTH_SECRET
 docker compose up -d postgres
-cd apps/api && pnpm db:migrate && pnpm start:dev
+cd apps/api && pnpm start:dev
 ```
+
+The server applies any pending migrations as it boots, so there is no separate
+migration step. `pnpm db:generate` writes a new one after a schema change;
+`pnpm db:migrate` applies them by hand if you want that.
 
 Point the app at it with `EXPO_PUBLIC_API_URL`. If unset, the app derives the
 API host from the Metro address, which is usually what you want on a physical
@@ -90,6 +94,11 @@ device — `localhost` there resolves to the phone.
 pnpm --filter @lift/shared test    # 41 unit tests
 python3 apps/api/test/sync-e2e.py     # 28 end-to-end tests, needs a running API
 ```
+
+The end-to-end suite signs up several users in a few seconds, which the
+production rate limit is there to stop. Run it against `pnpm start:dev`, or
+against a container started with `NODE_ENV=development`, not against a
+production one — the failures otherwise look like auth bugs.
 
 ## Design decisions
 
@@ -131,9 +140,29 @@ which stays finite and monotonic.
 
 ## Deployment
 
-`apps/api/Dockerfile` is a multi-stage build that runs unprivileged with a
-healthcheck that actually round-trips to Postgres. On Dokploy, point at that
-Dockerfile and supply the same environment variables as `.env.example`.
+`apps/api/Dockerfile` is a multi-stage build that runs unprivileged, applies
+pending migrations before it starts listening, and carries a healthcheck that
+round-trips to Postgres rather than returning a static 200.
+
+On Dokploy:
+
+1. Create a **Postgres** service and copy the connection URL it hands back.
+2. Create an **Application** from this repository, build type Dockerfile, path
+   `apps/api/Dockerfile`.
+3. Supply the environment variables from `apps/api/.env.example`.
+   `DATABASE_URL` is the URL from step 1, `BETTER_AUTH_URL` is the public
+   `https://` address including scheme, and `TRUSTED_ORIGINS` has to list
+   `lift://` or the app cannot complete an OAuth round trip.
+4. Expose port 3000 and attach the domain.
+
+The schema is created on first boot. A migration that fails takes the container
+down with it instead of serving against a half-applied schema, so a broken
+deploy is reported as broken rather than quietly answering 500s.
+
+`TRUSTED_PROXIES` defaults to Docker's private ranges, which is what Traefik
+sits in. It only needs setting if something else — a CDN, another proxy — ends
+up in front, in which case rate limiting counts that hop as the caller until
+its ranges are added.
 
 Two things worth doing on day one: turn on scheduled database backups, and
 verify a restore. This app holds people's multi-year training history.

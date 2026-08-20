@@ -7,9 +7,13 @@ import express from 'express';
 
 import { AppModule } from './app.module.js';
 import { auth } from './auth/auth.js';
+import { runMigrations } from './db/migrate.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // Before the server exists, so no request can reach a schema that isn't there.
+  await runMigrations();
 
   /**
    * Body parsing is disabled here and re-enabled below, after the auth routes.
@@ -49,4 +53,10 @@ async function bootstrap() {
   logger.log(`Lift API listening on :${port}`);
 }
 
-void bootstrap();
+bootstrap().catch((error) => {
+  // A failed migration or an unreachable database must exit non-zero: the
+  // deploy should be reported as failed, not left as a container that is up
+  // and answering nothing.
+  new Logger('Bootstrap').error(error);
+  process.exit(1);
+});
