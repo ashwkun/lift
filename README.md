@@ -147,13 +147,15 @@ round-trips to Postgres rather than returning a static 200.
 On Dokploy:
 
 1. Create a **Postgres** service and copy the connection URL it hands back.
-2. Create an **Application** from this repository, build type Dockerfile, path
-   `apps/api/Dockerfile`.
-3. Supply the environment variables from `apps/api/.env.example`.
-   `DATABASE_URL` is the URL from step 1, `BETTER_AUTH_URL` is the public
-   `https://` address including scheme, and `TRUSTED_ORIGINS` has to list
-   `lift://` or the app cannot complete an OAuth round trip.
-4. Expose port 3000 and attach the domain.
+2. Create a **Compose** application from this repository and set the compose
+   path to `docker-compose.dokploy.yml`. That file defines the API alone —
+   the database is the service from step 1, not a container of its own.
+3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+   as the public `https://` address including scheme, and `TRUSTED_ORIGINS`,
+   which has to list `lift://` or the app cannot complete an OAuth round trip.
+   All four are required; the stack refuses to start without them rather than
+   inventing defaults.
+4. Add a domain pointing at the `api` service on port 3000.
 
 The schema is created on first boot. A migration that fails takes the container
 down with it instead of serving against a half-applied schema, so a broken

@@ -1,43 +1,20 @@
 # Production stack for Dokploy. Set the Compose Path to this file, not to
-# docker-compose.yml — that one is the local development stack and publishes
-# both services on host ports, which on a shared server means fighting whatever
-# else is on :3000 and putting Postgres on the public internet.
+# docker-compose.yml — that one is the local development stack, and it brings
+# its own Postgres and publishes both services on host ports.
 #
-# Nothing here is published. Traefik reaches the API over dokploy-network, and
-# Postgres is reachable only from the API.
+# The database is Dokploy's own Postgres service, so it is not defined here.
+# Paste the connection string that service gives you into DATABASE_URL and it
+# is used as-is. Nothing is published: Traefik reaches the API over
+# dokploy-network, which is also how the database hostname resolves.
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: lift
-      # No default. A database that falls back to a known password is worse
-      # than one that refuses to start.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      POSTGRES_DB: lift
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      # The API's own healthcheck depends on this being genuinely ready, not
-      # merely started — Postgres accepts connections briefly during init.
-      test: ['CMD-SHELL', 'pg_isready -U lift -d lift']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
-      # Keep POSTGRES_PASSWORD alphanumeric: it is interpolated into a URL, and
-      # a `@` or `/` in it would be read as structure rather than password.
-      DATABASE_URL: postgres://lift:${POSTGRES_PASSWORD}@postgres:5432/lift
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       # Must match the domain exactly, scheme included — cookies and OAuth
       # callbacks are derived from it.
@@ -47,14 +24,10 @@ services:
     expose:
       - '3000'
     networks:
-      - default
       - dokploy-network
 
-volumes:
-  postgres-data:
-
 networks:
-  # Traefik's network. Dokploy creates it; the API has to join it before a
-  # domain can route anywhere. Postgres deliberately stays off it.
+  # Traefik's network, and the one Dokploy's database services sit on. The API
+  # has to join it both to be routable and to resolve the database host.
   dokploy-network:
     external: true
