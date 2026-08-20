@@ -139,12 +139,30 @@ export function parseDuration(input: string): number | null {
 // Volume
 // ---------------------------------------------------------------------------
 
-/** Formats total volume, collapsing large numbers: "12.4k kg". */
-export function formatVolume(kg: number, unit: WeightUnit): string {
-  const value = toDisplayWeight(kg, unit);
-  if (value >= 1_000_000) return `${trimZeros((value / 1_000_000).toFixed(1))}M ${unit}`;
-  if (value >= 10_000) return `${trimZeros((value / 1000).toFixed(1))}k ${unit}`;
-  return `${Math.round(value).toLocaleString()} ${unit}`;
+/**
+ * Formats total volume in full, grouped: "12,400 kg", "1,284,300 kg".
+ *
+ * It used to collapse anything past ten thousand to "12.4k" and past a million
+ * to "1.3M". That is a compression that throws away the part of the number
+ * people actually compare — a week at 12.4k and a week at 12.45k print the same
+ * — and it did it exactly where volume gets interesting. Every figure in this
+ * app is set in a tabular face and sits in a column sized for it, so the extra
+ * three or four characters cost layout nothing and buy back the precision.
+ *
+ * Grouping is `toLocaleString`, so the separator follows the device locale: a
+ * thousands comma here, a period or a thin space elsewhere.
+ *
+ * With `withUnit: false` this is the value alone, for a chart axis that states
+ * its unit in the heading rather than on every label.
+ */
+export function formatVolume(
+  kg: number,
+  unit: WeightUnit,
+  options: { withUnit?: boolean } = {},
+): string {
+  const { withUnit = true } = options;
+  const text = Math.round(toDisplayWeight(kg, unit)).toLocaleString();
+  return withUnit ? `${text} ${unit}` : text;
 }
 
 // ---------------------------------------------------------------------------

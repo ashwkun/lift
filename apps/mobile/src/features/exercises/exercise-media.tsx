@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useState } from 'react';
@@ -16,16 +17,44 @@ export interface ExerciseMediaProps {
 }
 
 /**
+ * What the frame is shaped like before anything has loaded and reported its own
+ * dimensions. The catalog's artwork is squarish, so this is the shape the panel
+ * settles into most often and the one that moves least on arrival.
+ */
+const FALLBACK_RATIO = 4 / 3;
+
+/**
+ * How far the panel will follow an asset's own proportions.
+ *
+ * The point of measuring is that a 1:1 clip should not be letterboxed into a
+ * 4:3 box and a 16:9 one should not be pillarboxed into it. The point of the
+ * clamp is that the panel still has to be a panel: a catalog entry with a
+ * mistyped 3000×200 asset would otherwise render as a hairline, and a portrait
+ * one would push everything below it off the screen.
+ */
+const MIN_RATIO = 0.7;
+const MAX_RATIO = 2;
+
+/**
  * The demonstration panel at the top of an exercise's detail screen.
  *
  * The still is shown first and the clip is only fetched once tapped. The
  * catalog's clips are 300–450KB each; autoplaying one on every screen open
  * would spend a few hundred KB of someone's mobile data to answer a question
  * the still usually already answers.
+ *
+ * The frame takes its shape from whatever it is showing rather than imposing
+ * one. It used to be a hard 4:3, which is right for the catalog's own artwork
+ * and wrong for everything else in it: a 1:1 clip arrived with plate down both
+ * sides, and a wide one sat letterboxed with the figure shrunk to fit a box it
+ * did not need. Both the still and the clip report their natural size once
+ * loaded — `onLoad` for the image, `sourceLoad` for the player — and the frame
+ * adopts it, clamped to the range above.
  */
 export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaProps) {
   const colors = useColors();
   const [playing, setPlaying] = useState(false);
+  const [ratio, setRatio] = useState<number | null>(null);
 
   // Hooks cannot be conditional, so the player is always created and simply
   // holds a null source until the user asks for the clip.
@@ -37,12 +66,25 @@ export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaPro
     instance.play();
   });
 
+  // The clip's shape wins over the still's once it is known: they come from the
+  // same catalog entry and normally agree, but if they don't, the thing on
+  // screen is the one that should be fitted.
+  useEventListener(player, 'sourceLoad', ({ availableVideoTracks }) => {
+    const size = availableVideoTracks[0]?.size;
+    if (size) setRatio(clampRatio(size.width / size.height));
+  });
+
+  const frame = [styles.frame, { aspectRatio: ratio ?? FALLBACK_RATIO }];
+
   if (playing && videoUrl) {
     return (
-      <View style={[styles.frame, { backgroundColor: colors.mediaPlate }]}>
+      <View style={[frame, { backgroundColor: colors.mediaPlate }]}>
         <VideoView
           player={player}
           style={styles.fill}
+          // Still `contain` even though the frame now matches the source. The
+          // two agree to within a pixel of rounding, and `cover` would spend
+          // that pixel cropping the figure's feet.
           contentFit="contain"
           nativeControls
           fullscreenOptions={{ enable: true }}
@@ -57,7 +99,7 @@ export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaPro
       accessibilityLabel={videoUrl ? `Play ${name} demonstration` : name}
       disabled={!videoUrl}
       onPress={() => setPlaying(true)}
-      style={[styles.frame, { backgroundColor: colors.mediaPlate }]}
+      style={[frame, { backgroundColor: colors.mediaPlate }]}
     >
       {thumbnailUrl ? (
         <Image
@@ -66,6 +108,12 @@ export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaPro
           contentFit="contain"
           cachePolicy="disk"
           transition={160}
+          onLoad={(event) =>
+            setRatio((current) =>
+              // Never overrides a size the clip has already reported.
+              current ?? clampRatio(event.source.width / event.source.height),
+            )
+          }
           accessibilityIgnoresInvertColors
         />
       ) : (
@@ -90,11 +138,14 @@ export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaPro
   );
 }
 
+/** A reported width/height, guarded against zero and against absurd extremes. */
+function clampRatio(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return FALLBACK_RATIO;
+  return Math.min(MAX_RATIO, Math.max(MIN_RATIO, value));
+}
+
 const styles = StyleSheet.create({
   frame: {
-    // 4:3 suits the source artwork, which is squarish and centred; 16:9 would
-    // letterbox every figure with plate on both sides.
-    aspectRatio: 4 / 3,
     width: '100%',
     borderRadius: radius.lg,
     overflow: 'hidden',

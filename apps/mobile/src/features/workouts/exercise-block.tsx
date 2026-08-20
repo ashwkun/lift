@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   calculatePlates,
   defaultPlates,
+  DISTANCE_UNITS,
   formatDuration,
   formatWeight,
   isWorkingSet,
   nearestLoadable,
   TRACKING_FIELDS,
+  WEIGHT_UNITS,
   type SetType,
   type WeightUnit,
 } from '@lift/shared';
@@ -16,6 +18,7 @@ import Animated, { FadeIn, FadeOut, ReduceMotion } from 'react-native-reanimated
 
 import { Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
+import { haptics } from '@/features/feedback/haptics';
 import { showConfirm, showDialog } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
@@ -55,6 +58,8 @@ export interface ExerciseBlockProps {
  */
 const REST_SLOP = { top: 12, bottom: 12, left: 6, right: 4 };
 const MENU_SLOP = { top: 12, bottom: 12, left: 4, right: 16 };
+/** The unit headings are 11px type in a 62pt cell; the target is the slop. */
+const UNIT_SLOP = { top: 10, bottom: 10, left: 4, right: 4 };
 const ADD_SET_SLOP = { top: 8, bottom: 8 };
 
 export function ExerciseBlock({
@@ -74,6 +79,8 @@ export function ExerciseBlock({
 }: ExerciseBlockProps) {
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
+  const distanceUnit = useSettings((state) => state.distanceUnit);
+  const updateSetting = useSettings((state) => state.update);
   const barWeightKg = useSettings((state) => state.barWeightKg);
   const defaultRestSeconds = useSettings((state) => state.defaultRestSeconds);
   const restTimerEnabled = useSettings((state) => state.restTimerEnabled);
@@ -255,7 +262,12 @@ export function ExerciseBlock({
       ) : null}
 
       {/* Column headings. `overline` uppercases and adds tracking, so these are
-          written in sentence case — the same rule every other heading follows. */}
+          written in sentence case — the same rule every other heading follows.
+
+          The two that name a unit are also the control for it: see `UnitHeader`.
+          Time and Reps are not units the user has an opinion about, so they stay
+          plain text and the rule reads as "if the heading is a unit, it is a
+          button". */}
       <View style={styles.columnHeader}>
         <Text variant="overline" color="textTertiary" style={styles.indexCell}>
           Set
@@ -264,9 +276,12 @@ export function ExerciseBlock({
           Previous
         </Text>
         {fields.weight && (
-          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
-            {weightUnit}
-          </Text>
+          <UnitHeader
+            name="Weight"
+            value={weightUnit}
+            options={WEIGHT_UNITS}
+            onChange={(next) => updateSetting('weightUnit', next)}
+          />
         )}
         {fields.duration && (
           <Text variant="overline" color="textTertiary" style={styles.unitCell}>
@@ -274,9 +289,12 @@ export function ExerciseBlock({
           </Text>
         )}
         {fields.distance && (
-          <Text variant="overline" color="textTertiary" style={styles.unitCell}>
-            Km
-          </Text>
+          <UnitHeader
+            name="Distance"
+            value={distanceUnit}
+            options={DISTANCE_UNITS}
+            onChange={(next) => updateSetting('distanceUnit', next)}
+          />
         )}
         {fields.reps && (
           <Text variant="overline" color="textTertiary" style={styles.unitCell}>
@@ -352,6 +370,69 @@ interface SetRowModel {
  * Warm-ups don't consume a working-set number either, so the ordinal shown in
  * the set column is counted here rather than taken from the array index.
  */
+/**
+ * A column heading that is also the switch for the unit it names.
+ *
+ * Changing units used to mean leaving the session for Settings, which is four
+ * taps and a scroll at the moment you have a dumbbell in one hand and the rack
+ * says 55 and your app says kilograms. The heading was already printing the
+ * answer — `kg`, `km` — so it becomes the control rather than gaining one: no
+ * new row, no sheet, and the affordance is discoverable because the current
+ * state is what you tap.
+ *
+ * A tap cycles rather than opening a picker. Both dimensions have exactly two
+ * options, so a picker would be a modal to choose between the thing you can see
+ * and the only alternative. That also makes a mis-tap free — every number on
+ * screen converts instantly, nothing is written to the sets themselves, and
+ * tapping again puts it back.
+ *
+ * It changes the app-wide preference, not this exercise's. Storage is kilograms
+ * and kilometres either way (`packages/shared/src/units.ts`), so a unit is a
+ * lens over the same numbers and having one per exercise would mean asking
+ * which lens a given row was under — a question the data cannot answer and the
+ * user should never have to.
+ */
+function UnitHeader<T extends string>({
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  /** The dimension, for the screen reader: "Weight", "Distance". */
+  name: string;
+  value: T;
+  options: readonly T[];
+  onChange: (next: T) => void;
+}) {
+  const colors = useColors();
+  const next = options[(options.indexOf(value) + 1) % options.length] ?? value;
+
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.selection();
+        onChange(next);
+      }}
+      accessibilityRole="button"
+      // Names the dimension, because "kg" alone out of context is not a control
+      // anyone can act on — and the hint is what makes it one rather than a
+      // heading a screen reader user is left guessing about.
+      accessibilityLabel={`${name} unit: ${value}`}
+      accessibilityHint={`Switches to ${next}`}
+      hitSlop={UNIT_SLOP}
+      style={({ pressed }) => [styles.unitCell, styles.unitHeader, pressed && styles.pressed]}
+    >
+      <Text variant="overline" color="textTertiary">
+        {value}
+      </Text>
+      {/* Nine pixels of glyph, and the whole reason the heading reads as
+          tappable. Without it this is indistinguishable from the Time and Reps
+          headings beside it, which are not. */}
+      <Ionicons name="swap-horizontal" size={9} color={colors.textTertiary} />
+    </Pressable>
+  );
+}
+
 function pairWithPrevious(sets: WorkoutSet[], previousSets: WorkoutSet[]): SetRowModel[] {
   const previousWorking = previousSets.filter((set) => isWorkingSet(set.setType));
   const previousWarmups = previousSets.filter((set) => !isWorkingSet(set.setType));
@@ -463,6 +544,10 @@ const styles = StyleSheet.create({
   indexCell: { width: 32, textAlign: 'center' },
   previousCell: { flex: 1, minWidth: 60 },
   unitCell: { width: 62, textAlign: 'center' },
+  // The plain headings are `Text` and centre themselves; a `UnitHeader` is a row
+  // of two things, so it has to say so. 2pt rather than a spacing token — the
+  // glyph is an annotation on the word, not a second item beside it.
+  unitHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
   checkSpacer: { width: 38 },
   plateLine: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   addSet: {

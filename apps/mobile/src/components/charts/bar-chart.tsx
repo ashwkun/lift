@@ -3,7 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { BarChart as GiftedBarChart, type barDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { radius, spacing, stroke, useColors } from '@/theme';
+import { font, fontSize, radius, spacing, stroke, useColors } from '@/theme';
 
 export interface BarDatum {
   label: string;
@@ -17,6 +17,16 @@ export interface BarChartProps {
   /** Renders horizontal bars with the label on the left. */
   horizontal?: boolean;
   height?: number;
+  /**
+   * Vertical layout only: puts a value axis and its rules behind the columns.
+   *
+   * A horizontal chart prints each bar's figure past its end and needs none of
+   * this. A vertical one has nowhere to print twelve figures, so a series that
+   * has to be read against a quantity — volume per week — asks for the axis
+   * instead. A comparison that only has to be read against its own peak, like
+   * sets by body part, leaves it off.
+   */
+  valueAxis?: boolean;
 }
 
 /** Thickness of a horizontal bar, and the pitch of one row around it. */
@@ -57,6 +67,16 @@ const MIN_FILL = 0.02;
  * labels. Both are extended by props (`labelsExtraHeight`, `yAxisExtraHeight`)
  * because the label column and the trailing value are wider than the default.
  */
+/**
+ * The gutter a vertical chart's value axis sits in. Deliberately the same width
+ * as `LineChart`'s, so a screen that stacks the two — Home does — lines their
+ * plots up on one left edge rather than on two that nearly agree.
+ */
+const VALUE_AXIS_WIDTH = spacing.xxl + spacing.xl;
+
+/** Rules drawn behind a vertical chart's columns, and the labels against them. */
+const AXIS_SECTIONS = 2;
+
 const LIBRARY_LABEL_ALLOWANCE = 60;
 const LABEL_BAND = LABEL_COLUMN + LABEL_GAP + spacing.xs;
 const LABEL_HEADROOM = Math.max(0, LABEL_BAND - LIBRARY_LABEL_ALLOWANCE);
@@ -111,6 +131,7 @@ export function BarChart({
   formatValue = (value) => String(Math.round(value)),
   horizontal = true,
   height = 140,
+  valueAxis = false,
 }: BarChartProps) {
   const colors = useColors();
 
@@ -213,12 +234,20 @@ export function BarChart({
   }
 
   const plotHeight = Math.max(1, height - CAPTION_BAND);
-  const slot = width / data.length;
+  const axisWidth = valueAxis ? VALUE_AXIS_WIDTH : 0;
+  const plotWidth = Math.max(1, width - axisWidth);
+  const slot = plotWidth / data.length;
   // Cap the column so a three-bar set doesn't render three slabs; whatever is
   // left over is the gap, split in half at each end so every column sits dead
   // centre of its slot.
   const barWidth = Math.max(3, Math.min(slot * 0.62, 34));
   const gap = slot - barWidth;
+
+  // Bottom-up, one per rule, and given as text because the axis is in the
+  // caller's unit — which this chart is never told.
+  const axisLabels = Array.from({ length: AXIS_SECTIONS + 1 }, (_, index) =>
+    formatValue((max / AXIS_SECTIONS) * index),
+  );
 
   const bars: barDataItem[] = data.map((item) => ({
     ...paint(item),
@@ -235,7 +264,7 @@ export function BarChart({
       {width > 0 ? (
         <GiftedBarChart
           data={bars}
-          width={width}
+          width={plotWidth}
           height={plotHeight}
           barWidth={barWidth}
           spacing={gap}
@@ -245,11 +274,19 @@ export function BarChart({
           minHeight={plotHeight * MIN_FILL}
           barBorderRadius={Math.min(radius.sm, barWidth / 2)}
           xAxisLabelsHeight={LABEL_STRIP}
-          // A baseline and nothing else. Rules would need a value axis to be
-          // read against, and this chart is a comparison rather than a reading.
-          hideRules
-          hideYAxisText
-          yAxisLabelWidth={0}
+          noOfSections={AXIS_SECTIONS}
+          // Without the axis this is a baseline and nothing else: rules need a
+          // value axis to be read against, and a chart that is only a comparison
+          // has none. With it they are the reading.
+          hideRules={!valueAxis}
+          rulesType="solid"
+          rulesColor={colors.border}
+          rulesThickness={stroke.outline}
+          hideYAxisText={!valueAxis}
+          yAxisLabelTexts={valueAxis ? axisLabels : undefined}
+          yAxisTextStyle={[styles.axisText, { color: colors.textTertiary }]}
+          yAxisLabelContainerStyle={styles.axisLabel}
+          yAxisLabelWidth={axisWidth}
           yAxisThickness={0}
           yAxisExtraHeight={0}
           xAxisColor={colors.border}
@@ -266,6 +303,9 @@ export function BarChart({
 
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl },
+  // Matched to `LineChart`'s axis, for the same reason `VALUE_AXIS_WIDTH` is.
+  axisText: { fontSize: fontSize.xs, ...font('regular') },
+  axisLabel: { alignItems: 'flex-end', paddingRight: spacing.xs },
   hLabel: {
     height: LABEL_STRIP,
     justifyContent: 'center',

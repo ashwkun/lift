@@ -3,14 +3,18 @@ import {
   formatDistance,
   formatDuration,
   formatWeight,
+  fromDisplayDistance,
   fromDisplayWeight,
   parseDuration,
+  toDisplayDistance,
   SET_TYPE_BADGE,
   SET_TYPE_LABELS,
   TRACKING_FIELDS,
   trimZeros,
+  type DistanceUnit,
   type SetType,
   type TrackingType,
+  type WeightUnit,
 } from '@lift/shared';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
@@ -57,7 +61,8 @@ export interface SetRowProps {
 function formatPrevious(
   previous: WorkoutSet | undefined,
   trackingType: TrackingType,
-  unit: 'kg' | 'lb',
+  unit: WeightUnit,
+  distanceUnit: DistanceUnit,
 ): string {
   if (!previous) return '—';
 
@@ -71,7 +76,7 @@ function formatPrevious(
     parts.push(formatDuration(previous.durationSeconds));
   }
   if (fields.distance && previous.distanceKm != null) {
-    parts.push(formatDistance(previous.distanceKm, 'km'));
+    parts.push(formatDistance(previous.distanceKm, distanceUnit));
   }
   if (fields.reps && previous.reps != null) {
     parts.push(parts.length > 0 ? `× ${previous.reps}` : `${previous.reps} reps`);
@@ -81,9 +86,23 @@ function formatPrevious(
 }
 
 /**
+ * How a stored distance is spelled back into its field.
+ *
+ * Two decimals and trimmed zeros, for the same reason `formatWeight` uses them
+ * on the weight field: the value now makes a unit round trip on every keystroke,
+ * and that leaves float noise — a mile-entered 3 comes back as 2.999999999999
+ * — while an untrimmed "3.00" would reappear in the field as characters the
+ * user has to delete before typing.
+ */
+function asDistanceField(km: number, unit: DistanceUnit): string {
+  return trimZeros(toDisplayDistance(km, unit).toFixed(2));
+}
+
+/**
  * How a typed time comes back out of storage, for the duration field's own
  * echo check. Nothing else in a set row needs one: a weight, a rep count and a
- * distance render back as they were typed, but seconds are always re-spelled
+ * distance render back as they were typed — the two that convert do so through
+ * a formatter that absorbs the round trip — but seconds are always re-spelled
  * as M:SS, so "4" returns as "0:04". Module scope so every row shares the one
  * function and the field is not handed a new prop on each render.
  *
@@ -168,6 +187,7 @@ export const SetRow = memo(function SetRow({
 }: SetRowProps) {
   const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
+  const distanceUnit = useSettings((state) => state.distanceUnit);
 
   // 0 = open, 1 = checked off. Seeded from the current value so a screen opened
   // on a half-finished workout renders its state rather than animating into it.
@@ -270,9 +290,17 @@ export const SetRow = memo(function SetRow({
     (text: string) => {
       const parsed = text === '' ? null : Number(text.replace(',', '.'));
       if (parsed !== null && !Number.isFinite(parsed)) return;
-      onChange({ distanceKm: parsed });
+      // Same rule as the weight field, and it was missing here: the field is in
+      // the user's display unit and storage is always kilometres. Without the
+      // conversion a user set to miles typed "3", stored 3 *kilometres*, and
+      // then read it back as 1.86 mi on the records screen — which does convert.
+      // The set row was the only place in the app that treated the two as the
+      // same number.
+      onChange({
+        distanceKm: parsed === null ? null : fromDisplayDistance(parsed, distanceUnit),
+      });
     },
-    [onChange],
+    [onChange, distanceUnit],
   );
 
   const handleCopyPrevious = useCallback(() => {
@@ -341,6 +369,7 @@ export const SetRow = memo(function SetRow({
 
   const weightValue =
     set.weightKg == null ? '' : formatWeight(set.weightKg, weightUnit, { withUnit: false });
+  const distanceValue = set.distanceKm == null ? '' : asDistanceField(set.distanceKm, distanceUnit);
 
   return (
     <Animated.View
@@ -406,7 +435,7 @@ export const SetRow = memo(function SetRow({
             accessibilityRole="button"
             accessibilityLabel={
               previous
-                ? `Previous, ${formatPrevious(previous, trackingType, weightUnit)}`
+                ? `Previous, ${formatPrevious(previous, trackingType, weightUnit, distanceUnit)}`
                 : 'No previous set'
             }
             accessibilityHint={previous ? 'Copies these numbers into this set' : undefined}
@@ -417,7 +446,7 @@ export const SetRow = memo(function SetRow({
               numberOfLines={1}
               style={styles.previousText}
             >
-              {formatPrevious(previous, trackingType, weightUnit)}
+              {formatPrevious(previous, trackingType, weightUnit, distanceUnit)}
             </Text>
             {previous && (
               <Ionicons name="return-down-forward" size={11} color={colors.textTertiary} />
@@ -456,11 +485,13 @@ export const SetRow = memo(function SetRow({
 
           {fields.distance && (
             <NumericField
-              value={set.distanceKm == null ? '' : trimZeros(set.distanceKm.toFixed(2))}
+              value={distanceValue}
               onChangeText={handleDistanceChange}
-              accessibilityLabel={`${setName}, distance in km`}
+              accessibilityLabel={`${setName}, distance in ${distanceUnit}`}
               placeholder={
-                previous?.distanceKm != null ? trimZeros(previous.distanceKm.toFixed(2)) : '0'
+                previous?.distanceKm != null
+                  ? asDistanceField(previous.distanceKm, distanceUnit)
+                  : '0'
               }
               style={styles.input}
             />

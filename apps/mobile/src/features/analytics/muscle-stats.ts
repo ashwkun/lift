@@ -577,3 +577,55 @@ export async function loadSessions(
     .from(workouts)
     .where(and(...filters));
 }
+
+// ---------------------------------------------------------------------------
+// One session's split
+// ---------------------------------------------------------------------------
+
+/** The minimum an exercise block has to carry to be split by body part. */
+export interface SplittableBlock {
+  exercise: { primaryMuscle: MuscleGroup };
+  sets: readonly { setType: SetType; isCompleted: boolean }[];
+}
+
+export interface MuscleSplitSlice {
+  bodyPart: BodyPart;
+  sets: number;
+  /** Fraction of the session's working sets, 0–1. */
+  share: number;
+}
+
+/**
+ * How one session's work divided across the body, largest share first.
+ *
+ * Computed from the blocks the detail screen has already loaded rather than
+ * from a query of its own — the sets are in memory, and this is a dozen
+ * additions.
+ *
+ * The attribution rule is deliberately the same one `getMuscleDistribution`
+ * uses: completed working sets, credited whole to the exercise's *primary*
+ * muscle only. Spreading a set across its secondary muscles at a discount is
+ * right for "how much work has this muscle had lately", which is a question
+ * about stimulus; it is wrong here, where the percentages have to add to 100
+ * and be checkable against the session's own set count sitting two lines above.
+ */
+export function workoutMuscleSplit(blocks: readonly SplittableBlock[]): MuscleSplitSlice[] {
+  const byPart = new Map<BodyPart, number>();
+  let total = 0;
+
+  for (const block of blocks) {
+    const part = MUSCLE_TO_BODY_PART[block.exercise.primaryMuscle];
+
+    for (const set of block.sets) {
+      if (!set.isCompleted || set.setType === 'warmup') continue;
+      byPart.set(part, (byPart.get(part) ?? 0) + 1);
+      total += 1;
+    }
+  }
+
+  if (total === 0) return [];
+
+  return [...byPart]
+    .map(([bodyPart, sets]) => ({ bodyPart, sets, share: sets / total }))
+    .sort((a, b) => b.sets - a.sets);
+}

@@ -1,23 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
-import {
-  formatDurationShort,
-  formatVolume,
-  formatWeight,
-  isWorkingSet,
-  SET_TYPE_BADGE,
-} from '@lift/shared';
+import { BODY_PART_LABELS, formatDurationShort, formatVolume } from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
 import {
   Button,
   Card,
-  Divider,
   HeaderAction,
   PromptModal,
   Screen,
+  SectionHeader,
   splitMeasure,
   StatBand,
   Text,
@@ -25,6 +19,8 @@ import {
 import { db } from '@/db/client';
 import { touch, trackUpsertCoalesced } from '@/db/mutations';
 import { personalRecords, workouts } from '@/db/schema';
+import { workoutMuscleSplit } from '@/features/analytics/muscle-stats';
+import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import {
   deleteWorkout,
   getWorkoutDetail,
@@ -35,19 +31,12 @@ import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { showAlert, showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
-
-/**
- * The name sits in a `Card` with `gap: spacing.sm`, so the target is grown with
- * slop rather than padding: padding would push the name away from the divider
- * on every exercise card, while slop moves nothing.
- */
-const EXERCISE_TITLE_SLOP = { top: 12, bottom: 12 };
+import { spacing } from '@/theme';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
   const weightUnit = useSettings((state) => state.weightUnit);
+  const distanceUnit = useSettings((state) => state.distanceUnit);
 
   const [detail, setDetail] = useState<WorkoutDetail | null>(null);
   const [prSetIds, setPrSetIds] = useState<Set<string>>(new Set());
@@ -143,6 +132,16 @@ export default function WorkoutDetailScreen() {
     })();
   };
 
+  // Above the loading guard, because hooks cannot be conditional.
+  const split = useMemo<BarDatum[]>(() => {
+    if (!detail) return [];
+
+    return workoutMuscleSplit(detail.exercises).map((slice) => ({
+      label: BODY_PART_LABELS[slice.bodyPart],
+      value: slice.share * 100,
+    }));
+  }, [detail]);
+
   if (!detail) {
     return (
       <Screen>
@@ -196,12 +195,13 @@ export default function WorkoutDetailScreen() {
           </Text>
         </Pressable>
 
-        {/* One stat grammar across the app: hairline rules, overline labels,
-            tabular figures — not 15px numbers in a rounded box, which is what
-            made this session's four figures read differently here than on the
-            summary screen one tap away. Four across a phone is one too many for
-            a single band, so they run as two of two, paired by kind. */}
-        <View>
+        {/* One stat grammar across the app: overline labels over tabular
+            figures — not 15px numbers in a rounded box, which is what made this
+            session's four figures read differently here than on the summary
+            screen one tap away. Four across a phone is one too many for a
+            single band once a six-digit volume is one of them, so they run as
+            two of two, paired by kind, and read as a 2×2 grid. */}
+        <View style={styles.band}>
           <StatBand
             items={[
               { label: 'Duration', value: formatDurationShort(workout.durationSeconds ?? 0) },
@@ -209,7 +209,6 @@ export default function WorkoutDetailScreen() {
             ]}
           />
           <StatBand
-            style={styles.totalsLower}
             items={[
               { label: 'Sets', value: String(workout.totalSets) },
               { label: 'Records', value: String(workout.prCount) },
@@ -225,62 +224,33 @@ export default function WorkoutDetailScreen() {
           </Card>
         ) : null}
 
-        {exercises.map((entry) => {
-          let workingIndex = 0;
+        {/* Percentages of the session's completed working sets, primary muscle
+            only — see `workoutMuscleSplit` for why the secondary discount the
+            statistics screens apply is deliberately not used here. */}
+        {split.length > 0 && (
+          <>
+            <SectionHeader title="Muscle split" />
+            <View style={styles.chart}>
+              <BarChart data={split} formatValue={(value) => `${Math.round(value)}%`} />
+            </View>
+          </>
+        )}
 
-          return (
-            <Card key={entry.workoutExercise.id} style={styles.exerciseCard}>
-              {/* Announced the same way as the block on the active screen, and
-                  set the same way: subheading, no accent. The accent is
-                  budgeted at roughly one element per view (`theme/tokens.ts`)
-                  and this list was spending it once per exercise. The chevron
-                  is what says the name is a link now that the colour doesn't. */}
-              <Pressable
-                style={styles.exerciseTitleRow}
-                hitSlop={EXERCISE_TITLE_SLOP}
-                onPress={() =>
-                  router.push({ pathname: '/exercise/[id]', params: { id: entry.exercise.id } })
-                }
-                accessibilityRole="link"
-                accessibilityLabel={`${entry.exercise.name}, view history and records`}
-              >
-                <Text variant="subheading" color="text" numberOfLines={1} style={styles.flex}>
-                  {entry.exercise.name}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-              </Pressable>
+        <SectionHeader title="Workout" />
 
-              {entry.workoutExercise.notes ? (
-                <Text variant="caption" color="textSecondary">
-                  {entry.workoutExercise.notes}
-                </Text>
-              ) : null}
-
-              <Divider />
-
-              {entry.sets.map((set) => {
-                if (isWorkingSet(set.setType)) workingIndex += 1;
-                const badge = SET_TYPE_BADGE[set.setType];
-                const isPr = prSetIds.has(set.id);
-
-                return (
-                  <View key={set.id} style={styles.setRow}>
-                    <Text variant="label" color="textTertiary" style={styles.setIndex}>
-                      {badge ?? workingIndex}
-                    </Text>
-                    <Text variant="label" style={styles.setValue}>
-                      {set.weightKg != null
-                        ? formatWeight(set.weightKg, weightUnit, { decimals: 1 })
-                        : '—'}
-                      {set.reps != null ? ` × ${set.reps}` : ''}
-                    </Text>
-                    {isPr && <Ionicons name="trophy" size={13} color={colors.record} />}
-                  </View>
-                );
-              })}
-            </Card>
-          );
-        })}
+        {exercises.map((entry) => (
+          <ExerciseSetList
+            key={entry.workoutExercise.id}
+            exerciseId={entry.exercise.id}
+            name={entry.exercise.name}
+            thumbnailUrl={entry.exercise.thumbnailUrl}
+            notes={entry.workoutExercise.notes}
+            sets={entry.sets}
+            recordSetIds={prSetIds}
+            weightUnit={weightUnit}
+            distanceUnit={distanceUnit}
+          />
+        ))}
 
         <View style={styles.repeat}>
           <Button
@@ -314,17 +284,12 @@ export default function WorkoutDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
-  titleBlock: { gap: spacing.xs },
-  // The bands stack, so the second drops its top rule rather than doubling the
-  // first one's bottom.
-  totalsLower: { borderTopWidth: 0 },
-  notes: {},
-  exerciseCard: { gap: spacing.sm },
-  exerciseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  flex: { flex: 1 },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  setIndex: { width: 20 },
-  setValue: { flex: 1 },
-  repeat: { marginTop: spacing.lg, gap: spacing.sm },
+  // No horizontal padding: the set rows stripe edge to edge, so every other
+  // block carries the screen margin itself. See `ExerciseSetList`.
+  content: { paddingBottom: spacing.huge },
+  titleBlock: { gap: spacing.xs, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  band: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  notes: { marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  chart: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  repeat: { margin: spacing.lg, marginTop: spacing.xxl, gap: spacing.sm },
 });

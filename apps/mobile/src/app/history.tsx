@@ -361,7 +361,6 @@ function RangeTotals({
         ]}
       />
       <StatBand
-        style={styles.totalsLower}
         items={[
           { label: 'Volume', value: volume, unit: volumeUnit },
           { label: 'Sets', value: totals ? String(totals.sets) : PENDING },
@@ -529,9 +528,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
   header: { gap: spacing.md, marginBottom: spacing.xs },
-  // The two bands stack directly, so the lower one drops its top rule rather
-  // than doubling up with the upper one's bottom.
-  totalsLower: { borderTopWidth: 0 },
   card: { gap: spacing.md },
   metricTabs: { marginBottom: spacing.xs },
   readout: { gap: 2 },

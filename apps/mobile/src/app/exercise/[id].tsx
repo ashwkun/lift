@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   EQUIPMENT_LABELS,
   formatDistance,
@@ -17,17 +18,17 @@ import {
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { LineChart, type DataPoint } from '@/components/charts/line-chart';
 import {
   Card,
-  Chip,
   Divider,
   EmptyState,
   HeaderAction,
   Screen,
   SectionHeader,
+  SegmentedControl,
   splitMeasure,
   Text,
 } from '@/components/ui';
@@ -42,9 +43,17 @@ import {
 } from '@/db/schema';
 import { ExerciseMedia } from '@/features/exercises/exercise-media';
 import { deleteExercise, getExercise } from '@/features/exercises/repository';
+import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { spacing } from '@/theme';
+import { spacing, useColors } from '@/theme';
+
+type Tab = 'summary' | 'history';
+
+const TABS = [
+  { value: 'summary', label: 'Summary' },
+  { value: 'history', label: 'History' },
+] as const;
 
 interface HistoryEntry {
   workoutId: string;
@@ -120,6 +129,7 @@ export default function ExerciseDetailScreen() {
   const { width } = useWindowDimensions();
   const { weightUnit, distanceUnit, oneRepMaxFormula, bodyweightKg } = useSettings();
 
+  const [tab, setTab] = useState<Tab>('summary');
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [records, setRecords] = useState<{ kind: PrKind; value: number }[]>([]);
@@ -257,138 +267,220 @@ export default function ExerciseDetailScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.media}>
+      {/*
+       * Two tabs, and outside the scroll view so they stay put.
+       *
+       * This screen answers two unrelated questions — what is this movement,
+       * and what have I done with it — and it used to answer both down one
+       * scroll, which meant the demonstration clip, the muscles, the 1RM trend
+       * and the records all stood between someone and the sets they came to
+       * check. Reference above, log below, and the log is one tap away rather
+       * than four scrolls.
+       *
+       * There is no third tab. Hevy's "How to" holds written instructions, and
+       * this app has no instruction text for any of its 6,800 exercises: a tab
+       * that is empty on every row in the catalog is worse than no tab.
+       */}
+      <View style={styles.tabs}>
+        <SegmentedControl options={TABS} value={tab} onChange={setTab} label="View" />
+      </View>
+
+      {tab === 'summary' ? (
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           <ExerciseMedia
             name={exercise.name}
             thumbnailUrl={exercise.thumbnailUrl}
             videoUrl={exercise.videoUrl}
           />
-        </View>
 
-        <View style={styles.chips}>
-          <Chip label={MUSCLE_GROUP_LABELS[exercise.primaryMuscle]} selected />
-          <Chip label={EQUIPMENT_LABELS[exercise.equipment]} />
-          {exercise.secondaryMuscles.map((muscle) => (
-            <Chip key={muscle} label={MUSCLE_GROUP_LABELS[muscle]} />
-          ))}
-        </View>
-
-        {trend && (
-          <>
-            <SectionHeader title="Est. 1RM" />
-            {/* The chart has no scrub gesture and prints only its first and last
-                x labels, so the answer is stated above it. The reading you want
-                — where you are now, and how far that is from where the line
-                starts — should not require touching anything. */}
-            <View style={styles.trend}>
-              <Text variant="numericLarge" numberOfLines={1}>
-                {trendFigure}
-                {trendUnit ? (
-                  <Text variant="label" color="textTertiary">{` ${trendUnit}`}</Text>
-                ) : null}
-              </Text>
-              <Text variant="label" color="textSecondary">
-                {describeChange(trend, weightUnit)}
-              </Text>
-            </View>
-
-            <View style={styles.chart}>
-              <LineChart
-                data={trend.points}
-                width={width - spacing.lg * 2}
-                height={160}
-                formatValue={(value) =>
-                  formatWeight(value, weightUnit, { withUnit: false, decimals: 0 })
-                }
-                formatLabel={(x) =>
-                  new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-                }
+          {/*
+           * Named muscles rather than a row of chips.
+           *
+           * Chips are a control shape — the picker's filters are chips, and so
+           * are the set-type selectors — so a row of them here read as five
+           * things to tap that did nothing. "Primary: Biceps" is the same fact
+           * in the form it is actually read: a label and a value.
+           */}
+          <View style={styles.facts}>
+            <Fact label="Primary" value={MUSCLE_GROUP_LABELS[exercise.primaryMuscle]} />
+            {exercise.secondaryMuscles.length > 0 && (
+              <Fact
+                label="Secondary"
+                value={exercise.secondaryMuscles
+                  .map((muscle) => MUSCLE_GROUP_LABELS[muscle])
+                  .join(', ')}
               />
-            </View>
+            )}
+            <Fact label="Equipment" value={EQUIPMENT_LABELS[exercise.equipment]} />
+          </View>
 
-            <Text variant="caption" color="textTertiary" style={styles.hint}>
-              A one-rep max estimated from the heaviest working set of each session, not a max you
-              have tested.
-            </Text>
-          </>
-        )}
+          {trend && (
+            <>
+              <SectionHeader title="Est. 1RM" />
+              {/* The chart has no scrub gesture and prints only its first and
+                  last x labels, so the answer is stated above it. The reading
+                  you want — where you are now, and how far that is from where
+                  the line starts — should not require touching anything. */}
+              <View style={styles.trend}>
+                <Text variant="numericLarge" numberOfLines={1}>
+                  {trendFigure}
+                  {trendUnit ? (
+                    <Text variant="label" color="textTertiary">{` ${trendUnit}`}</Text>
+                  ) : null}
+                </Text>
+                <Text variant="label" color="textSecondary">
+                  {describeChange(trend, weightUnit)}
+                </Text>
+              </View>
 
-        {records.length > 0 && (
-          <>
-            <SectionHeader title="Personal records" />
-            <Card style={styles.card}>
-              {records.map((record) => (
-                <View key={record.kind} style={styles.recordRow}>
-                  <Text variant="label" color="textSecondary">
-                    {PR_KIND_LABELS[record.kind]}
-                  </Text>
-                  <Text variant="numeric" color="record">
-                    {formatRecord(record.kind, record.value, weightUnit, distanceUnit)}
-                  </Text>
-                </View>
-              ))}
-            </Card>
-          </>
-        )}
+              <View style={styles.chart}>
+                <LineChart
+                  data={trend.points}
+                  width={width - spacing.lg * 2}
+                  height={160}
+                  formatValue={(value) =>
+                    formatWeight(value, weightUnit, { withUnit: false, decimals: 0 })
+                  }
+                  formatLabel={(x) =>
+                    new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+                  }
+                />
+              </View>
 
-        {repMaxes.size > 0 && (
-          <>
-            <SectionHeader title="Rep maxes" />
-            <Card style={styles.card}>
-              {[...repMaxes]
-                .sort((a, b) => a[0] - b[0])
-                .map(([reps, weight]) => (
-                  <View key={reps} style={styles.recordRow}>
+              <Text variant="caption" color="textTertiary" style={styles.hint}>
+                A one-rep max estimated from the heaviest working set of each session, not a max you
+                have tested.
+              </Text>
+            </>
+          )}
+
+          {records.length > 0 && (
+            <>
+              <SectionHeader title="Personal records" />
+              <Card style={styles.card}>
+                {records.map((record) => (
+                  <View key={record.kind} style={styles.recordRow}>
                     <Text variant="label" color="textSecondary">
-                      {reps} {reps === 1 ? 'rep' : 'reps'}
+                      {PR_KIND_LABELS[record.kind]}
                     </Text>
-                    <Text variant="numeric">
-                      {formatWeight(weight, weightUnit, { decimals: 1 })}
+                    <Text variant="numeric" color="record">
+                      {formatRecord(record.kind, record.value, weightUnit, distanceUnit)}
                     </Text>
                   </View>
                 ))}
-            </Card>
-          </>
-        )}
+              </Card>
+            </>
+          )}
 
-        <SectionHeader title="History" />
-        {history.length === 0 ? (
-          <EmptyState
-            icon="time-outline"
-            title="No history yet"
-            description="Sets you log for this exercise appear here."
-          />
-        ) : (
-          history.map((entry) => (
-            <Card key={entry.workoutId} style={styles.historyCard}>
-              <View style={styles.historyHeader}>
-                <Text variant="bodyMedium" numberOfLines={1} style={styles.flex}>
-                  {entry.workoutName}
-                </Text>
-                <Text variant="caption" color="textTertiary">
-                  {entry.performedAt.toLocaleDateString()}
-                </Text>
+          {repMaxes.size > 0 && (
+            <>
+              <SectionHeader title="Rep maxes" />
+              <Card style={styles.card}>
+                {[...repMaxes]
+                  .sort((a, b) => a[0] - b[0])
+                  .map(([reps, weight]) => (
+                    <View key={reps} style={styles.recordRow}>
+                      <Text variant="label" color="textSecondary">
+                        {reps} {reps === 1 ? 'rep' : 'reps'}
+                      </Text>
+                      <Text variant="numeric">
+                        {formatWeight(weight, weightUnit, { decimals: 1 })}
+                      </Text>
+                    </View>
+                  ))}
+              </Card>
+            </>
+          )}
+        </ScrollView>
+      ) : (
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          {history.length === 0 ? (
+            <EmptyState
+              icon="time-outline"
+              title="No history yet"
+              description="Sets you log for this exercise appear here."
+            />
+          ) : (
+            history.map((entry, index) => (
+              <View key={entry.workoutId}>
+                {/* Between sessions, not after every one — a rule under the
+                    last entry is a line drawn across the bottom of the list. */}
+                {index > 0 && <Divider />}
+                <SessionHeader
+                  name={entry.workoutName}
+                  performedAt={entry.performedAt}
+                  onPress={() =>
+                    router.push({ pathname: '/workout/[id]', params: { id: entry.workoutId } })
+                  }
+                />
+                {/* No `exerciseId`: the link would lead back to this screen. */}
+                <ExerciseSetList
+                  name={exercise.name}
+                  thumbnailUrl={exercise.thumbnailUrl}
+                  sets={entry.sets}
+                  weightUnit={weightUnit}
+                  distanceUnit={distanceUnit}
+                />
               </View>
-              <Divider />
-              {entry.sets.map((set, index) => (
-                <View key={set.id} style={styles.historySet}>
-                  <Text variant="label" color="textTertiary">
-                    {index + 1}
-                  </Text>
-                  <Text variant="label">
-                    {set.weightKg != null
-                      ? formatWeight(set.weightKg, weightUnit, { decimals: 1 })
-                      : '—'}
-                    {set.reps != null ? ` × ${set.reps}` : ''}
-                  </Text>
-                </View>
-              ))}
-            </Card>
-          ))
-        )}
-      </ScrollView>
+            ))
+          )}
+        </ScrollView>
+      )}
     </Screen>
+  );
+}
+
+/** A label and its value on one line — the muscle and equipment facts. */
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.fact}>
+      <Text variant="label" color="textTertiary" style={styles.factLabel}>
+        {label}
+      </Text>
+      <Text variant="label" style={styles.flex}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/** Which session the sets below it came from, and a way into it. */
+function SessionHeader({
+  name,
+  performedAt,
+  onPress,
+}: {
+  name: string;
+  performedAt: Date;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+
+  const when = performedAt.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={`${name}, ${when}, open workout`}
+      style={styles.sessionHeader}
+    >
+      <View style={styles.flex}>
+        <Text variant="bodyMedium" numberOfLines={1}>
+          {name}
+        </Text>
+        <Text variant="caption" color="textTertiary">
+          {when}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+    </Pressable>
   );
 }
 
@@ -415,21 +507,27 @@ function formatRecord(
 }
 
 const styles = StyleSheet.create({
+  tabs: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  // The tab bar is a fixed sibling, so the scroller has to claim what is left
+  // rather than sizing itself to its content and running off the screen.
+  scroll: { flex: 1 },
+  // No horizontal padding: the set rows on the History tab stripe edge to edge,
+  // and the media panel on Summary runs the full width. See `ExerciseSetList`.
   content: { paddingBottom: spacing.huge },
-  media: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
+  facts: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.xs },
+  fact: { flexDirection: 'row', gap: spacing.sm },
+  factLabel: { width: 76 },
   trend: { paddingHorizontal: spacing.lg, gap: 2 },
   chart: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   hint: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   card: { marginHorizontal: spacing.lg, gap: spacing.sm },
   recordRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
-  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
-  historySet: { flexDirection: 'row', gap: spacing.lg },
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+  },
   flex: { flex: 1 },
 });

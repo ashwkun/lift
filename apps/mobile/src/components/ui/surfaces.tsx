@@ -248,7 +248,7 @@ export interface StatBandProps {
 }
 
 /**
- * A row of figures, ruled rather than boxed.
+ * A row of figures, unruled and unboxed.
  *
  * This replaces a row of tiles — rounded card, tinted circle, icon, number,
  * grey caption — which is the single most generic component in mobile design
@@ -262,23 +262,23 @@ export interface StatBandProps {
  * What is left is the data. Labels sit above their figures, tracked and
  * uppercase, the way a table heads its columns; the figures are tabular so
  * they align down the row; units are set small and quiet so "184.2k" reads as
- * the number and "kg" as its annotation. Hairline rules above, below and
- * between are the whole chrome budget. The first label aligns to the screen's
- * left margin, so the band sits on the same grid as every section header
- * rather than floating in a card of its own.
+ * the number and "kg" as its annotation. The first label aligns to the screen's
+ * left margin, so the band sits on the same grid as every section header.
+ *
+ * The rules are gone — hairlines above, below and between every column. Three
+ * figures set in columns, on a shared baseline, under uppercase labels already
+ * read as a table; the rules boxed that table in and made a band of two stacked
+ * ones read as a grid drawn in chrome. Anything that needs a band separated
+ * from what follows it can place a `Divider`, which is a decision the screen
+ * makes rather than one every band carries.
  */
 export function StatBand({ items, style }: StatBandProps) {
   const colors = useColors();
 
   return (
-    <View style={[styles.statBand, { borderColor: colors.border }, style]}>
+    <View style={[styles.statBand, style]}>
       {items.map((item, index) => (
         <View key={item.label} style={[styles.statColumn, index > 0 && styles.statColumnInner]}>
-          {/* Absolute, so the rule sits *on* the column boundary and takes no
-              width from the row — in flow it stole its own width plus its
-              margin from every column but the first, and the columns stopped
-              being equal. */}
-          {index > 0 && <View style={[styles.statRule, { backgroundColor: colors.border }]} />}
           <Text variant="overline" color="textTertiary" numberOfLines={1}>
             {item.label}
           </Text>
@@ -512,15 +512,12 @@ const styles = StyleSheet.create({
   statBand: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    paddingVertical: spacing.lg,
-    borderTopWidth: stroke.rule,
-    borderBottomWidth: stroke.rule,
+    paddingVertical: spacing.md,
   },
   // Equal columns, with the first flush to the screen margin so the band sits
   // on the same grid as the section headers above and below it.
   statColumn: { flex: 1, gap: spacing.xs, paddingRight: spacing.lg },
   statColumnInner: { paddingLeft: spacing.lg },
-  statRule: { position: 'absolute', left: 0, top: 0, bottom: 0, width: stroke.rule },
   statValue: {
     // One size, whether the band holds two figures or four.
     //

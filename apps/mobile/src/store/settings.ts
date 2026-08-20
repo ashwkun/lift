@@ -8,6 +8,7 @@
  */
 
 import {
+  defaultBarKg,
   USES_BODYWEIGHT,
   type DistanceUnit,
   type MeasurementUnit,
@@ -93,7 +94,10 @@ export const DEFAULT_SETTINGS: Settings = {
   keepAwakeDuringWorkout: true,
 
   oneRepMaxFormula: 'brzycki',
-  barWeightKg: 20,
+  // Read from the same place `update` reads it, so "still the default" is a
+  // comparison against one constant rather than against a literal that has to
+  // be kept in step with `packages/shared/src/plates.ts` by hand.
+  barWeightKg: defaultBarKg('kg'),
   firstDayOfWeek: 1,
 
   bodyweightKg: null,
@@ -153,7 +157,31 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   },
 
   update: (key, value) => {
-    set({ [key]: value } as Pick<Settings, typeof key>);
+    const patch: Partial<Settings> = { [key]: value };
+
+    /*
+     * Switching weight units brings the bar with them — but only while it is
+     * still whichever default it arrived as.
+     *
+     * A kg gym's bar is 20 kg and a lb gym's is 45 lb, and those are different
+     * bars, not one bar described twice. Leaving the stored 20 kg alone when
+     * someone switched to lb gave them a "44.09 lb" bar: an oddly precise
+     * number that is wrong in every gym on that side of the Atlantic, sitting
+     * under a plate calculator that then solved for the wrong remainder.
+     *
+     * Guarded on the old default rather than applied unconditionally, because
+     * the alternative is silently overwriting a real preference. Someone who
+     * set a 15 kg bar meant it, and a unit switch is not a request to forget
+     * that — they get their 15 kg bar rendered as 33.07 lb, which is at least
+     * the bar they own.
+     */
+    if (key === 'weightUnit') {
+      const to = value as WeightUnit;
+      const from: WeightUnit = to === 'kg' ? 'lb' : 'kg';
+      if (get().barWeightKg === defaultBarKg(from)) patch.barWeightKg = defaultBarKg(to);
+    }
+
+    set(patch as Pick<Settings, typeof key>);
     void persist(get());
   },
 

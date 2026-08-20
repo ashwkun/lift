@@ -1,10 +1,9 @@
 import { formatDurationShort, formatVolume } from '@lift/shared';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
-import { LineChart } from '@/components/charts/line-chart';
 import {
   Button,
   Card,
@@ -42,7 +41,6 @@ const BODY_PART_LABELS: Record<string, string> = {
 };
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -78,10 +76,6 @@ export default function HomeScreen() {
     }, []),
   );
 
-  // Screen width less the page margin. The charts are unboxed, so they measure
-  // against the same gutter as every other element here.
-  const chartWidth = width - spacing.lg * 2;
-
   /*
    * Hold the frame until the first aggregate lands, and then show the
    * dashboard whatever it says.
@@ -105,7 +99,21 @@ export default function HomeScreen() {
     formatVolume(stats.thisWeekVolumeKg, weightUnit),
   );
 
-  const volumeData = weekly.map((point) => ({ x: point.weekStart, y: point.volumeKg }));
+  // Labelled at month boundaries rather than per week. Twelve columns across a
+  // phone leaves each one about 25pt, which fits neither "18 Aug" nor "Aug 18";
+  // three or four month names over the run say where in the year the bars are,
+  // which is the only thing the x axis is being asked here.
+  const volumeData: BarDatum[] = weekly.map((point, index) => {
+    const week = new Date(point.weekStart);
+    const previous = index > 0 ? new Date(weekly[index - 1]!.weekStart) : null;
+    const startsMonth = !previous || previous.getMonth() !== week.getMonth();
+
+    return {
+      label: startsMonth ? week.toLocaleDateString(undefined, { month: 'short' }) : '',
+      value: point.volumeKg,
+    };
+  });
+
   const distributionData: BarDatum[] = distribution.map((entry) => ({
     label: BODY_PART_LABELS[entry.bodyPart] ?? entry.bodyPart,
     value: entry.sets,
@@ -191,14 +199,19 @@ export default function HomeScreen() {
          */}
         <Reveal index={1}>
           <SectionHeader title="Volume · last 12 weeks" />
+          {/* Columns, not a line. A week's volume is a quantity that was either
+              banked or wasn't — it does not vary continuously between Sunday
+              and Monday, and a line drawn through twelve of them invents a
+              slope across the gap where the reading is simply the next week.
+              Bars also make a missed week read as what it is, a gap on the
+              floor, where the line just leaned through it. */}
           <View style={styles.chart}>
-            <LineChart
+            <BarChart
               data={volumeData}
-              width={chartWidth}
-              formatValue={(value) => formatVolume(value, weightUnit).replace(` ${weightUnit}`, '')}
-              formatLabel={(x) =>
-                new Date(x).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-              }
+              horizontal={false}
+              valueAxis
+              height={180}
+              formatValue={(value) => formatVolume(value, weightUnit, { withUnit: false })}
             />
           </View>
         </Reveal>
