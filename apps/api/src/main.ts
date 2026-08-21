@@ -51,6 +51,26 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`Lift API listening on :${port}`);
+
+  /*
+   * Said out loud at boot, because getting it wrong is invisible from here.
+   *
+   * A browser whose origin is missing from this list is refused by the CORS
+   * middleware above and again by better-auth, and the only place either
+   * refusal appears is that browser's console — as a CORS error, which reads
+   * as a networking problem rather than as a list this server was started
+   * with. The phone app never exercises it: a native fetch sends no Origin,
+   * so the whole path stays untested until the day the web app is deployed.
+   *
+   * The empty case is worth its own line rather than an empty one. It does not
+   * mean "no origins": `enableCors` falls back to reflecting whatever asked,
+   * with credentials, which is every origin on the internet.
+   */
+  logger.log(
+    trustedOrigins.length > 0
+      ? `Trusted origins: ${trustedOrigins.join(', ')}`
+      : 'Trusted origins: none set — every origin is allowed. Set TRUSTED_ORIGINS.',
+  );
 }
 
 bootstrap().catch((error) => {
