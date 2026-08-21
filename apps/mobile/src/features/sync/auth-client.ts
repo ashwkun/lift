@@ -53,8 +53,34 @@ export function resolveApiUrl(): string {
 
 export const API_URL = resolveApiUrl();
 
+/**
+ * Where the signed session token is kept, for the Authorization header.
+ *
+ * The Expo plugin does not put it here — or anywhere, on the web. Its storage
+ * hook opens with `if (isWeb) return`, because in a browser it expects the
+ * cookie jar to do the job, so `getCookie()` there returns an empty string
+ * forever. The server's `bearer()` plugin hands the same token back in a
+ * `set-auth-token` response header on any response that sets the session
+ * cookie, and that header *is* readable cross-origin — it adds itself to
+ * `Access-Control-Expose-Headers`. So this is where it gets kept.
+ */
+const SESSION_TOKEN_KEY = 'lift_session_token';
+
 export const authClient = createAuthClient({
   baseURL: `${API_URL}/api/auth`,
+  fetchOptions: {
+    onSuccess: (context) => {
+      // Cleared on the way out rather than left to expire, so a shared browser
+      // does not keep a usable token in localStorage after someone signs out.
+      if (context.request.url.toString().includes('/sign-out')) {
+        tokenStorage.setItem(SESSION_TOKEN_KEY, '');
+        return;
+      }
+
+      const token = context.response.headers.get('set-auth-token');
+      if (token) tokenStorage.setItem(SESSION_TOKEN_KEY, token);
+    },
+  },
   plugins: [
     expoClient({
       scheme: 'lift',
@@ -71,19 +97,40 @@ export const { signIn, signUp, signOut, useSession, getSession } = authClient;
  * Returns null when signed out — sync then stays local-only.
  */
 export async function getSessionToken(): Promise<string | null> {
-  return readToken('lift_session_token');
+  return (await readToken(SESSION_TOKEN_KEY)) || null;
 }
 
-/** Authenticated fetch against the sync API. */
+/**
+ * Authenticated fetch against the sync API.
+ *
+ * Three ways of proving who is calling, because the platforms do not agree on
+ * which of them exists.
+ *
+ * **Bearer** is the one that works everywhere, and it is why the server enables
+ * better-auth's `bearer` plugin. It is also the only one that survives the app
+ * and the API being on unrelated domains.
+ *
+ * **`credentials: 'include'`** is what lets a browser attach the session cookie
+ * it already holds for the API's origin. Every call the auth client makes has
+ * had this from the start — better-auth's own config sets it — and this one
+ * request did not, which is the whole reason a signed-in browser was getting
+ * 401s from sync while sign-in itself worked.
+ *
+ * **The `Cookie` header** is native-only, and not by preference: `Cookie` is a
+ * forbidden header name in browsers, so `fetch` strips it without a word.
+ * React Native's fetch is not a browser's and does send it, which is what has
+ * been authenticating the phone app all along.
+ */
 export async function apiFetch<T>(path: string, body: unknown): Promise<T> {
-  const cookie = authClient.getCookie();
+  const token = await getSessionToken();
+  const cookie = Platform.OS === 'web' ? null : authClient.getCookie();
 
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      // The Expo plugin manages a cookie string; the server also accepts a
-      // Bearer token, and sending the cookie keeps both paths working.
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(cookie ? { Cookie: cookie } : {}),
     },
     body: JSON.stringify(body),
