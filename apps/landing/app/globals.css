@@ -1,0 +1,410 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * The landing page runs the app's own AMOLED palette, values copied verbatim
+ * from `apps/mobile/src/theme/tokens.ts`.
+ *
+ * They are kept as hex rather than converted to OKLCH on purpose. Every one of
+ * them was measured against the surfaces it actually prints on — see
+ * `docs/palette-retune.md` and `scripts/audit-palette.mjs`, which parses that
+ * file and runs 82 contrast checks. A conversion here would put a second,
+ * unaudited copy of the palette in a second colour space, and the two would
+ * drift the first time either moved.
+ *
+ * There is no light theme and no toggle. The product is a true-black app with
+ * one saturated colour in it; a page that can be turned beige is not selling
+ * the same thing.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Neutral ramp: #000 → 0C → 16 → 1E → 26. */
+  --ink: #000000;
+  --surface: #0c0c0f;
+  --surface-2: #16161a;
+  --surface-3: #1e1e24;
+  --surface-4: #26262e;
+  --line: #22222a;
+  --line-strong: #3a3a46;
+
+  /* #F5F5F7 rather than white: pure white blooms on OLED. */
+  --fg: #f5f5f7;
+  --fg-2: #a1a1ac;
+  --fg-3: #84848f;
+
+  /*
+   * The one saturated colour, and the invariant that keeps it readable as
+   * *the* accent: it outranks every other role in relative luminance.
+   * volt 0.783 · record 0.593 · signal 0.466 · warn 0.377 · alarm 0.260.
+   */
+  --volt: #d2f34b;
+  --volt-deep: #b6d634;
+  --volt-ink: #12180a;
+  --volt-tint: rgb(210 243 75 / 0.15);
+
+  --record: #f5c445;
+  --signal: #63cc5a;
+  --warn: #e8913c;
+  --alarm: #ec5a62;
+
+  /*
+   * The calendar's volume ramp, lifted rather than eyeballed: these are
+   * `mix(surfaceMuted, accent, f)` for f in 0.38 / 0.58 / 0.77 / 0.96, the
+   * stops in `features/analytics/month-grid.tsx`. The top stops short of the
+   * raw accent so the busiest day reads as the end of a scale, not a button.
+   */
+  --vol-1: #626f33;
+  --vol-2: #869a3b;
+  --vol-3: #a9c242;
+  --vol-4: #cbea49;
+
+  /* shadcn semantics, pointed at the ramp above. */
+  --background: var(--ink);
+  --foreground: var(--fg);
+  --card: var(--surface);
+  --card-foreground: var(--fg);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--fg);
+  --primary: var(--volt);
+  --primary-foreground: var(--volt-ink);
+  --secondary: var(--surface-3);
+  --secondary-foreground: var(--fg);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--fg-2);
+  /* shadcn's `accent` is a hover fill, not the brand accent. Keep it neutral. */
+  --accent: var(--surface-3);
+  --accent-foreground: var(--fg);
+  --destructive: var(--alarm);
+  --border: var(--line);
+  --input: var(--surface-3);
+  --ring: var(--volt);
+
+  /* radius.lg from the app's token scale. */
+  --radius: 0.875rem;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+
+  --color-volt: var(--volt);
+  --color-volt-deep: var(--volt-deep);
+  --color-volt-ink: var(--volt-ink);
+  --color-volt-tint: var(--volt-tint);
+  --color-record: var(--record);
+  --color-signal: var(--signal);
+  --color-warn: var(--warn);
+  --color-alarm: var(--alarm);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-azeret);
+  --font-heading: var(--font-archivo);
+
+  --radius-sm: calc(var(--radius) * 0.45);
+  --radius-md: calc(var(--radius) * 0.72);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.45);
+  --radius-2xl: calc(var(--radius) * 1.85);
+  --radius-3xl: calc(var(--radius) * 2.3);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /*
+   * Ease-out only. A landing page has nothing to bounce about, and the app it
+   * is selling gates every animation it has behind reduced-motion.
+   */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+    /*
+     * Archivo's width axis is the whole reason it is here. The page runs
+     * slightly narrow for body copy and pushes wide for headlines, which is
+     * how it lands near the app's own typeface without shipping a licence it
+     * does not have.
+     */
+    font-stretch: 96%;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    /* The sticky header is 64px; anchored sections stop below it, not under it. */
+    scroll-padding-top: 5rem;
+    /* A default light scrollbar down the side of a true-black page is a seam. */
+    scrollbar-color: var(--line-strong) var(--ink);
+  }
+
+  body {
+    @apply bg-ink text-fg;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * `pretty` rather than `balance`. Balance evens out line lengths across the
+   * whole block, which is right for two-line headlines and wrong for a
+   * paragraph: it re-flows every line to fix the last one. This only pulls
+   * orphans off the final line and leaves the rest alone.
+   */
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--volt);
+    color: var(--volt-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--volt);
+    outline-offset: 3px;
+  }
+
+  /*
+   * Lime on lime is not a focus ring. The download slab is the one surface on
+   * the page whose ground is the accent, and it carries the two most important
+   * links on it, so the ring flips to the same near-black their labels use.
+   */
+  .on-volt :focus-visible {
+    outline-color: var(--volt-ink);
+  }
+
+  /*
+   * `Reveal` starts its children at zero opacity and waits for an
+   * IntersectionObserver. With scripting off that observer never fires, so the
+   * whole page below the hero would be blank. This is the fallback, not a
+   * nicety.
+   */
+  @media (scripting: none) {
+    [data-reveal] {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/*
+ * The hero's entrance. Deliberately not an IntersectionObserver: it is already
+ * on screen at load, so it animates on the one thing that has actually
+ * happened. Everything below the fold waits to be scrolled to.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@layer components {
+  .rise {
+    animation: rise 0.85s var(--ease-out-quint) both;
+  }
+
+  .draw {
+    transform-origin: left;
+    animation: draw 1.1s var(--ease-out-quint) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rise,
+    .draw {
+      animation: none;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * The page's one measure. Every section sits in this, so the gutters and the
+   * left edge of the type line up down the whole scroll, and widening the page
+   * is one number rather than a find-and-replace across nine files.
+   *
+   * 88rem rather than Tailwind's 7xl: on a 1920 monitor an 80rem column leaves
+   * a 320px margin either side, and the hero starts reading as a screenshot of
+   * a smaller page. The gutter grows with the viewport for the same reason.
+   */
+  .shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 88rem;
+    padding-inline: 1.25rem;
+  }
+
+  @media (width >= 40rem) {
+    .shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  @media (width >= 64rem) {
+    .shell {
+      padding-inline: 3rem;
+    }
+  }
+
+  /*
+   * A link that grows its own underline from the left rather than switching one
+   * on. `text-decoration` cannot be animated, and a border that appears on
+   * hover changes the line box, so this is a pseudo-element scaled on the X
+   * axis: no layout property moves.
+   */
+  .underline-draw {
+    position: relative;
+  }
+
+  .underline-draw::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -0.35em;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.35s var(--ease-out-quint);
+  }
+
+  .underline-draw:hover::after,
+  .underline-draw:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .underline-draw::after {
+      transition: none;
+    }
+  }
+
+  /*
+   * One physical pixel, for straight lines only. The app draws its dividers
+   * this way and the reasoning carries over: a hairline lands square on the
+   * pixel grid, so it stays crisp at any density.
+   */
+  .rule {
+    border-color: var(--line);
+    border-width: 0;
+    border-top-width: 1px;
+  }
+
+  /* Headline setting: wide, heavy, tight. */
+  .display {
+    font-stretch: 112%;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 0.94;
+  }
+
+  /* Small mono labels. Caps, tracked out, never body copy. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-stretch: normal;
+  }
+
+  /* Figures. Tabular so columns of numbers do not reflow as they change. */
+  .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-stretch: normal;
+    letter-spacing: -0.02em;
+  }
+
+  /*
+   * A horizontal run of screens. The scrollbar is styled rather than hidden:
+   * a rail with no visible affordance is a rail half the room never scrolls.
+   */
+  .rail {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  .rail::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .rail::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .rail::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+  }
+
+  /*
+   * The light a phone screen throws on the surface behind it. Not a glow
+   * effect for its own sake: the hero device is the only thing on the page
+   * emitting anything, and on a true-black canvas it otherwise floats with no
+   * relationship to the ground.
+   */
+  .screen-cast {
+    background: radial-gradient(
+      58% 44% at 50% 42%,
+      rgb(210 243 75 / 0.13) 0%,
+      rgb(210 243 75 / 0.04) 42%,
+      transparent 72%
+    );
+  }
+}

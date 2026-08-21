@@ -15,6 +15,7 @@ an account is optional and only adds backup and cross-device sync.
 lift/
 ├── apps/mobile      Expo SDK 57 · React Native 0.86 · expo-router
 ├── apps/api         NestJS 11 · Postgres · better-auth
+├── apps/landing     Next 16 · Tailwind v4 · the marketing page
 └── packages/shared  domain logic — no React, no database, fully tested
 ```
 
@@ -143,6 +144,20 @@ migration step. `pnpm db:generate` writes a new one after a schema change;
 Point the app at it with `EXPO_PUBLIC_API_URL`. If unset, the app derives the
 API host from the Metro address, which is usually what you want on a physical
 device — `localhost` there resolves to the phone.
+
+### Landing page
+
+The marketing page, and the only part of this repository that is not the app.
+Static, no data of its own, nothing to configure.
+
+```bash
+pnpm landing        # http://localhost:3000
+```
+
+It runs the app's own dark palette, copied out of the theme tokens rather than
+re-picked, and draws the mark from the same geometry `scripts/generate-brand.sh`
+does. `apps/landing/README.md` says where each piece comes from and what to
+re-run when the mark or the screenshots change.
 
 ## Testing
 
