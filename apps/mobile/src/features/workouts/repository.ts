@@ -8,10 +8,12 @@
 
 import {
   detectPrs,
+  isWorkingSet,
   summarizeSets,
   TRACKING_FIELDS,
   uuidv7,
   type AnalyticsContext,
+  type ExerciseSession,
   type PositionedRow,
   type PrKind,
   type SetLike,
@@ -853,11 +855,28 @@ export interface PreviousPerformance {
    * app already knew this and threw it away every time the screen loaded.
    */
   note: string | null;
+  /**
+   * The same window of sessions the note is drawn from, newest first, each
+   * holding the completed **working** sets it logged — what `suggestProgression`
+   * reads.
+   *
+   * `sets` above is one session and every class of set in it, because it feeds
+   * the Previous column, which pairs warm-ups against warm-ups. This is that
+   * window widened and narrowed at once: several sessions, working sets only.
+   * A stall is a run of sessions that failed to beat the one before, and nothing
+   * can see one from a single session — which is all the app was reading here,
+   * having already paid for the query that found the others.
+   *
+   * Sessions that completed no working set are left out rather than carried as
+   * empties: an exercise opened and abandoned is not evidence either way, and
+   * an empty session in the middle of the run would read as a failed one.
+   */
+  sessions: ExerciseSession[];
 }
 
 /**
- * What happened last time: the sets to fill the "previous" column, and the note
- * to put back in front of the user.
+ * What happened last time: the sets to fill the "previous" column, the note to
+ * put back in front of the user, and the run of sessions behind both.
  */
 export async function getPreviousPerformance(
   exerciseId: string,
@@ -892,21 +911,44 @@ export async function getPreviousPerformance(
   // usually different, and the older one is still the standing instruction.
   const note = earlier.find((link) => link.notes)?.notes ?? null;
 
-  if (!candidate) return { sets: [], note };
+  if (!candidate) return { sets: [], note, sessions: [] };
 
-  const sets = await db
+  // One statement for the whole window rather than one per session. This runs
+  // for every exercise in the session the moment the logging screen opens, so
+  // a query per link is five round trips per block before anything is painted —
+  // and the widest case, five sessions, is exactly the one where the engine has
+  // something to say.
+  const setRows = await db
     .select()
     .from(workoutSets)
     .where(
       and(
-        eq(workoutSets.workoutExerciseId, candidate.id),
+        inArray(workoutSets.workoutExerciseId, earlier.map((link) => link.id)),
         eq(workoutSets.isCompleted, true),
         isNull(workoutSets.deletedAt),
       ),
     )
     .orderBy(workoutSets.position);
 
-  return { sets, note };
+  const byLink = new Map<string, WorkoutSet[]>();
+  for (const set of setRows) {
+    const bucket = byLink.get(set.workoutExerciseId);
+    if (bucket) bucket.push(set);
+    else byLink.set(set.workoutExerciseId, [set]);
+  }
+
+  const sessions: ExerciseSession[] = [];
+  for (const link of earlier) {
+    const working = (byLink.get(link.id) ?? []).filter((set) => isWorkingSet(set.setType));
+    if (working.length > 0) sessions.push({ startedAt: link.startedAt.getTime(), sets: working });
+  }
+
+  // Unchanged, and deliberately so: the newest earlier session, every class of
+  // set it completed, in position order. The Previous column and the numbers a
+  // bare check-off commits are both built from this.
+  const sets = byLink.get(candidate.id) ?? [];
+
+  return { sets, note, sessions };
 }
 
 // ---------------------------------------------------------------------------

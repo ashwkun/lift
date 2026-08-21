@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   formatDuration,
+  isWorkingSet,
   reorder,
   TRACKING_FIELDS,
   type PositionedRow,
@@ -33,6 +34,8 @@ import {
 import { db } from '@/db/client';
 import {
   exercises as exercisesTable,
+  routineExercises,
+  routineSets,
   workoutExercises,
   workoutSets,
   workouts,
@@ -71,6 +74,7 @@ import {
   type SetInput,
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
+import type { ProgressionInput } from '@/features/workouts/suggestion';
 import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
@@ -224,6 +228,73 @@ export default function ActiveWorkoutScreen() {
       cancelled = true;
     };
   }, [exerciseIdKey, workoutId]);
+
+  /*
+   * What the routine asks for, when the session was started from one.
+   *
+   * The rep range a suggestion works in is otherwise read back out of what the
+   * user has been doing (`inferRepRange`), which is right for a session started
+   * from nothing and wrong for one started from a plan: a routine that says
+   * 3 × 5 is not asking to be walked up to twelve because last month's history
+   * happens to read that way. The prescription wins where there is one.
+   *
+   * Live rather than fetched once, only because every other read on this screen
+   * is — the routine tables are not written during a session, so this emits
+   * once and then sits still.
+   */
+  const routineId = workout?.routineId ?? '';
+
+  const { data: routineTargets = [] } = useLiveQuery(
+    db
+      .select({
+        exerciseId: routineExercises.exerciseId,
+        setType: routineSets.setType,
+        targetReps: routineSets.targetReps,
+      })
+      .from(routineSets)
+      .innerJoin(routineExercises, eq(routineSets.routineExerciseId, routineExercises.id))
+      // No routine behind this session is the common case, so it gets the same
+      // sentinel every other query here uses rather than a conditional hook.
+      .where(
+        and(
+          eq(routineExercises.routineId, routineId || '__none__'),
+          isNull(routineExercises.deletedAt),
+          isNull(routineSets.deletedAt),
+        ),
+      )
+      .orderBy(asc(routineSets.position)),
+    [routineId],
+  );
+
+  /**
+   * Everything the progression engine is allowed to see, per exercise.
+   *
+   * Assembled here rather than in the block so the block is handed a value and
+   * not a query, and so the session editor — which shares that block — can
+   * simply not pass one. Keyed off the loaded history: an exercise whose
+   * sessions have not arrived yet has no entry, and no line renders.
+   */
+  const progressionByExercise = useMemo(() => {
+    const prescribed = new Map<string, number>();
+
+    for (const target of routineTargets) {
+      // Working sets only, and the first one wins. A warm-up's five is not the
+      // range the working sets live in, and "3 × 8" is a routine asking for
+      // eight however many rows it spells that across.
+      if (target.targetReps == null || !isWorkingSet(target.setType)) continue;
+      if (!prescribed.has(target.exerciseId)) prescribed.set(target.exerciseId, target.targetReps);
+    }
+
+    const byExercise: Record<string, ProgressionInput> = {};
+    for (const [exerciseId, previous] of Object.entries(previousByExercise)) {
+      byExercise[exerciseId] = {
+        sessions: previous.sessions,
+        targetReps: prescribed.get(exerciseId) ?? null,
+      };
+    }
+
+    return byExercise;
+  }, [previousByExercise, routineTargets]);
 
   /*
    * The slot a picker trip is meant to replace, when it is one.
@@ -769,6 +840,7 @@ export default function ActiveWorkoutScreen() {
                 detail={detail}
                 previousSets={previousByExercise[detail.exercise.id]?.sets ?? []}
                 previousNote={previousByExercise[detail.exercise.id]?.note ?? null}
+                progression={progressionByExercise[detail.exercise.id]}
                 onAddSet={() => {
                   // Carry the last set's load forward — the usual case is
                   // repeating the same weight for another set.

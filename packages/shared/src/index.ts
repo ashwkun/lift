@@ -4,6 +4,7 @@ export * from './units.ts';
 export * from './dates.ts';
 export * from './calculations.ts';
 export * from './landmarks.ts';
+export * from './progression.ts';
 export * from './measurements.ts';
 export * from './ordering.ts';
 export * from './plates.ts';

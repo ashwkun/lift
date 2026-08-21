@@ -634,6 +634,12 @@ export default function EditWorkoutScreen() {
                 // session from three weeks ago it would be a suggestion to
                 // annotate the past with something said afterwards.
                 previousNote={null}
+                // And no `progression`, for the same reason turned up one
+                // notch. A target is for a set that has not been performed yet;
+                // this screen is a record of sets that have. Offering to write
+                // 82.5 kg into a session from March would be offering to
+                // falsify it, so the prop is simply not passed and the block
+                // renders no line at all.
                 onAddSet={() => {
                   const last = detail.sets[detail.sets.length - 1];
                   haptics.added();

@@ -5,11 +5,13 @@ import {
   DISTANCE_UNITS,
   formatDuration,
   formatWeight,
+  isWorkingSet,
   nearestLoadable,
   TRACKING_FIELDS,
   WEIGHT_UNITS,
   type DistanceUnit,
   type SetType,
+  type Suggestion,
   type WeightUnit,
 } from '@lift/shared';
 import { useMemo } from 'react';
@@ -27,6 +29,7 @@ import { radius, spacing, stroke, useColors } from '@/theme';
 import { pairWithPrevious } from './previous';
 import { SetRow } from './set-row';
 import { hasRestOverride, resolveRestSeconds, type WorkoutExerciseDetail } from './repository';
+import { suggestForExercise, type ProgressionInput } from './suggestion';
 
 export interface ExerciseBlockProps {
   detail: WorkoutExerciseDetail;
@@ -36,6 +39,17 @@ export interface ExerciseBlockProps {
    * Shown only when this block has no note of its own.
    */
   previousNote?: string | null;
+  /**
+   * What the progression engine gets to read: this exercise's recent sessions,
+   * plus the routine's prescription if the session came from one.
+   *
+   * Optional, and that is the whole opt-in. A session being planned is offered
+   * a target; a session being *corrected* — the editor, months later — is not,
+   * because it is a record of what happened rather than a plan, and there is
+   * nothing left to progress into. That screen passes nothing and no line
+   * renders. See `suggestion.ts`.
+   */
+  progression?: ProgressionInput;
   onAddSet: () => void;
   onUpdateSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onToggleSet: (set: WorkoutSet) => void;
@@ -83,6 +97,7 @@ export function ExerciseBlock({
   detail,
   previousSets,
   previousNote,
+  progression,
   onAddSet,
   onUpdateSet,
   onToggleSet,
@@ -116,6 +131,75 @@ export function ExerciseBlock({
     detail.sets.length > 0 && detail.sets.every((set) => set.isCompleted);
 
   const rows = pairWithPrevious(detail.sets, previousSets);
+
+  /*
+   * What to lift next, from the sessions behind this one.
+   *
+   * `suggestForExercise` resolves the load step, the rep range and the tracking
+   * type, calls the engine, and swallows anything the engine throws — so this
+   * is a suggestion or it is nothing, and the logging screen cannot be taken
+   * down by an opinion about a set. The guard and its reasoning live there,
+   * next to the call it protects.
+   */
+  const suggestion = useMemo(
+    () => (progression ? suggestForExercise(detail, progression) : null),
+    [detail, progression],
+  );
+
+  /*
+   * The sets the suggestion would fill, and the reason the line is tappable
+   * rather than decorative.
+   *
+   * Open working sets only, and only the ordinals the engine spoke about: a set
+   * already checked off is a record and is never rewritten, and a fifth set the
+   * engine said nothing about has no target — inventing one is the mistake
+   * `pairWithPrevious` refuses to make one column over.
+   *
+   * In render rather than memoised, because it also decides whether the line
+   * appears at all: a block with every set logged has nothing left to fill, and
+   * a control that does nothing when pressed is worse than no control.
+   */
+  const suggestedPatches: { setId: string; patch: Partial<WorkoutSet> }[] = [];
+
+  if (suggestion) {
+    const byWorkingIndex = new Map(suggestion.sets.map((entry) => [entry.workingIndex, entry]));
+
+    for (const row of rows) {
+      if (row.set.isCompleted || !isWorkingSet(row.set.setType)) continue;
+
+      const entry = byWorkingIndex.get(row.workingIndex);
+      if (!entry) continue;
+
+      // Only the fields this exercise tracks, and only the ones the engine put
+      // a number in — the same rule `handleCopyPrevious` follows, for the same
+      // reason: a blanket patch writes nulls over what is already typed.
+      const patch: Partial<WorkoutSet> = {};
+      if (fields.weight && entry.weightKg != null) patch.weightKg = entry.weightKg;
+      if (fields.reps && entry.reps != null) patch.reps = entry.reps;
+      if (Object.keys(patch).length === 0) continue;
+
+      suggestedPatches.push({ setId: row.set.id, patch });
+    }
+  }
+
+  const suggestionLine =
+    suggestion && suggestedPatches.length > 0
+      ? describeSuggestion(suggestion, fields, weightUnit)
+      : null;
+
+  /**
+   * The only way a suggested number reaches a set: an explicit press.
+   *
+   * Nothing is pre-filled and no placeholder changes. The Previous column and
+   * the field placeholders still say what was lifted last time, and a bare
+   * check-off still commits exactly that — see `ghostFill`. A heavier weight
+   * sitting in a placeholder would be committed by that same tap, and the log
+   * would then hold a lift nobody performed.
+   */
+  const applySuggestion = () => {
+    haptics.selection();
+    for (const { setId, patch } of suggestedPatches) onUpdateSet(setId, patch);
+  };
 
   // What to load for the set the user is walking to the rack to do. Barbells
   // only: a dumbbell has no per-side arithmetic, and the Smith machine is left
@@ -280,6 +364,30 @@ export function ExerciseBlock({
         </Pressable>
       ) : null}
 
+      {/* What to lift, and why — under the notes and above the table, which is
+          the order the block is read in: what this exercise is, what you told
+          yourself about it, what to aim for, then the numbers.
+
+          Tertiary text on the canvas, exactly like the recalled note directly
+          above it. Not a card, not accented and not a button that looks like
+          one: the accent is budgeted at roughly one element per view
+          (`theme/tokens.ts`) and this screen already spends it on the progress
+          rule and the rest countdown. A suggestion is the app having an
+          opinion, and an opinion should be offered at the volume of a note. */}
+      {suggestionLine && (
+        <Pressable
+          onPress={applySuggestion}
+          style={({ pressed }) => [styles.suggestion, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={suggestionLine.label}
+          accessibilityHint="Fills these numbers into the sets you have not logged yet"
+        >
+          <Text variant="label" color="textTertiary" numberOfLines={2}>
+            {suggestionLine.text}
+          </Text>
+        </Pressable>
+      )}
+
       {/* Column headings. `overline` uppercases and adds tracking, so these are
           written in sentence case — the same rule every other heading follows.
 
@@ -441,6 +549,53 @@ function UnitHeader<T extends string>({
 }
 
 /**
+ * One line for a suggestion: the target, then the sentence that justifies it.
+ *
+ * `Target 82.5 kg × 8 — cleared 12 reps on every set`. The reason is the
+ * engine's own words and arrives sentence case with no trailing period, so it
+ * is printed as given rather than reworded here — one place decides how the app
+ * explains itself.
+ *
+ * The weight is read in the exercise's unit, never in kilograms, because the
+ * whole point of the line is a number the user can walk to the rack and load.
+ * The spoken label is built alongside the printed one rather than derived from
+ * it, for the reason `describePlates` gives: `×` is read out inconsistently, so
+ * a screen reader hears "for 8 reps".
+ *
+ * Null when the target is empty — an engine that has a kind and a reason but no
+ * numbers has nothing to put in front of anyone.
+ */
+function describeSuggestion(
+  suggestion: Suggestion,
+  fields: { weight: boolean; reps: boolean },
+  unit: WeightUnit,
+): { text: string; label: string } | null {
+  // The first working set is the target. The engine may taper the ones after
+  // it, and a heading that recited four sets would be the table below it.
+  const target = suggestion.sets[0];
+  if (!target) return null;
+
+  const parts: string[] = [];
+  const spoken: string[] = [];
+
+  if (fields.weight && target.weightKg != null) {
+    parts.push(formatWeight(target.weightKg, unit));
+    spoken.push(formatWeight(target.weightKg, unit));
+  }
+  if (fields.reps && target.reps != null) {
+    parts.push(parts.length > 0 ? `× ${target.reps}` : `${target.reps} reps`);
+    spoken.push(spoken.length > 0 ? `for ${target.reps} reps` : `${target.reps} reps`);
+  }
+
+  if (parts.length === 0) return null;
+
+  return {
+    text: `Target ${parts.join(' ')} — ${suggestion.reason}`,
+    label: `Suggested target, ${spoken.join(' ')}. ${suggestion.reason}`,
+  };
+}
+
+/**
  * One line of plate maths: the bar, then what goes on each side.
  *
  * Two shapes, because the honest answer has two shapes. When the weight can be
@@ -520,6 +675,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   notes: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  // The same box as a note, because it reads as one: a quiet line on the canvas
+  // between the heading and the table.
+  suggestion: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
   },
