@@ -68,6 +68,41 @@ export function hoverFill(resting: string, pressed: string): string {
   return mix(resting, pressed, 0.5);
 }
 
+/**
+ * The same tint, carrying more or less of itself.
+ *
+ * The complement to everything above it: those take `#rrggbb` and reject the
+ * palette's `rgba(...)` tokens, and this one takes only those. It exists for
+ * the tinted controls — the destructive button is the first — which need a
+ * resting, a hover and a pressed depth of *one* colour without the palette
+ * naming three tokens per role to say it.
+ *
+ * Alpha rather than a blend towards a darker colour, because the tint has to
+ * composite over whatever is behind it. A destructive button sits on the canvas
+ * on one screen and on a card on another, and a hex value baked against one of
+ * those is visibly wrong on the other.
+ *
+ * The result is clamped at 1. Going the other way is unclamped on purpose:
+ * `factor` below 1 is how a caller asks for a fainter version, and there is no
+ * floor worth enforcing.
+ *
+ * A word of warning for anyone reaching for a bigger factor. Strengthening a
+ * tint that a role colour is *printed on* moves the two closer together, so
+ * contrast falls as the fill deepens — the pressed state is the one most likely
+ * to fail. On the dark palette, danger's own label goes under AA at roughly
+ * 1.5×. That is why the destructive button presses mostly through its outline;
+ * see `danger` in `ui/button.tsx`.
+ */
+export function scaleAlpha(color: string, factor: number): string {
+  const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)$/.exec(
+    color,
+  );
+  if (!match) return color;
+
+  const alpha = match[4] === undefined ? 1 : Number(match[4]);
+  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${Math.min(1, alpha * factor)})`;
+}
+
 /** WCAG relative luminance — the perceived lightness a contrast ratio is built on. */
 function relativeLuminance(hex: string): number {
   const channel = (value: number) => {

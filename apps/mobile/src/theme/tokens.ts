@@ -111,34 +111,109 @@ export const darkPalette: Palette = {
   // so the third tier clears AA even on the darkest fill.
   textTertiary: '#84848F',
 
-  // Electric lime — the one saturated colour in the app, and the reason the
-  // dark canvas reads as deliberate rather than absent. It sits at ~78% relative
-  // luminance, so on black it is the brightest thing on screen by a wide margin:
-  // one accent element per view is usually the correct number.
+  /*
+   * Electric lime — the one saturated colour in the app, and the reason the
+   * dark canvas reads as deliberate rather than absent. It sits at ~78%
+   * relative luminance, so on black it is the brightest thing on screen by a
+   * wide margin: one accent element per view is usually the correct number.
+   *
+   * That last sentence only holds if nothing else competes, and for a long time
+   * everything did. The four role colours below ran at 62–100% saturation and
+   * 51–68% lightness — five near-maximum colours, none subordinate — so the
+   * lime was not read as *the* accent, it was read as one of the loud ones.
+   * They are now placed underneath it on purpose. The invariant, worth checking
+   * whenever one of them moves: **`accent` outranks every other role in
+   * relative luminance.** Currently 0.783 against record 0.593, success 0.466,
+   * warning 0.377, danger 0.260.
+   */
   accent: '#D2F34B',
   accentPressed: '#B6D634',
   // 0.15 rather than the 0.16 the other roles use — lime is bright enough that
   // an equal alpha makes the tint read as a filled surface instead of a hint.
   accentSurface: 'rgba(210, 243, 75, 0.15)',
 
-  success: '#34D07A',
-  successPressed: '#26A961',
-  successSurface: 'rgba(52, 208, 122, 0.16)',
+  /*
+   * Yellow-green rather than emerald, and that is the fix for a mismatch you
+   * could see on every completed set.
+   *
+   * A checked-off row tints `accentSurface` — lime, hue 72° — and the check
+   * plate inside it fills `success`, which was #34D07A at hue 147°. Two greens
+   * 75° apart, touching, on the one interaction this app exists to perform.
+   * That gap is the worst of both worlds: too close to read as a deliberate
+   * contrast, too far to read as one family, so the row read as two colours
+   * that had been chosen by different people.
+   *
+   * 115° sits 43° off the lime — far enough that "done" still reads as green
+   * and never as a second accent, close enough that the plate and the row it
+   * sits in belong to the same family. Saturation comes down to 53% against the
+   * lime's 87% for the reason in the block above: this is a confirmation, not
+   * the subject of the screen. 10.32 on the canvas, 9.59 on `surface`, 8.15 on
+   * `surfaceMuted` — the plate's own resting fill.
+   */
+  success: '#63CC5A',
+  successPressed: '#4FAF48',
+  successSurface: 'rgba(99, 204, 90, 0.16)',
 
-  warning: '#FBBF24',
-  warningSurface: 'rgba(251, 191, 36, 0.16)',
+  /*
+   * Burnt orange, not amber — and this is the same collision the light palette
+   * fixed and documented under `record`, which the dark palette never got.
+   *
+   * `warning` was #FBBF24 at hue 43° and `record` was #FFC53D at hue 42°. One
+   * degree apart: a PR badge and a validation warning were, on the primary
+   * palette, the same colour with nothing but their glyph to tell them apart.
+   * Light had already separated them by hue (26° against 50°) precisely because
+   * the PR marker is often a 13px trophy where a lightness step does not
+   * register. Dark now separates them the same way, 30° against 43°.
+   */
+  warning: '#E8913C',
+  warningSurface: 'rgba(232, 145, 60, 0.16)',
 
-  danger: '#FF5A5A',
-  dangerPressed: '#DB3E3E',
-  dangerSurface: 'rgba(255, 90, 90, 0.16)',
+  /*
+   * Pulled off pure red, and its foreground is no longer white.
+   *
+   * #FF5A5A was hue 0° at 100% saturation and 68% lightness — the only role in
+   * the palette sitting on a primary, and the lowest-contrast one at 6.86. It
+   * also blooms on OLED for the same reason pure white text does, which is why
+   * `text` is #F5F5F7 rather than #FFF.
+   *
+   * The white foreground was the real defect. `textOnDanger` measured **3.06**
+   * on it — below AA, on the label of every filled Discard and Delete button in
+   * the app, in a palette whose whole premise is that a role names a foreground
+   * so a filled control cannot pick an unreadable one. It cannot be fixed by
+   * darkening the red either: white only reaches 4.5 around #B3282E, which is a
+   * muddy brick on a true-black canvas.
+   *
+   * So the foreground goes dark like every other role here, which reads at 5.52
+   * and lets the red stay bright enough to belong to this palette. Destructive
+   * *buttons* no longer fill at all — see `danger` in `ui/button.tsx` — so the
+   * fill that remains is the swipe-to-delete plate and the filled header pill,
+   * where an unmistakable red is the point.
+   */
+  danger: '#EC5A62',
+  /*
+   * A shallower step down than the other roles take, and it is the dark
+   * foreground that sets the floor.
+   *
+   * A pressed fill has to be darker than its resting one — a press that
+   * brightens a control reads as a release — but `textOnDanger` is now dark, so
+   * every step down also costs label contrast. #D13F48 was the natural depth
+   * and took the label to 4.02, which is the same AA failure this palette just
+   * fixed, moved from the resting state to the held one. This is the darkest
+   * value that still clears it: 4.72 for the label, and a luminance of 0.215
+   * against the resting 0.260, which is a visible step.
+   */
+  dangerPressed: '#E04B54',
+  dangerSurface: 'rgba(236, 90, 98, 0.16)',
 
-  record: '#FFC53D',
-  recordSurface: 'rgba(255, 197, 61, 0.16)',
+  /** Personal-record gold. Held at 43°; see `warning` for why it moved away. */
+  record: '#F5C445',
+  recordSurface: 'rgba(245, 196, 69, 0.16)',
 
   textOnAccent: '#12180A',
-  textOnSuccess: '#04140B',
-  textOnWarning: '#181203',
-  textOnDanger: '#FFFFFF',
+  textOnSuccess: '#06170A',
+  textOnWarning: '#1A1002',
+  // Dark, not white. See the note on `danger` — white measured 3.06 here.
+  textOnDanger: '#2A0507',
 
   overlay: 'rgba(0, 0, 0, 0.72)',
   skeleton: '#16161A',
@@ -180,25 +255,38 @@ export const lightPalette: Palette = {
   accentPressed: '#3F5406',
   accentSurface: 'rgba(163, 209, 30, 0.22)',
 
-  // 4.96 on `background`, 5.44 on `surface`, and the white Finish label on top
-  // of the filled button reads at that same 5.44. #16A34A measured 3.00 — a
-  // green that works as a fill and fails as text, and the token also colours
-  // sync status text and the completed-set glyph. `successPressed` has to go
-  // *down* from here: the old pressed value (#15803D, 4.57) is now lighter than
-  // the resting colour, so keeping it would make a press brighten the button.
-  success: '#0F7A36',
-  successPressed: '#0A5F2A',
-  successSurface: 'rgba(15, 122, 54, 0.12)',
+  /*
+   * Hue 111°, tracking the dark palette's move off emerald — see `success`
+   * there for why the app no longer has two unrelated greens.
+   *
+   * Depth is set by a case the dark palette does not have. Every tinted control
+   * prints its role colour on that role's own `*Surface`, and on white a tint
+   * barely darkens the ground, so the text has to carry nearly the full
+   * contrast alone: #2F7A20, which is the direct lightness match for the dark
+   * value, measured 4.28 on its own tint and failed. This reads 5.94 on
+   * `background`, 6.52 on `surface`, and 5.14 on `successSurface` over a card.
+   *
+   * `successPressed` has to go *down* from here rather than up — a pressed
+   * value lighter than the resting one makes a press brighten the button.
+   */
+  success: '#2A6B1E',
+  successPressed: '#1E4E14',
+  successSurface: 'rgba(42, 107, 30, 0.10)',
 
   // 5.40 on `background`, 5.93 on `surface`; #D97706 measured 2.90. Burnt
   // orange rather than amber so that it and `record` cannot be confused — see
-  // `record` below.
+  // `record` below. The tint drops from 0.14 to 0.10 for the reason given under
+  // `success`: at 0.14 the warning label on its own tint measured 4.42.
   warning: '#A34A07',
-  warningSurface: 'rgba(163, 74, 7, 0.14)',
+  warningSurface: 'rgba(163, 74, 7, 0.10)',
 
-  danger: '#DC2626',
-  dangerPressed: '#B91C1C',
-  dangerSurface: 'rgba(220, 38, 38, 0.10)',
+  // 357°, holding the hue the dark palette moved to, and deeper than the
+  // #DC2626 it replaces: that measured 4.40 on `background` and 4.30 on its own
+  // tint, which is the surface the destructive button now uses. This reads 5.96
+  // and 5.08. See `danger` on the dark palette for why filled red went away.
+  danger: '#B3242C',
+  dangerPressed: '#8E1B22',
+  dangerSurface: 'rgba(179, 36, 44, 0.10)',
 
   // Light mode used to give `record` and `warning` the same #D97706, so a PR
   // badge and a validation warning were the same colour on the same card with
@@ -210,7 +298,7 @@ export const lightPalette: Palette = {
   // is the case that has to pass, and a tint costs roughly 0.8 of whatever the
   // colour measures on the bare surface.
   record: '#6E5C00',
-  recordSurface: 'rgba(110, 92, 0, 0.14)',
+  recordSurface: 'rgba(110, 92, 0, 0.10)',
 
   textOnAccent: '#FFFFFF',
   textOnSuccess: '#FFFFFF',

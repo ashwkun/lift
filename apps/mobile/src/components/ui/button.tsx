@@ -13,6 +13,7 @@ import {
   fontSize,
   hoverFill,
   radius,
+  scaleAlpha,
   spacing,
   stroke,
   useColors,
@@ -87,6 +88,13 @@ interface VariantSpec {
   bgPressed: string;
   fg: string;
   border?: string;
+  /**
+   * Outline at full press. Only for a variant whose border carries the press —
+   * currently just `danger`. Omitting it leaves the border static, drawn from
+   * the stylesheet, and keeps the extra colour interpolation off every other
+   * button in the app.
+   */
+  borderPressed?: string;
 }
 
 /**
@@ -133,11 +141,35 @@ function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
       bgPressed: c.surfaceMuted,
       fg: c.accent,
     },
+    /*
+     * Tinted and outlined, not filled — the one variant that does not fill.
+     *
+     * Two reasons, and the first is that the filled version was unreadable. Its
+     * label was `textOnDanger`, which on the old red measured 3.06 against a
+     * 4.5 requirement, and no red bright enough for an AMOLED palette can carry
+     * white text (see `danger` in the tokens). Printing the role colour on a
+     * tint of itself reads 5.38 on the canvas and 4.87 on a card instead.
+     *
+     * The second is that a solid red slab was the loudest object on the screen,
+     * reserved for the action the user least wants to take. `Discard workout`
+     * sits at the bottom of a live session below a rule and a wide gap — it is
+     * already hard to hit by accident, and it does not also need to shout. This
+     * still reads unmistakably as destructive: it is the only red control in the
+     * app, and the only one that is outlined in its own role colour.
+     *
+     * The press is carried by the outline rather than the fill, which is not a
+     * stylistic choice. Deepening a tint that its own label is printed on closes
+     * the gap between them — at 1.5× the label goes under AA on a card — so the
+     * fill moves only 1.25× and the border, which is not text and has no ratio
+     * to meet, travels the whole way to solid.
+     */
     danger: {
-      bg: c.danger,
-      bgHover: hoverFill(c.danger, c.dangerPressed),
-      bgPressed: c.dangerPressed,
-      fg: c.textOnDanger,
+      bg: c.dangerSurface,
+      bgHover: scaleAlpha(c.dangerSurface, 1.125),
+      bgPressed: scaleAlpha(c.dangerSurface, 1.25),
+      fg: c.danger,
+      border: scaleAlpha(c.dangerSurface, 2.5),
+      borderPressed: c.danger,
     },
     success: {
       bg: c.success,
@@ -181,7 +213,7 @@ export function Button({
 }: ButtonProps) {
   const colors = useColors();
   const dimensions = SIZES[size];
-  const { bg, bgHover, bgPressed, fg, border } = useVariantSpecs(colors)[variant];
+  const { bg, bgHover, bgPressed, fg, border, borderPressed } = useVariantSpecs(colors)[variant];
 
   const isDisabled = disabled || loading;
 
@@ -197,6 +229,11 @@ export function Button({
       fill={bg}
       fillPressed={bgPressed}
       hoverFill={bgHover}
+      // Both or neither: `PressableScale` only drives the outline when it has
+      // two ends to travel between, so the variants that name a static border
+      // keep it from the stylesheet below.
+      border={border}
+      borderPressed={borderPressed}
       style={[
         styles.base,
         {
