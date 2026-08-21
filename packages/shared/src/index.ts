@@ -1,6 +1,7 @@
 export * from './ids.ts';
 export * from './types.ts';
 export * from './units.ts';
+export * from './dates.ts';
 export * from './calculations.ts';
 export * from './measurements.ts';
 export * from './ordering.ts';

@@ -5,7 +5,6 @@ import {
   DISTANCE_UNITS,
   formatDuration,
   formatWeight,
-  isWorkingSet,
   nearestLoadable,
   TRACKING_FIELDS,
   WEIGHT_UNITS,
@@ -25,6 +24,7 @@ import { showConfirm, showDialog } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { radius, spacing, useColors } from '@/theme';
 
+import { pairWithPrevious } from './previous';
 import { SetRow } from './set-row';
 import { hasRestOverride, resolveRestSeconds, type WorkoutExerciseDetail } from './repository';
 
@@ -370,30 +370,6 @@ export function ExerciseBlock({
   );
 }
 
-interface SetRowModel {
-  set: WorkoutSet;
-  /** 1-based ordinal among working sets; a warm-up carries the count so far. */
-  workingIndex: number;
-  /** The set that occupied this ordinal last session, if there was one. */
-  previous: WorkoutSet | undefined;
-}
-
-/**
- * Lines today's sets up with last session's, by ordinal **within set class**.
- *
- * Pairing by raw array position compares today's first working set against last
- * week's second warm-up the moment the two sessions disagree about how many
- * warm-ups they had — which is most of the time — and everything downstream of
- * the pairing goes quietly wrong with it: the Previous column, the placeholder
- * built from it, and any warm-up ramp that reads the same numbers later.
- *
- * A class that runs out has no partner and is left undefined. Repeating the
- * last set to fill the gap would put a number the user never lifted in front of
- * them, in the one column they trust to be a record of what happened.
- *
- * Warm-ups don't consume a working-set number either, so the ordinal shown in
- * the set column is counted here rather than taken from the array index.
- */
 /**
  * A column heading that is also the switch for the unit it names.
  *
@@ -462,24 +438,6 @@ function UnitHeader<T extends string>({
       <Ionicons name="swap-horizontal" size={9} color={colors.textTertiary} />
     </Pressable>
   );
-}
-
-function pairWithPrevious(sets: WorkoutSet[], previousSets: WorkoutSet[]): SetRowModel[] {
-  const previousWorking = previousSets.filter((set) => isWorkingSet(set.setType));
-  const previousWarmups = previousSets.filter((set) => !isWorkingSet(set.setType));
-
-  let working = 0;
-  let warmup = 0;
-
-  return sets.map((set) => {
-    if (isWorkingSet(set.setType)) {
-      working += 1;
-      return { set, workingIndex: working, previous: previousWorking[working - 1] };
-    }
-
-    warmup += 1;
-    return { set, workingIndex: working, previous: previousWarmups[warmup - 1] };
-  });
 }
 
 /**

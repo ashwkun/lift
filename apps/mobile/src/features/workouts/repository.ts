@@ -18,7 +18,7 @@ import {
   type SetType,
   type TrackingType,
 } from '@lift/shared';
-import { and, desc, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, isNotNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { touch, trackDelete, trackUpsert, trackUpsertCoalesced } from '@/db/mutations';
@@ -827,6 +827,20 @@ export async function listCompletedWorkouts(limit = 50, offset = 0): Promise<Wor
     .offset(offset);
 }
 
+export interface PreviousPerformanceOptions {
+  /** A session to leave out — normally the one being logged or edited. */
+  excludeWorkoutId?: string;
+  /**
+   * Only consider sessions that started before this instant.
+   *
+   * Unbounded, "previous" means "most recent", which is the right answer while
+   * lifting and the wrong one when editing a session from March: the newest
+   * other session is then a *later* one, and the column headed Previous would
+   * be offering numbers from the future of the workout on screen.
+   */
+  before?: number;
+}
+
 export interface PreviousPerformance {
   /** Completed sets from the most recent session that trained this exercise. */
   sets: WorkoutSet[];
@@ -847,8 +861,10 @@ export interface PreviousPerformance {
  */
 export async function getPreviousPerformance(
   exerciseId: string,
-  excludeWorkoutId?: string,
+  options: PreviousPerformanceOptions = {},
 ): Promise<PreviousPerformance> {
+  const { excludeWorkoutId, before } = options;
+
   const links = await db
     .select({
       id: workoutExercises.id,
@@ -864,6 +880,7 @@ export async function getPreviousPerformance(
         isNotNull(workouts.finishedAt),
         isNull(workouts.deletedAt),
         isNull(workoutExercises.deletedAt),
+        ...(before === undefined ? [] : [lt(workouts.startedAt, new Date(before))]),
       ),
     )
     .orderBy(desc(workouts.startedAt))
@@ -1061,6 +1078,241 @@ export async function finishWorkout(
   return { workout: saved, prCount };
 }
 
+// ---------------------------------------------------------------------------
+// Editing a finished session
+// ---------------------------------------------------------------------------
+
+/**
+ * Overwrites the parts of a stored session that are the user's to state.
+ *
+ * All three are things the app only ever guessed at. The name defaults to the
+ * time of day, the note is written from memory afterwards, and the duration is
+ * wall-clock between two timestamps — which is exactly right until the session
+ * is left open on a phone in a locker and comes back as four hours. A logged
+ * duration nobody can correct drags every average and every weekly total with
+ * it, for as long as the log exists.
+ *
+ * A blank name is ignored rather than stored, matching `finishWorkout`: every
+ * screen titles the session by it, so an emptied box means the user cleared the
+ * field, not that this workout is to be called nothing. A blank *note* is
+ * stored as null, because having nothing to say is something someone can mean.
+ */
+export async function updateWorkoutFields(
+  workoutId: string,
+  fields: { name?: string; notes?: string | null; durationSeconds?: number },
+): Promise<void> {
+  const updates: Record<string, unknown> = {};
+
+  const name = fields.name?.trim();
+  if (name) updates.name = name;
+  if (fields.notes !== undefined) updates.notes = fields.notes?.trim() || null;
+  if (fields.durationSeconds !== undefined) {
+    updates.durationSeconds = Math.max(0, Math.round(fields.durationSeconds));
+  }
+
+  if (Object.keys(updates).length === 0) return;
+
+  await db
+    .update(workouts)
+    .set({ ...updates, ...touch() })
+    .where(eq(workouts.id, workoutId));
+
+  const [updated] = await db.select().from(workouts).where(eq(workouts.id, workoutId)).limit(1);
+  // Coalesced: a name nudged twice in the rename box should leave one row to
+  // push, not one per attempt.
+  if (updated) await trackUpsertCoalesced('workouts', serializeWorkout(updated));
+}
+
+/** One record a recalculation decided the session is owed. */
+interface AwardedPr {
+  exerciseId: string;
+  kind: PrKind;
+  value: number;
+  reps: number | null;
+  setId: string | null;
+}
+
+export interface RecalculateResult {
+  workout: Workout;
+  prCount: number;
+  /** Unchecked sets removed on the way out, the way `finishWorkout` removes them. */
+  droppedSets: number;
+}
+
+/**
+ * Re-derives everything a finished session stores about itself.
+ *
+ * `finishWorkout` computes the totals and the records once, at the moment the
+ * session closes, and every screen afterwards reads the stored figures rather
+ * than the sets. That is the right shape — the history list would otherwise
+ * aggregate thousands of rows to draw a card — but it means a set corrected
+ * three days later changes nothing anybody can see. This is the other half of
+ * that bargain: the editor writes sets, and this puts the derived figures back
+ * in agreement with them.
+ *
+ * The structure is deliberately `finishWorkout`'s, down to the order of the
+ * writes: read everything, derive in memory, write the session row, and only
+ * then delete. There is no usable transaction here (see `finishWorkout`), so
+ * the order is the failure plan — interrupted, the session is either untouched
+ * or correctly recomputed with a few unchecked rows still attached, which every
+ * query already ignores.
+ *
+ * Records are re-derived against the bests that were standing *before this
+ * session started*, not against the bests standing now. A session's badge is a
+ * statement about the day it happened; measuring it against records set since
+ * would strip the trophy off every workout that has been beaten, which is most
+ * of them. And they are only rewritten when the derived set actually differs
+ * from the stored one, so opening the editor and nudging a note does not churn
+ * six tombstones and six inserts through the sync log.
+ *
+ * `finishedAt` is not touched. It records when Save was pressed, which is a
+ * fact about the app rather than about the training, and the duration is stored
+ * separately for exactly that reason — see the column note in the schema.
+ */
+export async function recalculateWorkout(
+  workoutId: string,
+  options: {
+    bodyweightKg?: number;
+    formula?: AnalyticsContext['formula'];
+    /** Replaces the stored duration. Omitted leaves whatever is there. */
+    durationSeconds?: number;
+  } = {},
+): Promise<RecalculateResult> {
+  const detail = await getWorkoutDetail(workoutId);
+  if (!detail) throw new Error(`Workout ${workoutId} not found`);
+
+  // An open session has no derived figures yet — `finishWorkout` is what
+  // produces them, and running this against one would stamp totals on a workout
+  // the logging screen is still writing to.
+  const finishedAt = detail.workout.finishedAt;
+  if (!finishedAt) throw new Error(`Workout ${workoutId} is still in progress`);
+
+  const startedAt = detail.workout.startedAt.getTime();
+
+  let totalVolume = 0;
+  let totalSets = 0;
+  let totalReps = 0;
+
+  const abandonedExerciseIds: string[] = [];
+  const uncheckedSetIds: string[] = [];
+  const awarded: AwardedPr[] = [];
+
+  for (const entry of detail.exercises) {
+    // Same rule as finishing: an exercise with nothing checked off was never
+    // performed. Tombstoning the link takes its sets with it, so they stay out
+    // of `uncheckedSetIds`.
+    if (!entry.sets.some((set) => set.isCompleted)) {
+      abandonedExerciseIds.push(entry.workoutExercise.id);
+      continue;
+    }
+
+    for (const set of entry.sets) {
+      if (!set.isCompleted) uncheckedSetIds.push(set.id);
+    }
+
+    const ctx: AnalyticsContext = {
+      trackingType: entry.exercise.trackingType,
+      bodyweightKg: options.bodyweightKg,
+      formula: options.formula,
+    };
+
+    const summary = summarizeSets(entry.sets as SetLike[], ctx);
+    totalVolume += summary.volumeKg;
+    totalSets += summary.workingSets;
+    totalReps += summary.totalReps;
+
+    const previous = await getPreviousBests(entry.exercise.id, startedAt);
+
+    for (const pr of detectPrs(entry.sets as SetLike[], ctx, previous)) {
+      const set = pr.setIndex === null ? null : (entry.sets[pr.setIndex] ?? null);
+      awarded.push({
+        exerciseId: entry.exercise.id,
+        kind: pr.kind,
+        value: pr.value,
+        reps: set?.reps ?? null,
+        setId: set?.id ?? null,
+      });
+    }
+  }
+
+  const stored = await db
+    .select()
+    .from(personalRecords)
+    .where(and(eq(personalRecords.workoutId, workoutId), isNull(personalRecords.deletedAt)));
+
+  if (!sameRecords(stored, awarded)) {
+    const deletedAt = Date.now();
+
+    // Tombstoned rather than edited in place. A record is identified by the set
+    // it came from as much as by its value, and an edit that moved the heaviest
+    // set to a different row would leave the old row pointing at a set that no
+    // longer holds the number it claims.
+    for (const record of stored) {
+      await db
+        .update(personalRecords)
+        .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
+        .where(eq(personalRecords.id, record.id));
+      await trackDelete('personal_records', record.id, deletedAt);
+    }
+
+    for (const pr of awarded) {
+      await recordPr({ ...pr, workoutId, achievedAt: finishedAt.getTime() });
+    }
+  }
+
+  const updates = {
+    ...(options.durationSeconds === undefined
+      ? {}
+      : { durationSeconds: Math.max(0, Math.round(options.durationSeconds)) }),
+    totalVolumeKg: totalVolume,
+    totalSets,
+    totalReps,
+    prCount: awarded.length,
+    ...touch(),
+  };
+
+  await db.update(workouts).set(updates).where(eq(workouts.id, workoutId));
+
+  const [saved] = await db.select().from(workouts).where(eq(workouts.id, workoutId)).limit(1);
+  if (!saved) throw new Error(`Workout ${workoutId} vanished mid-recalculation`);
+
+  await trackUpsertCoalesced('workouts', serializeWorkout(saved));
+
+  // Cosmetic, and must not reject — every total above came from the
+  // pre-deletion snapshot, and `summarizeSets` and `detectPrs` skip incomplete
+  // sets themselves. See the same paragraph in `finishWorkout`.
+  try {
+    for (const setId of uncheckedSetIds) await deleteSet(setId);
+    for (const exerciseId of abandonedExerciseIds) await removeExerciseFromWorkout(exerciseId);
+  } catch {
+    // Deliberately swallowed; see above.
+  }
+
+  return { workout: saved, prCount: awarded.length, droppedSets: uncheckedSetIds.length };
+}
+
+/**
+ * Whether a recalculation reached the same records the session already holds.
+ *
+ * Compared as sorted keys rather than pairwise: `detectPrs` emits in a fixed
+ * order but the stored rows come back in whatever order SQLite hands them over,
+ * and a spurious mismatch costs a round of tombstones and inserts on the wire.
+ */
+function sameRecords(
+  stored: readonly Pick<AwardedPr, 'exerciseId' | 'kind' | 'value' | 'setId'>[],
+  awarded: readonly Pick<AwardedPr, 'exerciseId' | 'kind' | 'value' | 'setId'>[],
+): boolean {
+  if (stored.length !== awarded.length) return false;
+
+  const key = (row: Pick<AwardedPr, 'exerciseId' | 'kind' | 'value' | 'setId'>) =>
+    `${row.exerciseId}|${row.kind}|${row.value}|${row.setId ?? ''}`;
+
+  const before = stored.map(key).sort();
+  const after = awarded.map(key).sort();
+
+  return before.every((entry, index) => entry === after[index]);
+}
+
 /**
  * Removes a workout and everything it produced: records, then sets, then the
  * session row.
@@ -1129,11 +1381,27 @@ export async function discardWorkout(workoutId: string): Promise<void> {
 // Personal records
 // ---------------------------------------------------------------------------
 
-async function getPreviousBests(exerciseId: string) {
+/**
+ * The all-time ceilings a session is measured against.
+ *
+ * `before` bounds them to records already standing at a moment in the past,
+ * which is what re-deriving an old session's records needs: unbounded, a squat
+ * PR set last week would gate a PR the user actually set in March, and editing
+ * a typo in the March session would silently strip the badge it has worn since.
+ * `finishWorkout` leaves it out because for a session being closed *now* there
+ * is no such thing as a later record.
+ */
+async function getPreviousBests(exerciseId: string, before?: number) {
   const rows = await db
     .select()
     .from(personalRecords)
-    .where(and(eq(personalRecords.exerciseId, exerciseId), isNull(personalRecords.deletedAt)));
+    .where(
+      and(
+        eq(personalRecords.exerciseId, exerciseId),
+        isNull(personalRecords.deletedAt),
+        ...(before === undefined ? [] : [lt(personalRecords.achievedAt, new Date(before))]),
+      ),
+    );
 
   const best = (kind: PrKind) =>
     rows.filter((row) => row.kind === kind).reduce((max, row) => Math.max(max, row.value), 0) ||

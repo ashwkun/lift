@@ -1,4 +1,10 @@
-import { BODY_PART_LABELS, formatDurationShort, formatVolume } from '@lift/shared';
+import {
+  BODY_PART_LABELS,
+  DATE_LONG,
+  formatDateTime,
+  formatDurationShort,
+  formatVolume,
+} from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -18,14 +24,14 @@ import {
   useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
-import { touch, trackUpsertCoalesced } from '@/db/mutations';
-import { personalRecords, workouts } from '@/db/schema';
+import { personalRecords } from '@/db/schema';
 import { workoutMuscleSplit } from '@/features/analytics/muscle-stats';
 import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import {
   deleteWorkout,
   getWorkoutDetail,
   repeatWorkout,
+  updateWorkoutFields,
   type WorkoutDetail,
 } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
@@ -72,19 +78,7 @@ export default function WorkoutDetailScreen() {
   );
 
   const rename = async (name: string) => {
-    await db
-      .update(workouts)
-      .set({ name, ...touch() })
-      .where(eq(workouts.id, id));
-
-    const [updated] = await db.select().from(workouts).where(eq(workouts.id, id)).limit(1);
-    if (updated) {
-      await trackUpsertCoalesced('workouts', {
-        ...updated,
-        startedAt: updated.startedAt.getTime(),
-        finishedAt: updated.finishedAt?.getTime() ?? null,
-      });
-    }
+    await updateWorkoutFields(id, { name });
     await reload();
   };
 
@@ -157,12 +151,7 @@ export default function WorkoutDetailScreen() {
 
   const { workout, exercises } = detail;
 
-  const startedAt = workout.startedAt.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  const startedAt = formatDateTime(workout.startedAt, DATE_LONG);
 
   const [volume, volumeUnit] = splitMeasure(formatVolume(workout.totalVolumeKg, weightUnit));
 
@@ -172,12 +161,27 @@ export default function WorkoutDetailScreen() {
         options={{
           title: workout.name,
           headerRight: () => (
-            <HeaderAction
-              label="Delete workout"
-              icon="trash-outline"
-              tone="danger"
-              onPress={confirmDelete}
-            />
+            // Two actions at the same end of the header, so they need a gap of
+            // their own: each one's frame already reaches inwards for its touch
+            // target, and without this the two frames would meet.
+            <View style={styles.headerActions}>
+              {/* Edit before Delete, and a glyph each. A session is corrected
+                  far more often than it is thrown away — a weight typed into
+                  the wrong row, a set logged twice, a timer left running — and
+                  until this existed the only remedy for any of them was the
+                  button beside it. */}
+              <HeaderAction
+                label="Edit workout"
+                icon="create-outline"
+                onPress={() => router.push({ pathname: '/workout/edit/[id]', params: { id } })}
+              />
+              <HeaderAction
+                label="Delete workout"
+                icon="trash-outline"
+                tone="danger"
+                onPress={confirmDelete}
+              />
+            </View>
           ),
         }}
       />
@@ -302,6 +306,7 @@ const styles = StyleSheet.create({
   // No horizontal padding: the set rows stripe edge to edge, so every other
   // block carries the screen margin itself. See `ExerciseSetList`.
   content: { paddingBottom: spacing.huge },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   titleBlock: { gap: spacing.xs, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   band: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   notes: { marginHorizontal: spacing.lg, marginTop: spacing.lg },

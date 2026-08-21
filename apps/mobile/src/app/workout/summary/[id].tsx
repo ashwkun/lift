@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  formatDateTime,
   formatDurationShort,
   formatVolume,
   formatWeight,
@@ -24,6 +25,16 @@ import {
 } from '@/features/exercises/units';
 import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
 import { spacing, stroke, useColors } from '@/theme';
+
+/**
+ * The colophon's date: no year, because this screen is only ever reached
+ * seconds after the session it describes.
+ */
+const HERO_DATE: Intl.DateTimeFormatOptions = {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+};
 
 interface PrSummary {
   kind: PrKind;
@@ -145,11 +156,7 @@ export default function WorkoutSummaryScreen() {
          */}
         <View style={styles.hero}>
           <Text variant="overline" color="textTertiary">
-            {workout.startedAt.toLocaleDateString(undefined, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
+            {formatDateTime(workout.startedAt, HERO_DATE)}
           </Text>
           <Text variant="title">{workout.name}</Text>
         </View>

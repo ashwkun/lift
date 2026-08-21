@@ -1,5 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDurationShort, formatVolume, type WeightUnit } from '@lift/shared';
+import {
+  DATE_SHORT,
+  formatDateTime,
+  formatDurationShort,
+  formatVolume,
+  type WeightUnit,
+} from '@lift/shared';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -63,15 +69,13 @@ export function WorkoutCard({ workout, weightUnit, detail }: WorkoutCardProps) {
         )}
       </View>
 
-      {/* Date only, by default. Nobody scans a training log by clock time, and
-          the hour it cost was the width that truncated the session name. */}
+      {/* Date and clock. This line used to be the date alone, on the argument
+          that nobody scans a training log by the hour — but the hour is how you
+          tell two sessions on the same day apart, and how you recognise the one
+          you are looking for ("the early one, before work"). It costs the
+          session name nothing: the name is on its own line above. */}
       <Text variant="caption" color="textTertiary">
-        {detail ??
-          workout.startedAt.toLocaleDateString(undefined, {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-          })}
+        {detail ?? formatDateTime(workout.startedAt, DATE_SHORT)}
       </Text>
 
       <View style={styles.metrics}>

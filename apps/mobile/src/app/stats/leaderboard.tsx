@@ -1,5 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { EQUIPMENT_LABELS, formatWeight, MUSCLE_GROUP_LABELS, type WeightUnit } from '@lift/shared';
+import {
+  DATE_MEDIUM,
+  EQUIPMENT_LABELS,
+  formatDateTime,
+  formatWeight,
+  MUSCLE_GROUP_LABELS,
+  type WeightUnit,
+} from '@lift/shared';
 import { router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -166,11 +173,7 @@ function BoardRow({
 
   const measure = formatWeight(exercise.bestOneRepMaxKg, weightUnit, { decimals: 1 });
   const [figure, unit] = splitMeasure(measure);
-  const day = new Date(exercise.achievedAt).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const day = formatDateTime(new Date(exercise.achievedAt), DATE_MEDIUM);
 
   const working = `${formatWeight(exercise.bestSetWeightKg, weightUnit, { decimals: 1 })} × ${exercise.bestSetReps}`;
 

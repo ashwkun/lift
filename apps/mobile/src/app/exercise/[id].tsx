@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  DATE_MEDIUM,
   EQUIPMENT_LABELS,
+  formatDateTime,
   formatDistance,
   formatDurationShort,
   formatVolume,
@@ -481,13 +483,7 @@ function SessionHeader({
 }) {
   const colors = useColors();
 
-  const when = performedAt.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const when = formatDateTime(performedAt, DATE_MEDIUM);
 
   return (
     <Pressable

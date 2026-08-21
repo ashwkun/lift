@@ -1,4 +1,6 @@
 import {
+  DATE_MEDIUM,
+  formatDateTime,
   formatDuration,
   formatVolume,
   summarizeSets,
@@ -367,13 +369,7 @@ export default function SaveWorkoutScreen() {
 
   const uncheckedNoun = totals.unchecked === 1 ? 'set' : 'sets';
 
-  const startedAt = workout.startedAt.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const startedAt = formatDateTime(workout.startedAt, DATE_MEDIUM);
 
   return (
     <Screen scrolled={scrollEdge.progress}>

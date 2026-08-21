@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { formatDuration } from '@lift/shared';
+import { DATE_MEDIUM, formatDateTime, formatDuration } from '@lift/shared';
 import { and, asc, desc, isNull } from 'drizzle-orm';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -178,7 +178,7 @@ export default function WorkoutScreen() {
                   title={routine.name}
                   subtitle={
                     routine.lastPerformedAt
-                      ? `Last performed ${routine.lastPerformedAt.toLocaleDateString()}`
+                      ? `Last performed ${formatDateTime(routine.lastPerformedAt, DATE_MEDIUM)}`
                       : 'Not performed yet'
                   }
                   onPress={() =>

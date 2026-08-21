@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  DATE_SHORT,
+  formatDateTime,
   formatDurationShort,
   formatVolume,
   MUSCLE_GROUP_LABELS,
@@ -409,11 +411,7 @@ function SessionRow({
   detail: string;
 }) {
   const colors = useColors();
-  const day = new Date(session.startedAt).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  const day = formatDateTime(new Date(session.startedAt), DATE_SHORT);
 
   return (
     <Pressable

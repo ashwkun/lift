@@ -1,4 +1,4 @@
-import { formatDurationShort, formatVolume } from '@lift/shared';
+import { DATE_SHORT, formatDateTime, formatDurationShort, formatVolume } from '@lift/shared';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -245,7 +245,10 @@ export default function HomeScreen() {
                   {index > 0 && <Divider inset={spacing.lg} />}
                   <ListRow
                     title={workout.name}
-                    subtitle={`${workout.startedAt.toLocaleDateString()} · ${formatDurationShort(
+                    subtitle={`${formatDateTime(
+                      workout.startedAt,
+                      DATE_SHORT,
+                    )} · ${formatDurationShort(
                       workout.durationSeconds ?? 0,
                     )} · ${formatVolume(workout.totalVolumeKg, weightUnit)}`}
                     onPress={() =>

@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  DATE_MEDIUM,
+  formatDateTime,
   formatDistance,
   formatDurationShort,
   formatVolume,
@@ -228,11 +230,7 @@ export default function RecordsScreen() {
                     units.distanceUnit,
                   );
                   const [figure, unit] = splitMeasure(measure);
-                  const day = record.achievedAt.toLocaleDateString(undefined, {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  });
+                  const day = formatDateTime(record.achievedAt, DATE_MEDIUM);
 
                   return (
                     <View

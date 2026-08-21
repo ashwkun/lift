@@ -1,10 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   formatDuration,
-  isWorkingSet,
   reorder,
   TRACKING_FIELDS,
-  USES_BODYWEIGHT,
   type PositionedRow,
   type SetType,
 } from '@lift/shared';
@@ -40,6 +38,7 @@ import { haptics } from '@/features/feedback/haptics';
 import { setExerciseUnits } from '@/features/exercises/repository';
 import { clearWorkoutNotice } from '@/features/notifications/workout';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
+import { ghostFill, pairedPreviousSet } from '@/features/workouts/previous';
 import {
   cancelRestNotification,
   prepareRestNotifications,
@@ -68,6 +67,7 @@ import {
   type SetInput,
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
+import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
@@ -207,7 +207,10 @@ export default function ActiveWorkoutScreen() {
         exerciseIdKey
           .split(',')
           .filter(Boolean)
-          .map(async (id) => [id, await getPreviousPerformance(id, workoutId)] as const),
+          .map(
+            async (id) =>
+              [id, await getPreviousPerformance(id, { excludeWorkoutId: workoutId })] as const,
+          ),
       );
       if (!cancelled) setPreviousByExercise(Object.fromEntries(entries));
     })();
@@ -313,7 +316,11 @@ export default function ActiveWorkoutScreen() {
       }
 
       const fields = TRACKING_FIELDS[detail.exercise.trackingType];
-      const previous = pairedPreviousSet(detail, previousByExercise[detail.exercise.id]?.sets, set);
+      const previous = pairedPreviousSet(
+        detail.sets,
+        previousByExercise[detail.exercise.id]?.sets,
+        set,
+      );
 
       // `canLogSet` is the whole acceptance rule, and the set row runs the same
       // call to decide whether to tint before the write returns. Asking it here
@@ -324,43 +331,16 @@ export default function ActiveWorkoutScreen() {
         return Promise.resolve(false);
       }
 
-      /*
-       * Commit the ghost.
-       *
-       * The weight and reps fields show last session's numbers as placeholders,
-       * so "same as last week, tap the check" — the most common gesture there
-       * is — used to complete a set holding two nulls: no volume, no PR, and a
-       * summary that quietly disagreed with what happened. The numbers the user
-       * was looking at are now written by the same tap that reads them.
-       *
-       * They go in `fill` rather than `patch`, so `updateSet` writes them as
-       * COALESCE: a column that already holds a number keeps it. `set` here is
-       * a render-old snapshot of the live query, and a weight typed a moment
-       * ago may still be in flight — deciding "is this empty?" in JS would let
-       * the ghost overwrite it. SQLite decides instead, against storage, at the
-       * moment the statement runs.
-       *
-       * It folds into the *same* `updateSet` as `isCompleted`, so the row tints
-       * and the digits land in one live-query pass rather than two.
-       */
+      // Commit the ghost: the numbers the user was looking at as placeholders
+      // are written by the same tap that reads them. It folds into the *same*
+      // `updateSet` as `isCompleted`, so the row tints and the digits land in
+      // one live-query pass rather than two. See `ghostFill`.
       const patch: SetInput = { isCompleted: true };
-      const fill: SetInput = {};
-
-      if (previous) {
-        // An emptied weight is a fact only where an empty box can mean
-        // something: "no belt" on weighted work, "no assistance" on assisted.
-        // On a barbell lift it means nothing at all, so the placeholder's
-        // promise stands and the ghost lands whether or not the box was touched.
-        const clearedOnPurpose =
-          USES_BODYWEIGHT.has(detail.exercise.trackingType) &&
-          clearedWeights.current.has(set.id);
-        if (fields.weight && !clearedOnPurpose) {
-          fill.weightKg = previous.weightKg;
-        }
-        if (fields.reps) fill.reps = previous.reps;
-        if (fields.duration) fill.durationSeconds = previous.durationSeconds;
-        if (fields.distance) fill.distanceKm = previous.distanceKm;
-      }
+      const fill = ghostFill(
+        detail.exercise.trackingType,
+        previous,
+        clearedWeights.current.has(set.id),
+      );
 
       /*
        * Everything the user can perceive happens before the write.
@@ -869,44 +849,6 @@ export default function ActiveWorkoutScreen() {
 }
 
 /**
- * Fire-and-forget writes that say so when they fail.
- *
- * Every write on this screen was a bare `void promise`: a disk that has run out
- * of room rejects all of them, and the user keeps lifting into a log that is no
- * longer recording. The counter is deliberately a count of lost changes rather
- * than a queue — nothing here is worth retrying automatically, because the
- * failure is a property of the device, not of the statement.
- *
- * A success clears the count. Anything that writes at all means the disk let go.
- *
- * The settled outcome comes back so a caller that showed something optimistic
- * can take it down again: the check-off does, and every other call site ignores
- * the value. Without it a row stays green over a set the database never got,
- * one line below the banner saying the screen is not saving.
- */
-function useWriteGuard() {
-  const [lostWrites, setLostWrites] = useState(0);
-
-  const guard = useCallback(
-    (promise: Promise<unknown>): Promise<boolean> =>
-      promise.then(
-        () => {
-          setLostWrites(0);
-          return true;
-        },
-        () => {
-          haptics.rejected();
-          setLostWrites((count) => count + 1);
-          return false;
-        },
-      ),
-    [],
-  );
-
-  return { guard, lostWrites };
-}
-
-/**
  * The session's two figures, and the only thing on this screen that ticks.
  *
  * `useTicker` used to sit at the screen root, so once a second the whole tree
@@ -932,37 +874,6 @@ function SessionStats({ startedAt, completedSets }: { startedAt: Date; completed
       ]}
     />
   );
-}
-
-/**
- * Last session's counterpart to a set, paired the way the block displays it.
- *
- * Warm-ups and working sets run as two independent sequences, so today's first
- * working set is paired with last week's first working set even if one session
- * warmed up twice and the other three times. Pairing on the raw array index put
- * a top set against a bar-only warm-up and offered it as the number to commit.
- *
- * Undefined when today has more sets of a class than last time did. There is no
- * "repeat the last one" fallback: a fifth set has no counterpart, and inventing
- * one would put a number under the check that was never performed.
- */
-function pairedPreviousSet(
-  detail: WorkoutExerciseDetail,
-  previousSets: WorkoutSet[] | undefined,
-  set: WorkoutSet,
-): WorkoutSet | undefined {
-  if (!previousSets || previousSets.length === 0) return undefined;
-
-  const working = isWorkingSet(set.setType);
-  const sameClass = (candidate: WorkoutSet) => isWorkingSet(candidate.setType) === working;
-
-  let ordinal = 0;
-  for (const row of detail.sets) {
-    if (row.id === set.id) break;
-    if (sameClass(row)) ordinal += 1;
-  }
-
-  return previousSets.filter(sameClass)[ordinal];
 }
 
 const styles = StyleSheet.create({
