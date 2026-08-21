@@ -4,13 +4,14 @@ import { GitHubMark } from "@/components/site/icons";
 import { LinkButton } from "@/components/site/link-button";
 import { Phone } from "@/components/site/phone";
 import { screens } from "@/lib/screens";
-import { links, version } from "@/lib/site";
+import type { Release } from "@/lib/release";
+import { links } from "@/lib/site";
 
 function Tick() {
   return <span aria-hidden className="h-3 w-px shrink-0 bg-line-strong" />;
 }
 
-export function Hero() {
+export function Hero({ release }: { release: Release | null }) {
   return (
     <section id="top" className="relative overflow-hidden border-b border-line">
       <div className="shell pt-16 pb-20 sm:pt-24 lg:pt-28 lg:pb-28">
@@ -20,8 +21,14 @@ export function Hero() {
               className="rise label flex flex-wrap items-center gap-3 text-fg-3"
               style={{ animationDelay: "40ms" }}
             >
-              <span className="text-volt">v{version}</span>
-              <Tick />
+              {/* Dropped entirely when the release could not be read, rather
+                  than falling back to a number nobody can download. */}
+              {release ? (
+                <>
+                  <span className="text-volt">{release.tag}</span>
+                  <Tick />
+                </>
+              ) : null}
               <span>Android</span>
               <Tick />
               <span>AGPL-3.0</span>

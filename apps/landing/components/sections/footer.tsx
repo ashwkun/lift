@@ -14,6 +14,13 @@ const COLUMNS = [
   },
   {
     heading: "Licence",
+    /*
+     * `Third-party notices` is not an ordinary link. The app's anatomical
+     * artwork and its volume-landmark model derive from LiftShift under
+     * AGPL-3.0, and NOTICE.md is where that attribution lives. This footer used
+     * to restate it in prose; that came out, and the link is what carries it
+     * now. Do not drop this row.
+     */
     items: [
       { label: "AGPL-3.0", href: links.licence },
       { label: "Third-party notices", href: links.notices },
@@ -63,18 +70,6 @@ export function Footer() {
           </div>
         </div>
 
-        <p className="mt-16 border-t border-line pt-8 text-[0.8125rem] leading-relaxed text-fg-3">
-          Free software under the AGPL-3.0. The anatomical muscle outlines and
-          the volume-landmark model visible in these screenshots derive from{" "}
-          <a
-            href="https://github.com/aree6/LiftShift"
-            className="text-fg-2 underline underline-offset-3 transition-colors hover:text-volt"
-          >
-            LiftShift
-          </a>
-          , which is licensed the same way. Screenshots are from a real phone
-          with a real training log on it.
-        </p>
       </div>
     </footer>
   );

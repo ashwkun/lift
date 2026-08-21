@@ -14,4 +14,8 @@ export const links = {
   issues: `${repo}/issues`,
 } as const;
 
-export const version = "0.4.0";
+/*
+ * There is deliberately no `version` constant here any more. See
+ * `lib/release.ts`: the only version this page is entitled to print is the one
+ * GitHub is currently serving, and a string in this file cannot be that.
+ */

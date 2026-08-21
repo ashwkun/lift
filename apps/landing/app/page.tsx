@@ -9,14 +9,23 @@ import { Screens } from "@/components/sections/screens";
 import { Sync } from "@/components/sections/sync";
 import { Reveal } from "@/components/site/reveal";
 import { VolumeBand } from "@/components/site/volume-band";
+import { latestRelease } from "@/lib/release";
 
-export default function Home() {
+/*
+ * Fetched once here and handed down, rather than called in both places that
+ * print it. Next would dedupe two identical fetches inside one render anyway,
+ * but one call site is one thing to reason about, and it makes it obvious that
+ * the hero's version badge and the download button cannot disagree.
+ */
+export default async function Home() {
+  const release = await latestRelease();
+
   return (
     <>
       <Nav />
 
       <main className="flex-1">
-        <Hero />
+        <Hero release={release} />
 
         {/*
           A year of training, between the hero and the tour. It reads as the
@@ -36,7 +45,7 @@ export default function Home() {
         <Offline />
         <Portable />
         <Sync />
-        <Install />
+        <Install release={release} />
       </main>
 
       <Footer />

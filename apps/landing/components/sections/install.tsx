@@ -9,7 +9,8 @@ import {
 import { GitHubMark } from "@/components/site/icons";
 import { LinkButton } from "@/components/site/link-button";
 import { Mark } from "@/components/site/mark";
-import { links, version } from "@/lib/site";
+import { formatBytes, type Release } from "@/lib/release";
+import { links } from "@/lib/site";
 
 /*
  * The one lime surface on the page.
@@ -42,7 +43,7 @@ const CAVEATS = [
   },
 ];
 
-export function Install() {
+export function Install({ release }: { release: Release | null }) {
   return (
     <section id="get">
       <div className="on-volt relative overflow-hidden bg-volt text-volt-ink">
@@ -78,7 +79,7 @@ export function Install() {
             <div className="mt-10 flex flex-wrap items-center gap-3">
               <LinkButton size="hero" variant="ink" href={links.release}>
                 <Download />
-                Download v{version}
+                {release ? `Download ${release.tag}` : "Download the APK"}
               </LinkButton>
               <LinkButton size="hero" variant="wire-ink" href={links.repo}>
                 <GitHubMark />
@@ -91,9 +92,15 @@ export function Install() {
               4.36 against it, which is under AA; 70% reads 6.02. Every other
               tint on this slab is a rule and has no ratio to meet.
             */}
+            {/*
+              70% rather than 60. Composited over the lime, a 60% ink measures
+              4.36 against it, which is under AA; 70% reads 6.02. Every other
+              tint on this slab is a rule and has no ratio to meet.
+            */}
             <p className="mt-8 text-[0.9375rem] text-volt-ink/70">
-              An Android install file, free software under the AGPL-3.0. Nothing
-              to sign up for.
+              An Android install file
+              {release?.apkBytes ? `, ${formatBytes(release.apkBytes)}` : ""},
+              free software under the AGPL-3.0. Nothing to sign up for.
             </p>
           </div>
         </div>
