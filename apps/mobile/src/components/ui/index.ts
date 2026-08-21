@@ -16,7 +16,13 @@ export {
   type HeaderActionTone,
   type HeaderActionVariant,
 } from './header-action';
-export { ListPicker, type ListPickerOption, type ListPickerProps } from './list-picker';
+export {
+  ListPicker,
+  OptionList,
+  type ListPickerOption,
+  type ListPickerProps,
+  type OptionListProps,
+} from './list-picker';
 export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
 export { Screen, useScrollEdge, type ScreenProps } from './screen';
 export { useSheetLayout, type SheetLayout } from './sheet-layout';

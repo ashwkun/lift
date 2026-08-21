@@ -185,8 +185,20 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     void persist(get());
   },
 
+  /**
+   * Back to the defaults — except the three figures that are not preferences.
+   *
+   * Bodyweight, height and sex are facts about a person, not choices about how
+   * the app behaves, and nobody tapping "reset settings" is asking to be
+   * forgotten. Clearing `bodyweightKg` in particular is not even a clean
+   * deletion: the number is mirrored from the measurement log, so it would come
+   * back on the next app start (`hydrate` backfills it) and in the meantime
+   * every push-up and pull-up logged would count as zero volume — a reset that
+   * quietly breaks the volume figures until the process is restarted.
+   */
   reset: async () => {
-    set({ ...DEFAULT_SETTINGS, hydrated: true });
+    const { bodyweightKg, heightCm, sex } = get();
+    set({ ...DEFAULT_SETTINGS, bodyweightKg, heightCm, sex, hydrated: true });
     await persist(get());
   },
 }));

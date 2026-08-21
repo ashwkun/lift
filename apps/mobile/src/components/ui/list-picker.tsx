@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { controlHeight, radius, spacing, stroke, useColors } from '@/theme';
 
@@ -11,7 +11,89 @@ import { Text } from './text';
 export interface ListPickerOption<T extends string> {
   value: T;
   label: string;
+  /**
+   * A quieter second line under the label.
+   *
+   * For a choice whose options need to be *compared* rather than merely named —
+   * the six one-rep-max formulas, which are six surnames until something says
+   * what they do differently. Left off, the row is a single line and sits at the
+   * same height it always did.
+   */
+  description?: string;
 }
+
+// ---------------------------------------------------------------------------
+// OptionList
+// ---------------------------------------------------------------------------
+
+export interface OptionListProps<T extends string> {
+  options: readonly ListPickerOption<T>[];
+  value: T;
+  /** Called with the chosen value. The caller closes the sheet. */
+  onChange: (value: T) => void;
+}
+
+/**
+ * The body of a single-choice sheet: one radio row per option, checkmark on the
+ * selected one.
+ *
+ * Split out of `ListPicker` because the settings screen needs the same sheet
+ * hung off a *list row* rather than off a pill — same options, same reading
+ * order, same checkmark — and two hand-rolled radio lists in one app is how a
+ * picker ends up with two different row heights depending on which screen
+ * opened it.
+ *
+ * It scrolls itself. `FilterSheet` caps its own height at 80% of the window, so
+ * a list long enough to reach that cap would otherwise be silently cut off at
+ * the bottom with no indication that anything was below it. `flexGrow: 0` keeps
+ * a short list sized to its content rather than stretching to fill the sheet.
+ */
+export function OptionList<T extends string>({ options, value, onChange }: OptionListProps<T>) {
+  const colors = useColors();
+
+  return (
+    <ScrollView style={styles.list} contentContainerStyle={styles.options}>
+      {options.map((option, index) => {
+        const selected = option.value === value;
+
+        return (
+          <View key={option.value}>
+            {index > 0 && <Divider />}
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              // The description is read as a hint rather than folded into the
+              // label: it qualifies the option, it does not name it, and a
+              // reader working down six of these wants the six names first.
+              accessibilityHint={option.description}
+              onPress={() => onChange(option.value)}
+              style={({ pressed }) => [
+                styles.option,
+                pressed && { backgroundColor: colors.surfacePressed },
+              ]}
+            >
+              <View style={styles.optionBody}>
+                <Text variant="body" style={selected ? { color: colors.accent } : undefined}>
+                  {option.label}
+                </Text>
+                {option.description && (
+                  <Text variant="caption" color="textTertiary">
+                    {option.description}
+                  </Text>
+                )}
+              </View>
+              {selected && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+            </Pressable>
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ListPicker
+// ---------------------------------------------------------------------------
 
 export interface ListPickerProps<T extends string> {
   /** Names the dimension. Heads the sheet and prefixes the accessibility label. */
@@ -69,35 +151,14 @@ export function ListPicker<T extends string>({
       </Pressable>
 
       <FilterSheet visible={open} label={label} onClose={() => setOpen(false)}>
-        <View style={styles.options}>
-          {options.map((option, index) => (
-            <View key={option.value}>
-              {index > 0 && <Divider />}
-              <Pressable
-                accessibilityRole="radio"
-                accessibilityState={{ selected: option.value === value }}
-                onPress={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                style={({ pressed }) => [
-                  styles.option,
-                  pressed && { backgroundColor: colors.surfacePressed },
-                ]}
-              >
-                <Text
-                  variant="body"
-                  style={[styles.optionLabel, option.value === value && { color: colors.accent }]}
-                >
-                  {option.label}
-                </Text>
-                {option.value === value && (
-                  <Ionicons name="checkmark" size={18} color={colors.accent} />
-                )}
-              </Pressable>
-            </View>
-          ))}
-        </View>
+        <OptionList
+          options={options}
+          value={value}
+          onChange={(next) => {
+            onChange(next);
+            setOpen(false);
+          }}
+        />
       </FilterSheet>
     </>
   );
@@ -114,13 +175,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: stroke.outline,
   },
+  list: { flexGrow: 0 },
   options: { paddingBottom: spacing.sm },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
+    // Real padding rather than a bare `minHeight`, because a described option is
+    // two lines tall and has to breathe at the same rate as a one-line one.
+    paddingVertical: spacing.sm,
     minHeight: controlHeight.md + 4,
   },
-  optionLabel: { flex: 1 },
+  optionBody: { flex: 1, gap: 2 },
 });
