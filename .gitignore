@@ -23,6 +23,11 @@ web-build/
 # because anchoring the rules above stopped covering them.
 /android/
 /ios/
+# Gradle's own scratch space, which appears *inside* the hand-written module
+# source the rule above deliberately keeps. It is build state — file locks and a
+# hashed dependency index — rewritten by every build and meaningless on any
+# other machine.
+**/.gradle/
 
 # env
 .env
