@@ -12,6 +12,11 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -21,7 +26,6 @@ import {
   HeaderAction,
   ReorderSheet,
   Screen,
-  StatBand,
   Text,
   useScrollEdge,
   type ReorderItem,
@@ -74,7 +78,7 @@ import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
-import { spacing, useColors } from '@/theme';
+import { spacing, timing, useColors } from '@/theme';
 
 /** This screen's name on the picker's hand-off channel. */
 const PICKER_ADDRESS = 'active-workout';
@@ -293,14 +297,28 @@ export default function ActiveWorkoutScreen() {
     void prepareLiveNotice();
   }, []);
 
-  const completedSets = useMemo(
-    () =>
-      details.reduce(
-        (total, detail) => total + detail.sets.filter((set) => set.isCompleted).length,
-        0,
-      ),
-    [details],
-  );
+  /*
+   * How much of the session is done, in one pass.
+   *
+   * Both figures rather than only the completed count, because the masthead now
+   * states progress as a fraction and draws it as a line — and "12" on its own
+   * answers a question nobody has mid-workout. Warm-ups are counted: they are
+   * sets you have to get through before the working ones, and leaving them out
+   * makes the line lurch when a block's first two rows check off in ten seconds.
+   */
+  const { completedSets, totalSets } = useMemo(() => {
+    let completed = 0;
+    let total = 0;
+
+    for (const detail of details) {
+      for (const set of detail.sets) {
+        total += 1;
+        if (set.isCompleted) completed += 1;
+      }
+    }
+
+    return { completedSets: completed, totalSets: total };
+  }, [details]);
 
   /*
    * Set ids whose weight the user emptied by hand.
@@ -688,7 +706,11 @@ export default function ActiveWorkoutScreen() {
         }}
       />
 
-      <SessionStats startedAt={workout.startedAt} completedSets={completedSets} />
+      <SessionStats
+        startedAt={workout.startedAt}
+        completedSets={completedSets}
+        totalSets={totalSets}
+      />
 
       {lostWrites > 0 && (
         /*
@@ -899,38 +921,178 @@ export default function ActiveWorkoutScreen() {
 }
 
 /**
- * The session's two figures, and the only thing on this screen that ticks.
+ * The session masthead: how far through it you are, how long it has taken, and
+ * how many sets are down.
+ *
+ * This was a `StatBand` — the app's generic row of figures — and a band is the
+ * right component for a screen that is *reporting* on a session. This screen is
+ * the session. The one question a lifter actually asks mid-workout is "how much
+ * is left", and nothing in the app answered it: the band said "Duration 42:18,
+ * Sets 12", and 12 out of what was left to memory or to scrolling.
+ *
+ * So the fraction is stated and then drawn. The line is full-bleed, flush under
+ * the header, and it is the only element on this screen that spans the whole
+ * width — which is what lets a 3pt rule read as the session's own progress
+ * rather than as a divider that happens to be lime.
+ *
+ * That is the second lime element this screen can show: the docked rest bar
+ * draws its countdown in the accent too (`describeRest`), which puts the budget
+ * in `theme/tokens.ts` at two while a rest is running. They are allowed to
+ * coexist because they are never the same reading — this one is at the top edge
+ * and only ever grows, that one is at the bottom edge and only ever drains, and
+ * the rest bar is gone the moment the countdown ends.
+ *
+ * Volume used to sit alongside these figures and doesn't: the summary screen
+ * states it thirty seconds later, and three figures forced the type down a step
+ * for a number nobody acts on mid-set.
+ */
+function SessionStats({
+  startedAt,
+  completedSets,
+  totalSets,
+}: {
+  startedAt: Date;
+  completedSets: number;
+  totalSets: number;
+}) {
+  return (
+    <View>
+      <SessionProgress completed={completedSets} total={totalSets} />
+
+      <View style={styles.stats}>
+        <View style={styles.statColumn}>
+          <Text variant="overline" color="textTertiary">
+            Elapsed
+          </Text>
+          <Elapsed startedAt={startedAt} />
+        </View>
+
+        <View style={styles.statColumn}>
+          <Text variant="overline" color="textTertiary">
+            Sets
+          </Text>
+          {/* The total is set in the tertiary tier rather than at full strength:
+              the figure that changes is the one being read, and "12 / 18" where
+              both halves shout is two numbers to parse instead of one and its
+              denominator. */}
+          <Text
+            variant="numericLarge"
+            accessibilityLabel={`${completedSets} of ${totalSets} sets complete`}
+          >
+            {completedSets}
+            <Text variant="numericLarge" color="textTertiary">{` / ${totalSets}`}</Text>
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The only thing on this screen that ticks, and it is deliberately its own
+ * component.
  *
  * `useTicker` used to sit at the screen root, so once a second the whole tree
- * re-rendered: every exercise block, every set row, every text field in them.
- * A set row is a controlled input — competing with a full re-render every
- * second is what made typing a weight feel like it was fighting back. Owning
- * the ticker here confines the 1Hz update to this one band.
- *
- * Volume used to sit alongside these two and now doesn't: the summary screen
- * states it thirty seconds later, and three figures forced the band's type down
- * a step for a number nobody acts on mid-set.
+ * re-rendered: every exercise block, every set row, every text field in them. A
+ * set row is a controlled input, and competing with a full re-render every
+ * second is what made typing a weight feel like it was fighting back. Moving
+ * the ticker to the band fixed that; moving it down one more level, to here,
+ * means the 1Hz update now re-renders a single `Text` rather than the masthead
+ * and the progress line along with it.
  */
-function SessionStats({ startedAt, completedSets }: { startedAt: Date; completedSets: number }) {
+function Elapsed({ startedAt }: { startedAt: Date }) {
   const now = useTicker(1000);
   const elapsed = Math.max(0, Math.floor((now - startedAt.getTime()) / 1000));
 
   return (
-    <StatBand
-      style={styles.stats}
-      items={[
-        { label: 'Duration', value: formatDuration(elapsed), lead: true },
-        { label: 'Sets', value: String(completedSets) },
-      ]}
-    />
+    <Text
+      variant="numericLarge"
+      color="accent"
+      // Position alone does not say what this number is once the label above it
+      // is out of the reading order.
+      accessibilityLabel={`Elapsed, ${formatDuration(elapsed)}`}
+    >
+      {formatDuration(elapsed)}
+    </Text>
+  );
+}
+
+/**
+ * Sets completed, drawn as a line.
+ *
+ * Slid rather than scaled or widened, which is the same technique — and the
+ * same reasoning — as the rest timer's track: `scaleX` grows from the centre
+ * and needs a `transformOrigin` not every surface honours, and animating
+ * `width` puts a layout pass on the UI thread's critical path once a set. A
+ * full-width layer translated out to the left is the same picture with neither
+ * problem, and the left edge stays put while the right edge does the moving.
+ *
+ * It moves twice a set at most, so unlike the rest bar there is no ticker here
+ * — the value changes only when a check plate does.
+ */
+function SessionProgress({ completed, total }: { completed: number; total: number }) {
+  const colors = useColors();
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  const progress = total > 0 ? Math.min(1, completed / total) : 0;
+  const filled = useSharedValue(progress);
+
+  useEffect(() => {
+    filled.value = withTiming(progress, timing.travel);
+  }, [filled, progress]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -(1 - filled.value) * trackWidth }],
+  }));
+
+  return (
+    <View
+      style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}
+      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+      // The fraction directly below states this, and a screen reader announcing
+      // the same progress twice in two forms is noise rather than access.
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {trackWidth > 0 && (
+        <Animated.View
+          style={[styles.progressFill, fillStyle, { backgroundColor: colors.accent }]}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  stats: {
-    paddingVertical: spacing.sm,
-    marginHorizontal: spacing.lg,
+  /*
+   * Full-bleed, and 3pt rather than `stroke.rule`.
+   *
+   * Both for the same reason the rest timer's track is: this line is read at a
+   * glance from wherever the phone is sitting, and a hairline of lime against
+   * the canvas is not something anyone is going to notice moving. The width is
+   * what makes it the session's line rather than a divider — every other
+   * element on this screen sits inside the 16pt margin.
+   */
+  progressTrack: {
+    height: 3,
+    overflow: 'hidden',
   },
+  progressFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  stats: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  // Equal columns, so the two figures sit on the same grid as the exercise
+  // blocks below them rather than being spaced to their own content.
+  statColumn: { flex: 1, gap: spacing.xs },
   writeFailure: {
     flexDirection: 'row',
     alignItems: 'center',

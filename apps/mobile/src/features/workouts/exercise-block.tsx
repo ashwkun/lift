@@ -22,7 +22,7 @@ import { useExerciseUnits } from '@/features/exercises/units';
 import { haptics } from '@/features/feedback/haptics';
 import { showConfirm, showDialog } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, useColors } from '@/theme';
+import { radius, spacing, stroke, useColors } from '@/theme';
 
 import { pairWithPrevious } from './previous';
 import { SetRow } from './set-row';
@@ -287,7 +287,7 @@ export function ExerciseBlock({
           Time and Reps are not units the user has an opinion about, so they stay
           plain text and the rule reads as "if the heading is a unit, it is a
           button". */}
-      <View style={styles.columnHeader}>
+      <View style={[styles.columnHeader, { borderBottomColor: colors.border }]}>
         <Text variant="overline" color="textTertiary" style={styles.indexCell}>
           Set
         </Text>
@@ -523,12 +523,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
   },
+  /*
+   * One rule, under the headings only.
+   *
+   * `StatBand` had its rules taken away on the argument that figures in columns
+   * under uppercase labels already read as a table without being boxed in, and
+   * that is right — for two or three figures on one line. This is a real table:
+   * five columns and up to a dozen rows, with editable fields in it. The
+   * headings were floating a few points above the first row with nothing to
+   * attach them to, so at a glance the top set row read as the heading's
+   * content rather than as the first record under it.
+   *
+   * A rule under the headings is not the grid that was removed. There is
+   * nothing between the columns, nothing under the rows and nothing around the
+   * outside — the one line says where the header stops, which is the single
+   * thing the eye was missing.
+   */
   columnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    borderBottomWidth: stroke.rule,
   },
   indexCell: { width: 32, textAlign: 'center' },
   previousCell: { flex: 1, minWidth: 60 },
