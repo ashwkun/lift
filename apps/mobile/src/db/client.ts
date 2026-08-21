@@ -67,8 +67,6 @@ const OPTIONS = { enableChangeListener: true } as const;
  *   behind whenever a workout is removed.
  * - `journal_mode = WAL`: readers no longer block on the writer, which matters
  *   because the rest timer and live stats query while sets are being written.
- *   The browser's VFS has no WAL to give and answers with the mode it kept,
- *   which is a returned row rather than an error.
  * - `busy_timeout`: wait rather than immediately throwing SQLITE_BUSY if the
  *   sync engine happens to be writing.
  */
@@ -77,6 +75,33 @@ const PRAGMAS = `
   PRAGMA foreign_keys = ON;
   PRAGMA busy_timeout = 5000;
   PRAGMA synchronous = NORMAL;
+`;
+
+/**
+ * The browser's subset, and the omission is the point: **no WAL**.
+ *
+ * WAL needs shared memory — `xShmMap`, `xShmLock`, `xShmBarrier` — and the VFS
+ * the web build runs on, wa-sqlite's `AccessHandlePoolVFS`, implements none of
+ * them. Asking for it does not fail politely and fall back to the journal it
+ * already had: SQLite calls through a function pointer that was never filled
+ * in, the WebAssembly instance traps, and the worker is left alive but unable
+ * to answer anything ever again.
+ *
+ * That is worth spelling out because of how it presents. The next call into
+ * that worker is a *synchronous* one, and the synchronous bridge reports a dead
+ * worker as `Sync operation timeout` — so a pragma that cannot work reads as a
+ * performance problem, on a line that never appears in the stack trace.
+ *
+ * Nothing is lost. WAL buys concurrent readers across connections, and on a
+ * phone there are several — the sync engine writes while the logging screen
+ * reads. A browser tab has one worker holding one connection.
+ *
+ * `busy_timeout` stays, and is not vestigial here: two tabs are two workers on
+ * the same OPFS file, which is the one way this build can contend with itself.
+ */
+const WEB_PRAGMAS = `
+  PRAGMA foreign_keys = ON;
+  PRAGMA busy_timeout = 5000;
 `;
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
@@ -97,7 +122,6 @@ export function isDatabaseOpen(): boolean {
 
 function adopt(instance: SQLiteDatabase): void {
   sqlite = instance;
-  instance.execSync(PRAGMAS);
   db = drizzle(instance, { schema });
   opened = true;
 }
@@ -113,11 +137,21 @@ export const databaseReady: Promise<void> = openDatabase();
 
 function openDatabase(): Promise<void> {
   if (Platform.OS !== 'web') {
-    adopt(openDatabaseSync(DATABASE_NAME, OPTIONS));
+    const instance = openDatabaseSync(DATABASE_NAME, OPTIONS);
+    instance.execSync(PRAGMAS);
+    adopt(instance);
     return Promise.resolve();
   }
 
-  return openDatabaseAsync(DATABASE_NAME, OPTIONS).then(adopt);
+  return (async () => {
+    const instance = await openDatabaseAsync(DATABASE_NAME, OPTIONS);
+    // Asynchronously, so a pragma that the browser's VFS refuses comes back as
+    // the error it is. Run through the synchronous bridge it would arrive as a
+    // timeout instead, which names the transport rather than the problem — and
+    // that is precisely how the WAL trap above spent a deploy hiding.
+    await instance.execAsync(WEB_PRAGMAS);
+    adopt(instance);
+  })();
 }
 
 export { schema };
