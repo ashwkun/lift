@@ -1,14 +1,17 @@
-import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
+import {
+  DEFAULT_TRAINING_LEVEL,
+  landmarksFor,
+  MUSCLE_GROUP_LABELS,
+  type MuscleGroup,
+  type TrainingLevel,
+  type VolumeLandmarks,
+} from '@lift/shared';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Text } from '@/components/ui';
 import { formatSets } from '@/features/analytics/format';
-import {
-  DEFAULT_VOLUME_THRESHOLDS,
-  volumeColor,
-  type VolumeThresholds,
-} from '@/features/analytics/volume-landmarks';
+import { volumeColor } from '@/features/analytics/volume-landmarks';
 import { spacing, useColors } from '@/theme';
 
 import {
@@ -68,7 +71,8 @@ export interface BodyMapProps {
    * the figures narrow rather than stretch.
    */
   maxHeight?: number;
-  thresholds?: VolumeThresholds;
+  /** Which set of landmarks each muscle is held to. */
+  level?: TrainingLevel;
   selected?: MuscleGroup | null;
   onSelect?: (muscle: MuscleGroup | null) => void;
 }
@@ -77,15 +81,18 @@ export interface BodyMapProps {
  * Front and back muscle heatmap over anatomical outlines.
  *
  * Colour is absolute, not relative: it comes from where a muscle's weekly sets
- * fall against the volume landmarks, so an undertrained muscle stays dim even
- * when it is the most-trained thing you did that month, and an overreached one
- * leaves the accent hue entirely rather than just getting brighter.
+ * fall against that muscle's own volume landmarks, so an undertrained muscle
+ * stays dim even when it is the most-trained thing you did that month, and an
+ * overreached one leaves the accent hue entirely rather than just getting
+ * brighter. Per muscle rather than one scale for the whole figure: 20 weekly
+ * sets is a growing week for shoulders and past what triceps recover from, and
+ * one ramp for both paints one of them wrong every week.
  */
 export function BodyMap({
   setsPerWeek,
   width,
   maxHeight = 300,
-  thresholds = DEFAULT_VOLUME_THRESHOLDS,
+  level = DEFAULT_TRAINING_LEVEL,
   selected = null,
   onSelect,
 }: BodyMapProps) {
@@ -103,7 +110,9 @@ export function BodyMap({
       maxHeight={maxHeight}
       // A selected muscle keeps its heat colour and gains an outline —
       // repainting it would hide the one value the tap was asking about.
-      fillFor={(muscle) => volumeColor(regionSets[muscle] ?? 0, colors, thresholds)}
+      fillFor={(muscle) =>
+        volumeColor(regionSets[muscle] ?? 0, colors, regionLandmarks(muscle, level))
+      }
       isSelected={(muscle) => selectedRegion === muscle}
       label={(muscle) =>
         `${MUSCLE_GROUP_LABELS[muscle]}, ${formatSets(regionSets[muscle] ?? 0)} sets per week`
@@ -168,6 +177,34 @@ export function MuscleSelectMap({
       }
       onPress={(region) => onToggle(musclesInRegion(region))}
     />
+  );
+}
+
+/**
+ * The landmarks a drawn region is judged against: its own, plus every muscle it
+ * stands in for.
+ *
+ * Summed, because `resolveRegions` sums their sets. The lats shape carries the
+ * upper back's rows as well, and holding a two-muscle total to one muscle's
+ * ceiling would paint half the back overreached for anyone who trains it
+ * properly. For the fifteen regions that alias nothing this is just that
+ * muscle's row.
+ */
+function regionLandmarks(region: MuscleGroup, level: TrainingLevel): VolumeLandmarks {
+  const muscles = musclesInRegion(region);
+  if (muscles.length === 1) return landmarksFor(region, level);
+
+  return muscles.reduce<VolumeLandmarks>(
+    (total, muscle) => {
+      const row = landmarksFor(muscle, level);
+      return {
+        mv: total.mv + row.mv,
+        mev: total.mev + row.mev,
+        mav: total.mav + row.mav,
+        mrv: total.mrv + row.mrv,
+      };
+    },
+    { mv: 0, mev: 0, mav: 0, mrv: 0 },
   );
 }
 

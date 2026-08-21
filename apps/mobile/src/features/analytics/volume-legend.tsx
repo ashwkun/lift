@@ -1,17 +1,13 @@
+import { DEFAULT_TRAINING_LEVEL, landmarksFor, type TrainingLevel } from '@lift/shared';
 import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui';
 import { spacing, stroke, useColors } from '@/theme';
 
-import {
-  DEFAULT_VOLUME_THRESHOLDS,
-  legendSamples,
-  volumeColor,
-  type VolumeThresholds,
-} from './volume-landmarks';
+import { legendSamples, volumeColor } from './volume-landmarks';
 
 export interface VolumeLegendProps {
-  thresholds?: VolumeThresholds;
+  level?: TrainingLevel;
   /** Adds the hairline rule above, for a legend sitting under a body map. */
   ruled?: boolean;
 }
@@ -22,10 +18,17 @@ export interface VolumeLegendProps {
  * Built from `legendSamples` rather than from evenly spaced fractions, so the
  * swatches step where the colour actually steps. A legend that sampled 0–100%
  * linearly would show a smooth gradient for a ramp that deliberately is not
- * one — most of its movement happens between MEV and MRV.
+ * one — most of its movement happens between MEV and MAV.
+ *
+ * The map colours 21 muscles against 21 different set counts, so this can no
+ * longer quote one. It shows the *shape* of the ramp, which every muscle shares,
+ * sampled on chest because it sits in the middle of the table — and the caption
+ * says whose numbers each figure is being held to instead of naming a range that
+ * would be wrong for two thirds of the body.
  */
-export function VolumeLegend({ thresholds = DEFAULT_VOLUME_THRESHOLDS, ruled = true }: VolumeLegendProps) {
+export function VolumeLegend({ level = DEFAULT_TRAINING_LEVEL, ruled = true }: VolumeLegendProps) {
   const colors = useColors();
+  const landmarks = landmarksFor('chest', level);
 
   return (
     <View style={styles.wrapper}>
@@ -41,10 +44,10 @@ export function VolumeLegend({ thresholds = DEFAULT_VOLUME_THRESHOLDS, ruled = t
           Under
         </Text>
         <View style={styles.swatches}>
-          {legendSamples(thresholds).map((sets) => (
+          {legendSamples(landmarks).map((sets) => (
             <View
               key={sets}
-              style={[styles.swatch, { backgroundColor: volumeColor(sets, colors, thresholds) }]}
+              style={[styles.swatch, { backgroundColor: volumeColor(sets, colors, landmarks) }]}
             />
           ))}
         </View>
@@ -54,7 +57,7 @@ export function VolumeLegend({ thresholds = DEFAULT_VOLUME_THRESHOLDS, ruled = t
       </View>
 
       <Text variant="caption" color="textTertiary" align="center">
-        Weekly sets against a {thresholds.mev}–{thresholds.mrv} set target
+        Weekly sets, against the target range for each muscle
       </Text>
     </View>
   );

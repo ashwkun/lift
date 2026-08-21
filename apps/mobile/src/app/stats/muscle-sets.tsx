@@ -1,4 +1,10 @@
-import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
+import {
+  landmarksFor,
+  MUSCLE_GROUP_LABELS,
+  volumeZone,
+  VOLUME_ZONE_LABELS,
+  type MuscleGroup,
+} from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -13,12 +19,7 @@ import {
   type MuscleSetTrend,
 } from '@/features/analytics/muscle-stats';
 import { RangePicker } from '@/features/analytics/range-picker';
-import {
-  DEFAULT_VOLUME_THRESHOLDS,
-  volumeColor,
-  volumeZone,
-  VOLUME_ZONE_LABELS,
-} from '@/features/analytics/volume-landmarks';
+import { volumeColor } from '@/features/analytics/volume-landmarks';
 import type { StatRange } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
@@ -226,13 +227,16 @@ function MuscleRow({
 }) {
   const colors = useColors();
   const share = totalSets === 0 ? 0 : Math.round((entry.directSets / totalSets) * 100);
-  const zone = volumeZone(entry.setsPerWeek);
+  const landmarks = landmarksFor(entry.muscle);
+  const zone = volumeZone(entry.setsPerWeek, landmarks);
   const unmapped = UNMAPPED_MUSCLES.includes(entry.muscle);
 
-  // The bar tracks the target range rather than the busiest muscle, so a row
-  // short of MEV looks short even in a month where nothing else got trained
-  // either.
-  const fill = Math.min(100, (entry.setsPerWeek / DEFAULT_VOLUME_THRESHOLDS.maxv) * 100);
+  // The bar tracks this muscle's own recoverable ceiling rather than the busiest
+  // muscle, so a row short of MEV looks short even in a month where nothing else
+  // got trained either — and 16 sets of triceps reads fuller than 16 of
+  // shoulders, which is the truth of it. Muscles with no ceiling (cardio and
+  // friends) get an empty track rather than a division by zero.
+  const fill = landmarks.mrv <= 0 ? 0 : Math.min(100, (entry.setsPerWeek / landmarks.mrv) * 100);
 
   return (
     <Pressable
@@ -268,7 +272,10 @@ function MuscleRow({
         <View
           style={[
             styles.fill,
-            { backgroundColor: volumeColor(entry.setsPerWeek, colors), width: `${Math.max(2, fill)}%` },
+            {
+              backgroundColor: volumeColor(entry.setsPerWeek, colors, landmarks),
+              width: `${Math.max(2, fill)}%`,
+            },
           ]}
         />
       </View>

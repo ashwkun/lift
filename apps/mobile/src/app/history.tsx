@@ -1,7 +1,10 @@
 import {
   formatDurationShort,
   formatVolume,
+  landmarksFor,
   MUSCLE_GROUP_LABELS,
+  volumeZone,
+  VOLUME_ZONE_LABELS,
   type MuscleGroup,
   type WeightUnit,
 } from '@lift/shared';
@@ -39,12 +42,7 @@ import {
   type TrendBucket,
 } from '@/features/analytics/repository';
 import { formatSets } from '@/features/analytics/format';
-import {
-  DEFAULT_VOLUME_THRESHOLDS,
-  volumeColor,
-  volumeZone,
-  VOLUME_ZONE_LABELS,
-} from '@/features/analytics/volume-landmarks';
+import { volumeColor } from '@/features/analytics/volume-landmarks';
 import { VolumeLegend } from '@/features/analytics/volume-legend';
 import { WorkoutCard } from '@/features/workouts/workout-card';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
@@ -471,13 +469,15 @@ function MuscleRow({
   const colors = useColors();
   const share = totalSets === 0 ? 0 : Math.round((entry.sets / totalSets) * 100);
   const unmapped = UNMAPPED_MUSCLES.includes(entry.muscle);
-  const zone = volumeZone(entry.setsPerWeek);
+  const landmarks = landmarksFor(entry.muscle);
+  const zone = volumeZone(entry.setsPerWeek, landmarks);
   const weekly = formatSets(entry.setsPerWeek);
 
-  // The bar tracks the target range rather than the busiest muscle, so a row
-  // that is short of MEV looks short even in a week where nothing hit it.
-  const target = DEFAULT_VOLUME_THRESHOLDS.maxv;
-  const fill = Math.min(100, (entry.setsPerWeek / target) * 100);
+  // The bar tracks this muscle's own recoverable ceiling rather than the busiest
+  // muscle, so a row that is short of MEV looks short even in a week where
+  // nothing hit it. Muscles with no ceiling — cardio and the other buckets that
+  // are not muscles — get an empty track rather than a division by zero.
+  const fill = landmarks.mrv <= 0 ? 0 : Math.min(100, (entry.setsPerWeek / landmarks.mrv) * 100);
 
   return (
     <Pressable
@@ -513,7 +513,7 @@ function MuscleRow({
           style={[
             styles.muscleFill,
             {
-              backgroundColor: volumeColor(entry.setsPerWeek, colors),
+              backgroundColor: volumeColor(entry.setsPerWeek, colors, landmarks),
               width: `${Math.max(2, fill)}%`,
             },
           ]}
