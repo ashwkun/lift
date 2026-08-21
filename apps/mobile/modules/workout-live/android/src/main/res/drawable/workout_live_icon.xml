@@ -1,0 +1,25 @@
+<!--
+  The status-bar icon.
+
+  Android draws a small icon as a mask: every non-transparent pixel is painted
+  in the system's own colour and the alpha channel is all that survives. So this
+  is deliberately a flat white silhouette with no detail and no interior
+  shading — anything else would arrive as a solid blob. The app icon cannot be
+  reused for the same reason, which is why this module ships its own.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Outer plate, left -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M1.5,9.5h2.25v5h-2.25z" />
+  <!-- Inner plate, left -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M5,7h2.75v10h-2.75z" />
+  <!-- Bar -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M8.75,10.75h6.5v2.5h-6.5z" />
+  <!-- Inner plate, right -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M16.25,7h2.75v10h-2.75z" />
+  <!-- Outer plate, right -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M20.25,9.5h2.25v5h-2.25z" />
+</vector>

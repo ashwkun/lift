@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.lift'
+version = '1.0.0'
+
+android {
+  namespace "com.lift.workoutlive"
+
+  // `expo-module-gradle-plugin` reads both back when it configures publication,
+  // and fails the whole autolinking pass if either is missing — even for a local
+  // module that is never published anywhere.
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+// No dependency block. `expo-module-gradle-plugin` wires in expo-modules-core,
+// which exposes `androidx.core:core-ktx` as an `api` dependency — so
+// NotificationCompat arrives transitively at whatever version the rest of the
+// build already resolved. Declaring our own would be a second opinion about a
+// version we do not own.

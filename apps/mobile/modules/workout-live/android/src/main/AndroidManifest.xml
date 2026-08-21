@@ -1,0 +1,36 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Merged into the app manifest by the Android manifest merger, which is why
+    none of this is in `app.json`. A clean prebuild regenerates `android/` from
+    scratch; a library manifest is regenerated with it.
+
+    ACTIVITY_RECOGNITION is the runtime half of the `health` foreground-service
+    type: FOREGROUND_SERVICE_HEALTH is granted at install, but from Android 14
+    `startForeground` additionally requires one of ACTIVITY_RECOGNITION,
+    BODY_SENSORS or HIGH_SAMPLING_RATE_SENSORS to have been granted by the user,
+    and throws SecurityException otherwise. `WorkoutLiveService` catches that and
+    degrades to a plain ongoing notification — see the comment there.
+  -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application>
+    <!--
+      `stopWithTask="false"` on purpose. Swiping the app out of Recents is not
+      "I have finished my workout" — it is the most common way a phone gets
+      tidied up mid-session, and the notification is the only thing left holding
+      the session open in the user's view.
+    -->
+    <service
+      android:name=".WorkoutLiveService"
+      android:exported="false"
+      android:stopWithTask="false"
+      android:foregroundServiceType="health" />
+
+    <receiver
+      android:name=".WorkoutLiveReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

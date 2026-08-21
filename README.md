@@ -69,8 +69,48 @@ npx expo prebuild --platform android --no-install
 cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 ```
 
-`android/` and `ios/` are gitignored — prebuild regenerates them, and nothing
-native is committed.
+`android/` and `ios/` are gitignored — prebuild regenerates them, so nothing
+generated is committed. The one piece of hand-written native code lives in
+`apps/mobile/modules/workout-live`, a local Expo module that prebuild links
+rather than overwrites.
+
+### Desktop web
+
+The same app, same code, same database — laid out for a window instead of a
+phone. Below 840px it is the phone layout unchanged; above it the bottom tab bar
+becomes a persistent side rail, content is capped to a readable column rather
+than stretched across the monitor, bottom sheets become centred dialogs, and
+rows and buttons answer a cursor.
+
+```bash
+cd apps/mobile
+npx expo start --web
+```
+
+Two things are worth knowing.
+
+**The database is real, and it needs two headers.** In a browser `expo-sqlite`
+is SQLite compiled to WebAssembly, storing through OPFS, and OPFS only hands out
+the synchronous access handles it needs to a cross-origin-isolated document.
+`metro.config.js` sends `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: credentialless`, but it does so through Metro's
+`server.enhanceMiddleware`, which **only `expo start` reads**. `expo serve` and
+every other way of hosting a built export are separate servers that never see
+it.
+
+So `expo start --web` is isolated and persists, and **anything serving the
+exported files has to send those two headers itself**. Without them the app
+still loads and still answers every query — from memory, silently, losing the
+whole training log on reload. Check `crossOriginIsolated === true` in the
+console of a deployed build before trusting it with data.
+
+**Notifications are the one thing the web build does not do.** Scheduling a
+local alert for a future time has no browser equivalent without a service worker
+and a push subscription, so the web target takes the same path as a phone with
+the permission denied. The rest countdown, its bell and the docked timer all
+work; what is missing is being told rest is over while the tab is in the
+background. Session tokens go to `localStorage` there rather than the OS
+keychain — see `features/sync/token-storage.ts`.
 
 ### API
 
@@ -133,6 +173,14 @@ acknowledged rather than double-applying.
 
 **Warm-up sets are excluded from volume, 1RM and PR detection.** Counting them
 would inflate every statistic in the app.
+
+**The session notification holds no clock of its own.** Rest is stored as an
+absolute deadline, and that epoch is handed to Android's notification
+chronometer, which SystemUI ticks in its own process. So the countdown in the
+shade is live and correct without this app running, and adjusting the timer
+moves one number rather than resynchronising two. The Android foreground service
+behind it (`modules/workout-live`) exists to keep the JavaScript runtime alive
+so the notification's buttons reach a live store — not to count anything.
 
 **1RM formulas are clamped.** Brzycki and Lander divide by `37 − reps`, so they
 go infinite at 37 reps and negative beyond; past 30 they hand off to Epley,

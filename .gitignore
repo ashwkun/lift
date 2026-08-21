@@ -12,8 +12,17 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
-android/
-ios/
+# Anchored to the app root on purpose. Unanchored, `android/` matches at every
+# depth — including `apps/mobile/modules/*/android/`, which is hand-written
+# source rather than prebuild output, and which git would then drop from every
+# commit without saying so.
+/apps/mobile/android/
+/apps/mobile/ios/
+# The repo root is not an Expo project, so anything here by these names is
+# prebuild output from a command run one directory too high. Named explicitly
+# because anchoring the rules above stopped covering them.
+/android/
+/ios/
 
 # env
 .env

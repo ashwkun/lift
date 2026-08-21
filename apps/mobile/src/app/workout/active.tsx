@@ -36,7 +36,7 @@ import {
 } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { setExerciseUnits } from '@/features/exercises/repository';
-import { clearWorkoutNotice } from '@/features/notifications/workout';
+import { clearSessionNotice, prepareLiveNotice } from '@/features/notifications/live';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
 import { ghostFill, pairedPreviousSet } from '@/features/workouts/previous';
 import {
@@ -71,6 +71,7 @@ import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
+import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
 import { spacing, useColors } from '@/theme';
@@ -273,6 +274,25 @@ export default function ActiveWorkoutScreen() {
     }
   }, [settings.restTimerEnabled, settings.restTimerNotifications]);
 
+  /*
+   * The second permission this screen asks for, and the only other place in the
+   * app that asks for anything.
+   *
+   * Separate from the block above because it is a different question with a
+   * different consequence. That one is "may we ring a bell", and refusing it
+   * silences the rest timer. This one is ACTIVITY_RECOGNITION, the runtime half
+   * of Android's `health` foreground-service type, and refusing it costs only
+   * the session notification's protection from being killed in the background —
+   * the notification, its live countdown and its buttons all still work. So it
+   * is not gated on a setting: there is no feature to turn off behind it.
+   *
+   * Unconditional on the other platforms too, where it resolves false without
+   * asking anyone anything.
+   */
+  useEffect(() => {
+    void prepareLiveNotice();
+  }, []);
+
   const completedSets = useMemo(
     () =>
       details.reduce(
@@ -400,6 +420,36 @@ export default function ActiveWorkoutScreen() {
     },
     [settings, startRest, previousByExercise, guard],
   );
+
+  /*
+   * "Complete set", pressed on the ongoing notification.
+   *
+   * The notification cannot do this itself — see `store/notice-request` — so it
+   * raises a flag and this screen, which owns `handleToggleSet` and everything
+   * that hangs off it, answers with the identical path a tap on the row takes.
+   * The set chosen is the first unchecked one in exercise order, which is the
+   * same one `exercise-block` puts a plate calculation under: the set the user
+   * is walking to the rack to do.
+   *
+   * The flag is taken before anything else can run, so a re-render mid-write
+   * cannot tick a second set. If nothing is unchecked the flag is still
+   * consumed: the workout is finished, and the request has been answered by
+   * there being nothing to answer it with.
+   */
+  const completeSetRequested = useNoticeRequest((state) => state.completeSet);
+
+  useEffect(() => {
+    if (!completeSetRequested) return;
+    if (!useNoticeRequest.getState().takeCompleteSet()) return;
+
+    for (const detail of details) {
+      const next = detail.sets.find((set) => !set.isCompleted);
+      if (next) {
+        void handleToggleSet(next, detail);
+        return;
+      }
+    }
+  }, [completeSetRequested, details, handleToggleSet]);
 
   // Which exercise's rest is being edited, held by `workoutExercises.id` rather
   // than by the row itself so the sheet re-reads the live query's latest copy.
@@ -574,7 +624,7 @@ export default function ActiveWorkoutScreen() {
         await discardWorkout(workout.id);
         useTimer.getState().stopRest();
         void cancelRestNotification();
-        void clearWorkoutNotice();
+        void clearSessionNotice();
         haptics.destructive();
         router.replace('/(tabs)/workout');
       } catch {

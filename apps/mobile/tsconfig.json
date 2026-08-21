@@ -9,7 +9,10 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@/assets/*": ["./assets/*"]
+      "@/assets/*": ["./assets/*"],
+      // Local Expo modules. Their JS half is ordinary source that Metro bundles
+      // like any other file; only the native half is linked by Gradle.
+      "@modules/*": ["./modules/*"]
     }
   },
   "include": [

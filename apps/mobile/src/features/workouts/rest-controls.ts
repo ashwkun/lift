@@ -62,27 +62,39 @@ export interface RestControls {
   stop: () => void;
 }
 
+/**
+ * Puts the scheduled bell back in step with whatever the clock now says.
+ *
+ * A plain function rather than something closed over inside the hook, because
+ * the timer is no longer only driven from a press on screen: the ongoing
+ * notification's `+15s`, `Pause` and `Skip` buttons reach the same store from
+ * `features/workouts/workout-notice.tsx`, with no component anywhere near them.
+ * Every mutation of the rest period has to move the bell to match — an extension
+ * that leaves the alert where it was rings early with the phone in a pocket —
+ * so the rule belongs somewhere both callers can reach rather than in one of
+ * them.
+ *
+ * Reads the setting through `getState()` for the same reason: there is no
+ * component to subscribe on behalf of the notification path.
+ */
+export function syncRestNotification(): void {
+  const { restEndsAt, restExerciseName } = useTimer.getState();
+
+  if (!useSettings.getState().restTimerNotifications || restEndsAt === null) {
+    void cancelRestNotification();
+    return;
+  }
+
+  const seconds = Math.ceil((restEndsAt - Date.now()) / 1000);
+  if (seconds <= 0) {
+    void cancelRestNotification();
+    return;
+  }
+
+  void scheduleRestNotification(seconds, restExerciseName ?? undefined);
+}
+
 export function useRestControls(): RestControls {
-  const notificationsEnabled = useSettings((state) => state.restTimerNotifications);
-
-  /** Puts the scheduled bell back in step with whatever the clock now says. */
-  const syncNotification = () => {
-    const { restEndsAt, restExerciseName } = useTimer.getState();
-
-    if (!notificationsEnabled || restEndsAt === null) {
-      void cancelRestNotification();
-      return;
-    }
-
-    const seconds = Math.ceil((restEndsAt - Date.now()) / 1000);
-    if (seconds <= 0) {
-      void cancelRestNotification();
-      return;
-    }
-
-    void scheduleRestNotification(seconds, restExerciseName ?? undefined);
-  };
-
   // Written as plain closures rather than `useCallback`s. The React Compiler is
   // on for this app (see `experiments.reactCompiler` in app.json), so hand-rolled
   // memoisation here would be noise around something already being done — and
@@ -92,7 +104,7 @@ export function useRestControls(): RestControls {
     start: (seconds, context) => {
       haptics.selection();
       useTimer.getState().startRest(seconds, context);
-      syncNotification();
+      syncRestNotification();
     },
 
     adjust: (deltaSeconds) => {
@@ -100,7 +112,7 @@ export function useRestControls(): RestControls {
       // out, and it means nothing if four buttons say the same thing.
       haptics.selection();
       useTimer.getState().adjustRest(deltaSeconds);
-      syncNotification();
+      syncRestNotification();
     },
 
     togglePause: () => {
@@ -110,7 +122,7 @@ export function useRestControls(): RestControls {
       if (state.restPausedSeconds !== null) state.resumeRest();
       else state.pauseRest();
 
-      syncNotification();
+      syncRestNotification();
     },
 
     stop: () => {

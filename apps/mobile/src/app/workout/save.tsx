@@ -39,7 +39,7 @@ import {
 } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { cancelRestNotification } from '@/features/notifications/rest';
-import { clearWorkoutNotice } from '@/features/notifications/workout';
+import { clearSessionNotice } from '@/features/notifications/live';
 import { discardWorkout, finishWorkout } from '@/features/workouts/repository';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
@@ -258,7 +258,7 @@ export default function SaveWorkoutScreen() {
 
         useTimer.getState().stopRest();
         void cancelRestNotification();
-        void clearWorkoutNotice();
+        void clearSessionNotice();
         haptics.finished();
         router.replace({
           pathname: '/workout/summary/[id]',
@@ -296,7 +296,7 @@ export default function SaveWorkoutScreen() {
         await discardWorkout(workout.id);
         useTimer.getState().stopRest();
         void cancelRestNotification();
-        void clearWorkoutNotice();
+        void clearSessionNotice();
         haptics.destructive();
         router.replace('/(tabs)/workout');
       } catch {
