@@ -36,10 +36,38 @@ services:
       DATABASE_URL: postgres://lift:${POSTGRES_PASSWORD:-password}@postgres:5432/lift
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-lift://,http://localhost:8081}
+      # The phone scheme, Metro's web dev server, and the built web container
+      # on 8080 below — a browser origin that is not listed here is rejected
+      # before it reaches a handler.
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-lift://,http://localhost:8081,http://localhost:8080}
       PORT: 3000
     ports:
       - '3000:3000'
+
+  # Not started by `docker compose up` — `expo start --web` is how you develop
+  # the web app, and it is faster and hot-reloads. This exists to check the one
+  # thing that dev server cannot tell you: whether a *built* export is still
+  # cross-origin isolated. Metro sends COOP and COEP through
+  # `server.enhanceMiddleware`, which only `expo start` reads, so isolation is
+  # the one property that is guaranteed in development and easy to lose in
+  # production — and losing it costs the whole training log on the next reload,
+  # silently. Run it before trusting a deploy:
+  #
+  #   docker compose --profile web up --build web
+  #
+  # then open http://localhost:8080 and check `crossOriginIsolated === true`.
+  web:
+    profiles: ['web']
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile
+      args:
+        # Baked into the bundle at build time; see the Dockerfile. The default
+        # is the api service above, published on the same host.
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:3000}
+    restart: unless-stopped
+    ports:
+      - '8080:80'
 
 volumes:
   postgres-data:

@@ -104,6 +104,22 @@ still loads and still answers every query — from memory, silently, losing the
 whole training log on reload. Check `crossOriginIsolated === true` in the
 console of a deployed build before trusting it with data.
 
+`apps/mobile/Dockerfile` is that server: it runs the export and serves it from
+nginx with both headers set, which is what the `web` service in both compose
+files builds. To check a built export locally before deploying one — the one
+thing `expo start` cannot tell you, since it is the only server that reads
+`enhanceMiddleware`:
+
+```bash
+docker compose --profile web up --build web   # then open http://localhost:8080
+```
+
+The API URL is a **build** argument, not an environment variable:
+`EXPO_PUBLIC_*` is substituted into the bundle by Metro, so pointing the web app
+at a different API means rebuilding the image. The build fails outright if it is
+unset rather than falling back to the page's own hostname on port 3000, which is
+right on a laptop and wrong behind a proxy.
+
 **Notifications are the one thing the web build does not do.** Scheduling a
 local alert for a future time has no browser equivalent without a service worker
 and a push subscription, so the web target takes the same path as a phone with
@@ -196,14 +212,25 @@ On Dokploy:
 
 1. Create a **Postgres** service and copy the connection URL it hands back.
 2. Create a **Compose** application from this repository and set the compose
-   path to `docker-compose.dokploy.yml`. That file defines the API alone —
-   the database is the service from step 1, not a container of its own.
+   path to `docker-compose.dokploy.yml`. That file defines the API and the web
+   app — the database is the service from step 1, not a container of its own.
 3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
-   as the public `https://` address including scheme, and `TRUSTED_ORIGINS`,
-   which has to list `lift://` or the app cannot complete an OAuth round trip.
-   All four are required; the stack refuses to start without them rather than
+   as the public `https://` address including scheme, `TRUSTED_ORIGINS`, which
+   has to list `lift://` or the app cannot complete an OAuth round trip, and
+   `EXPO_PUBLIC_API_URL`, the API's public URL as the browser will call it. All
+   five are required; the stack refuses to start without them rather than
    inventing defaults.
-4. Add a domain pointing at the `api` service on port 3000.
+4. Add a domain pointing at the `api` service on port 3000, and a second one
+   pointing at `web` on port 80.
+5. Add that second domain's origin to `TRUSTED_ORIGINS` —
+   `lift://,https://app.example.com`. Without it the browser can load the app
+   and then fails every request it makes, which reads as a broken sign-in
+   rather than as a missing setting.
+
+`EXPO_PUBLIC_API_URL` is baked into the web bundle at build time, so moving the
+API means redeploying the web app, not restarting it. The phone builds are
+unaffected by any of this — they carry their own copy, set when the APK is
+built.
 
 The schema is created on first boot. A migration that fails takes the container
 down with it instead of serving against a half-applied schema, so a broken

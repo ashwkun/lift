@@ -4,8 +4,16 @@
 #
 # The database is Dokploy's own Postgres service, so it is not defined here.
 # Paste the connection string that service gives you into DATABASE_URL and it
-# is used as-is. Nothing is published: Traefik reaches the API over
+# is used as-is. Nothing is published: Traefik reaches both services over
 # dokploy-network, which is also how the database hostname resolves.
+#
+# Two services means two domains in Dokploy — one routed to `api` on port 3000,
+# one to `web` on port 80. They have to know about each other:
+#
+#   EXPO_PUBLIC_API_URL   the API's public URL, baked into the web bundle
+#   TRUSTED_ORIGINS       must include the web app's origin, or better-auth
+#                         rejects every request the browser makes
+#   BETTER_AUTH_URL       the API's own public URL, scheme included
 
 services:
   api:
@@ -19,10 +27,33 @@ services:
       # Must match the domain exactly, scheme included — cookies and OAuth
       # callbacks are derived from it.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL}
+      # The phone app's scheme, and — once the web app is deployed — its origin
+      # too: `lift://,https://app.example.com`. A browser request from an origin
+      # that is not listed is rejected before it reaches a handler, which reads
+      # as a broken sign-in rather than as a missing setting.
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-lift://}
       PORT: 3000
     expose:
       - '3000'
+    networks:
+      - dokploy-network
+
+  # The same app as the phone build, exported for a browser and served as static
+  # files. See apps/mobile/Dockerfile, and the "Desktop web" section of the
+  # README for the two things about this build that are not obvious.
+  web:
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile
+      args:
+        # A build arg rather than an environment variable, because that is what
+        # it is: Metro substitutes `EXPO_PUBLIC_*` into the bundle at build
+        # time. Changing this means rebuilding the image — restarting the
+        # container with a new value does nothing at all.
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:?set EXPO_PUBLIC_API_URL to the API's public URL}
+    restart: unless-stopped
+    expose:
+      - '80'
     networks:
       - dokploy-network
 
