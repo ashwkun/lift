@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { and, isNull } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { Tabs } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import type { ColorValue } from 'react-native';
@@ -14,9 +12,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { headerOptions } from '@/components/ui';
-import { db } from '@/db/client';
-import { workouts } from '@/db/schema';
-import { font, fontSize, spacing, spring, stroke, timing, useColors } from '@/theme';
+import { useOpenSession } from '@/features/workouts/use-open-session';
+import { font, fontSize, spacing, spring, stroke, timing, useColors, useLayout } from '@/theme';
 
 /** The bar's own height, before the system navigation area is added to it. */
 const TAB_BAR_CONTENT_HEIGHT = 58;
@@ -76,6 +73,7 @@ function TabIcon({
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { isWide } = useLayout();
 
   /**
    * Does a session exist — nothing else about it.
@@ -85,27 +83,11 @@ export default function TabLayout() {
    * resumes. The bar is the one piece of chrome present on all five, so it is
    * where that fact belongs.
    *
-   * One column, one row, and no join: this query sits above every tab, so it
-   * pays on every screen in the app. Drizzle's live query re-runs only when the
-   * table it selects from changes (`expo-sqlite/query.js` filters the change
-   * listener by table name), and `workouts` is written on start, finish and
-   * discard — not on the set writes that fire every keystroke. Selecting the
-   * sets, or the exercises, would put the whole logging screen's write traffic
-   * through a re-render of the tab bar.
-   *
-   * `useRows` is not needed here: the unloaded frame reads as "no session",
-   * which is the bar's own resting state, so the worst it can do is light one
-   * frame late. Nothing here claims an absence the way an empty state would.
+   * The query moved to `useOpenSession` when the desktop rail needed the same
+   * bit; the reasoning about why it selects one column and no join went with
+   * it, and is worth reading before changing either caller.
    */
-  const { data: openSessions = [] } = useLiveQuery(
-    db
-      .select({ id: workouts.id })
-      .from(workouts)
-      .where(and(isNull(workouts.finishedAt), isNull(workouts.deletedAt)))
-      .limit(1),
-  );
-
-  const sessionOpen = openSessions.length > 0;
+  const sessionOpen = useOpenSession();
 
   return (
     <Tabs
@@ -123,14 +105,30 @@ export default function TabLayout() {
          * calculation entirely, and on Android's edge-to-edge default the bar
          * then renders underneath the gesture pill or the 3-button bar.
          */
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: stroke.rule,
-          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
-          paddingTop: spacing.xs,
-          paddingBottom: insets.bottom,
-        },
+        /*
+         * Hidden once the side rail is up, and hidden rather than restructured.
+         *
+         * React Navigation can mount this bar down the left edge instead
+         * (`tabBarPosition: 'left'`), and that is not what the app does — see
+         * `SideRail` for why a rail owned by this navigator is covered by every
+         * screen pushed over it. The rail is a sibling of the whole stack, so
+         * what is left here is one bar too many.
+         *
+         * `display: 'none'` keeps the navigator's structure identical across the
+         * breakpoint: the tabs, their state and their frozen subtrees all
+         * survive a window resize, where switching navigator configuration would
+         * rebuild them.
+         */
+        tabBarStyle: isWide
+          ? { display: 'none' }
+          : {
+              backgroundColor: colors.background,
+              borderTopColor: colors.border,
+              borderTopWidth: stroke.rule,
+              height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+              paddingTop: spacing.xs,
+              paddingBottom: insets.bottom,
+            },
         tabBarLabelStyle: {
           fontSize: fontSize.xs,
           ...font('medium'),

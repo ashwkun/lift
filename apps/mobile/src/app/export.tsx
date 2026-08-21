@@ -140,7 +140,7 @@ export default function ExportScreen() {
   const totalRows = counts ? Object.values(counts).reduce((sum, count) => sum + count, 0) : null;
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Backup & export' }} />
 
       <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>

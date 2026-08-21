@@ -21,7 +21,7 @@ import {
 } from '@lift/shared';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LineChart, type DataPoint } from '@/components/charts/line-chart';
 import {
@@ -55,7 +55,7 @@ import {
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, spacing, useColors, useContentWidth } from '@/theme';
 
 type Range = '90' | '180' | '365' | 'all';
 
@@ -83,7 +83,8 @@ export default function MeasurementDetailScreen() {
   const scrollEdge = useScrollEdge();
 
   const colors = useColors();
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const params = useLocalSearchParams<{ kind: string }>();
 
   const weightUnit = useSettings((state) => state.weightUnit);

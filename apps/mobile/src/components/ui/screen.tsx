@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { stroke, timing, useColors } from '@/theme';
+import { contentWidth, stroke, timing, useColors, useLayout, type ContentWidth } from '@/theme';
 
 /**
  * How far the content has to travel before the header is given its edge.
@@ -106,6 +106,18 @@ export interface ScreenProps {
   style?: ViewStyle;
   /** Use the raised surface colour, e.g. for modals presented over a screen. */
   elevated?: boolean;
+  /**
+   * How wide this screen's content may draw once there is more room than a
+   * phone has. Ignored below `breakpoint.medium`, where the window is the cap.
+   *
+   * `column` — the default — is right for anything that is a list or a detail
+   * view. Choose `form` for a screen that is a single task, and `board` for one
+   * that is several things at once. `full` opts out entirely and is for screens
+   * that manage their own width; it is not a way to avoid deciding.
+   *
+   * See `contentWidth` for what each is worth and why.
+   */
+  width?: ContentWidth;
 }
 
 export function Screen({
@@ -114,9 +126,27 @@ export function Screen({
   scrolled,
   style,
   elevated = false,
+  width = 'column',
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const { isWide } = useLayout();
+
+  /*
+   * The cap, applied to a wrapper that is always rendered.
+   *
+   * Always, even on a phone where it does nothing, because the alternative —
+   * wrapping only when wide — swaps the children between two different parents
+   * as the window crosses 840. React sees a different element type at that
+   * position and unmounts the whole subtree: scroll position lost, every piece
+   * of local state reset, every `Reveal` replayed. On a phone that never
+   * happens; on the web it happens while someone is dragging a window edge,
+   * which is exactly when it looks broken.
+   *
+   * A `flex: 1` view with no other styles is layout-transparent, so the phone
+   * case is unaffected.
+   */
+  const cap = isWide && width !== 'full' ? contentWidth[width] : undefined;
 
   return (
     <View
@@ -143,8 +173,16 @@ export function Screen({
         only its opacity moves, so nothing below it shifts by a pixel when the
         page starts scrolling.
       */}
+      {/*
+        The edge stays outside the column, spanning the full pane.
+
+        It is the header's bottom border, and the header is drawn by the native
+        stack across the whole width of the content area — so a line inset to
+        720pt would stop short of the header it belongs to and read as a rule
+        drawn around the content instead.
+      */}
       {scrolled && <ScrollEdgeLine progress={scrolled} />}
-      {children}
+      <View style={[styles.column, cap !== undefined && { maxWidth: cap }]}>{children}</View>
     </View>
   );
 }
@@ -163,6 +201,10 @@ function ScrollEdgeLine({ progress }: { progress: SharedValue<number> }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  // `width: '100%'` alongside `alignSelf` because a centred child sizes to its
+  // content rather than to its parent — without it the column collapses to the
+  // width of its widest row and the cap never applies.
+  column: { flex: 1, width: '100%', alignSelf: 'center' },
   // One physical pixel: a straight line on the pixel grid, which is exactly the
   // case `stroke.rule` exists for. See the tokens.
   edge: { height: stroke.rule, zIndex: 1 },

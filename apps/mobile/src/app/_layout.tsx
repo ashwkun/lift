@@ -11,7 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import migrations from '../../drizzle/migrations';
 
-import { Button, DialogHost, headerOptions, Text } from '@/components/ui';
+import { Button, DialogHost, headerOptions, SideRail, Text } from '@/components/ui';
 import { db } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
@@ -21,7 +21,7 @@ import { WorkoutNotice } from '@/features/workouts/workout-notice';
 import { showAlert } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
 import { loadPersistedRest } from '@/store/timer-persistence';
-import { AppThemeProvider, spacing, useColors, useTheme } from '@/theme';
+import { AppThemeProvider, spacing, useColors, useLayout, useTheme } from '@/theme';
 
 // Held until migrations, seeding, settings hydration and the stored rest period
 // all finish, so the first frame the user sees is real content rather than an
@@ -155,6 +155,7 @@ function Bootstrap({ onRetry }: { onRetry: () => void }) {
 function AppNavigator() {
   const { isDark } = useTheme();
   const colors = useColors();
+  const { isWide } = useLayout();
 
   // Syncs on launch and whenever the app returns to the foreground.
   useSyncTriggers();
@@ -168,66 +169,86 @@ function AppNavigator() {
       {/* Same reasoning: the workout notification has to outlive the workout
           screen, so it is driven from the root. Renders nothing. */}
       <WorkoutNotice />
-      <Stack
-        screenOptions={{
-          // The shared set, spread rather than restated. This stack and the tab
-          // navigator each used to declare their own and drifted apart — see
-          // `headerOptions` for what that cost and what it now fixes.
-          ...headerOptions(colors),
-          /*
-           * The stack half of the same decision, and it can only live here: a
-           * back button exists on pushed screens and nowhere else, so this is
-           * not an option the tab navigator can take.
-           *
-           * `minimal` keeps the chevron and drops the word beside it. iOS
-           * otherwise labels the control with the previous screen's title,
-           * which on a stack whose titles are sentences — "Personal records",
-           * "Set count per muscle" — puts a back button wider than the title it
-           * sits next to, and pushes the title along to make room for itself.
-           * `headerBackTitleVisible` is the older spelling of this and still
-           * typechecks, but react-native-screens now drives the native
-           * `UINavigationItemBackButtonDisplayMode` directly, so the newer name
-           * is the one that maps onto what the platform actually does.
-           */
-          headerBackButtonDisplayMode: 'minimal',
-          contentStyle: { backgroundColor: colors.background },
-          /**
-           * The platform's own push, with no override.
-           *
-           * This used to carry a warning that any explicit animation hitched,
-           * because these screens mount straight into a database query and the
-           * two landed on top of each other. That was true, and it was never
-           * about the animation: a native stack push runs on the OS side and
-           * cannot be slowed down by JS. What hitched was the *incoming mount* —
-           * the query resolving mid-push and re-rendering a screenful of charts.
-           * `useDeferredFocusEffect` moves that work behind the transition, and
-           * with it gone there is nothing left here to compensate for.
-           *
-           * It stays on the platform default anyway, on its own merits: iOS and
-           * Android disagree about what a push looks like, users of each expect
-           * their own, and the OS knows the current gesture-navigation setting
-           * where a constant in this file would not.
-           */
+      {/*
+        The desktop shell: rail beside the stack, rather than inside it.
 
-          /*
-           * No `freezeOnBlur` here, unlike the tab navigator.
-           *
-           * It would be a real saving — a covered screen's live queries re-run
-           * on every write the user cannot see — but the stack is the one place
-           * a blurred screen gets *looked at* before it is focused again: an
-           * iOS back-swipe reveals the screen underneath progressively, under
-           * the user's thumb, for as long as the gesture lasts. Unfreezing is
-           * driven from the transition, so what is revealed at the start of that
-           * drag is a subtree React has not resumed yet.
-           *
-           * That is the same class of artefact this pass exists to remove, and
-           * trading it for query traffic the tab bar's own `freezeOnBlur`
-           * already covers most of is not a trade worth making.
-           */
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
+        This is the whole reason the rail is not a side-mounted tab bar. The tab
+        navigator is one screen within this stack, so a rail it owned would be
+        covered by every screen pushed on top of it — which is most of the app.
+        Here it is a sibling of the navigator, so it survives every push, and
+        the stack's headers land in the pane beside it.
+
+        The row is rendered on a phone too, with no rail in it. A flex row
+        holding a single `flex: 1` child lays out identically to that child on
+        its own, and keeping the tree the same shape across the breakpoint means
+        crossing 840 while dragging a window edge does not remount the
+        navigator — which would drop the entire back stack.
+      */}
+      <View style={styles.shell}>
+        {isWide && <SideRail />}
+        <View style={styles.pane}>
+          <Stack
+            screenOptions={{
+              // The shared set, spread rather than restated. This stack and the tab
+              // navigator each used to declare their own and drifted apart — see
+              // `headerOptions` for what that cost and what it now fixes.
+              ...headerOptions(colors),
+              /*
+               * The stack half of the same decision, and it can only live here: a
+               * back button exists on pushed screens and nowhere else, so this is
+               * not an option the tab navigator can take.
+               *
+               * `minimal` keeps the chevron and drops the word beside it. iOS
+               * otherwise labels the control with the previous screen's title,
+               * which on a stack whose titles are sentences — "Personal records",
+               * "Set count per muscle" — puts a back button wider than the title it
+               * sits next to, and pushes the title along to make room for itself.
+               * `headerBackTitleVisible` is the older spelling of this and still
+               * typechecks, but react-native-screens now drives the native
+               * `UINavigationItemBackButtonDisplayMode` directly, so the newer name
+               * is the one that maps onto what the platform actually does.
+               */
+              headerBackButtonDisplayMode: 'minimal',
+              contentStyle: { backgroundColor: colors.background },
+              /**
+               * The platform's own push, with no override.
+               *
+               * This used to carry a warning that any explicit animation hitched,
+               * because these screens mount straight into a database query and the
+               * two landed on top of each other. That was true, and it was never
+               * about the animation: a native stack push runs on the OS side and
+               * cannot be slowed down by JS. What hitched was the *incoming mount* —
+               * the query resolving mid-push and re-rendering a screenful of charts.
+               * `useDeferredFocusEffect` moves that work behind the transition, and
+               * with it gone there is nothing left here to compensate for.
+               *
+               * It stays on the platform default anyway, on its own merits: iOS and
+               * Android disagree about what a push looks like, users of each expect
+               * their own, and the OS knows the current gesture-navigation setting
+               * where a constant in this file would not.
+               */
+
+              /*
+               * No `freezeOnBlur` here, unlike the tab navigator.
+               *
+               * It would be a real saving — a covered screen's live queries re-run
+               * on every write the user cannot see — but the stack is the one place
+               * a blurred screen gets *looked at* before it is focused again: an
+               * iOS back-swipe reveals the screen underneath progressively, under
+               * the user's thumb, for as long as the gesture lasts. Unfreezing is
+               * driven from the transition, so what is revealed at the start of that
+               * drag is a subtree React has not resumed yet.
+               *
+               * That is the same class of artefact this pass exists to remove, and
+               * trading it for query traffic the tab bar's own `freezeOnBlur`
+               * already covers most of is not a trade worth making.
+               */
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+        </View>
+      </View>
     </>
   );
 }
@@ -308,6 +329,12 @@ function StartupError({ error, onRetry }: { error: Error; onRetry: () => void })
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  shell: { flex: 1, flexDirection: 'row' },
+  // `minWidth: 0` because a flex row's children default to their content size as
+  // a floor, and the navigator's content includes list rows that would rather be
+  // wider than the pane. Without it a long exercise name pushes the pane out and
+  // the rail off the left edge of the window instead of ellipsising.
+  pane: { flex: 1, minWidth: 0 },
   centered: {
     flex: 1,
     alignItems: 'center',

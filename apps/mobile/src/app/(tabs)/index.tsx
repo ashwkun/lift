@@ -29,7 +29,7 @@ import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { spacing } from '@/theme';
+import { spacing, useLayout } from '@/theme';
 
 const BODY_PART_LABELS: Record<string, string> = {
   chest: 'Chest',
@@ -43,6 +43,7 @@ const BODY_PART_LABELS: Record<string, string> = {
 
 export default function HomeScreen() {
   const scrollEdge = useScrollEdge();
+  const { isExpanded } = useLayout();
 
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -96,7 +97,7 @@ export default function HomeScreen() {
    * poster. Only the recent-workouts block hides, because an empty box is not a
    * layout, it is a hole.
    */
-  if (!stats) return <Screen scrolled={scrollEdge.progress}>{null}</Screen>;
+  if (!stats) return <Screen width="board" scrolled={scrollEdge.progress}>{null}</Screen>;
 
   const [weekVolume, weekVolumeUnit] = splitMeasure(
     formatVolume(stats.thisWeekVolumeKg, weightUnit),
@@ -123,7 +124,7 @@ export default function HomeScreen() {
   }));
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="board" scrolled={scrollEdge.progress}>
       <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
          * Four blocks, revealed in the order they are read.
@@ -200,31 +201,49 @@ export default function HomeScreen() {
          * states a rule you can say out loud: boxed means you can touch it. The
          * recent-workouts list below keeps its Card because its rows are taps.
          */}
-        <Reveal index={1}>
-          <SectionHeader title="Volume · last 12 weeks" />
-          {/* Columns, not a line. A week's volume is a quantity that was either
-              banked or wasn't — it does not vary continuously between Sunday
-              and Monday, and a line drawn through twelve of them invents a
-              slope across the gap where the reading is simply the next week.
-              Bars also make a missed week read as what it is, a gap on the
-              floor, where the line just leaned through it. */}
-          <View style={styles.chart}>
-            <BarChart
-              data={volumeData}
-              horizontal={false}
-              valueAxis
-              height={180}
-              formatValue={(value) => formatVolume(value, weightUnit, { withUnit: false })}
-            />
-          </View>
-        </Reveal>
+        {/*
+         * Side by side once the screen is wide enough to hold both, stacked
+         * otherwise.
+         *
+         * These are the two charts the dashboard exists to show and they answer
+         * different questions — how much, and where it went. Stacked on a phone
+         * that is a sequence; at 1180 and up it is two thirds of a screen of
+         * empty canvas to the right of a 12-column bar chart, and the second
+         * chart pushed below the fold for no reason.
+         *
+         * Only at `expanded`. At `medium` the board is capped at 1040 but the
+         * window may be as narrow as 840, and half of that minus the rail is not
+         * enough for a bar chart with a value axis — the columns collapse to
+         * slivers and the axis labels overlap. One threshold, checked here,
+         * rather than a chart that quietly degrades.
+         */}
+        <View style={isExpanded ? styles.chartRow : undefined}>
+          <Reveal index={1} style={isExpanded ? styles.chartColumn : undefined}>
+            <SectionHeader title="Volume · last 12 weeks" />
+            {/* Columns, not a line. A week's volume is a quantity that was either
+                banked or wasn't — it does not vary continuously between Sunday
+                and Monday, and a line drawn through twelve of them invents a
+                slope across the gap where the reading is simply the next week.
+                Bars also make a missed week read as what it is, a gap on the
+                floor, where the line just leaned through it. */}
+            <View style={styles.chart}>
+              <BarChart
+                data={volumeData}
+                horizontal={false}
+                valueAxis
+                height={180}
+                formatValue={(value) => formatVolume(value, weightUnit, { withUnit: false })}
+              />
+            </View>
+          </Reveal>
 
-        <Reveal index={2}>
-          <SectionHeader title="Sets by body part · 30 days" />
-          <View style={styles.chart}>
-            <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
-          </View>
-        </Reveal>
+          <Reveal index={2} style={isExpanded ? styles.chartColumn : undefined}>
+            <SectionHeader title="Sets by body part · 30 days" />
+            <View style={styles.chart}>
+              <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
+            </View>
+          </Reveal>
+        </View>
 
         {recent.length > 0 ? (
           <Reveal index={3}>
@@ -276,4 +295,9 @@ const styles = StyleSheet.create({
   band: { marginHorizontal: spacing.lg },
   chart: { marginHorizontal: spacing.lg },
   recentCard: { marginHorizontal: spacing.lg },
+  chartRow: { flexDirection: 'row' },
+  // `minWidth: 0` alongside `flex: 1`: a flex child will not shrink below its
+  // content, and a bar chart's axis labels are content. Without it an unusually
+  // long volume figure widens its column and the two stop being halves.
+  chartColumn: { flex: 1, minWidth: 0 },
 });

@@ -1,7 +1,7 @@
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
 import { Badge, Card, EmptyState, Screen, Text, useScrollEdge } from '@/components/ui';
@@ -22,7 +22,7 @@ import {
 import type { StatRange } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, stroke, useColors } from '@/theme';
+import { radius, spacing, stroke, useColors, useContentWidth } from '@/theme';
 
 /**
  * A week is not a range this screen can plot.
@@ -39,7 +39,8 @@ const PENDING = '—';
 export default function MuscleSetsScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
   const [range, setRange] = useState<StatRange>('3m');

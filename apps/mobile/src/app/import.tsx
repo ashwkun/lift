@@ -193,7 +193,7 @@ export default function ImportScreen() {
   };
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Import' }} />
 
       <ScrollView

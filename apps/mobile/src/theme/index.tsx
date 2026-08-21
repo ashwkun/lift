@@ -8,8 +8,10 @@ import { StyleSheet, useColorScheme, type ImageStyle, type TextStyle, type ViewS
 import { useSettings } from '@/store/settings';
 
 import { darkPalette, lightPalette, type Palette } from './tokens';
+import { useWebChrome } from './web-chrome';
 
 export * from './color';
+export * from './layout';
 export * from './motion';
 export * from './tokens';
 
@@ -45,6 +47,10 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     }),
     [scheme],
   );
+
+  // Paints the parts of a browser window that sit outside this tree — the
+  // document background, the scrollbars, the focus ring. No-op off the web.
+  useWebChrome(value.colors, scheme);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

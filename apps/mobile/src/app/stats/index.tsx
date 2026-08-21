@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BodyMap } from '@/components/charts/body-map';
 import { Card, Divider, ListRow, Reveal, Screen, Text, useScrollEdge } from '@/components/ui';
@@ -9,7 +9,7 @@ import { getMuscleBoard, type MuscleBoard } from '@/features/analytics/muscle-st
 import { VolumeLegend } from '@/features/analytics/volume-legend';
 import { addDays, startOfDay } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
-import { spacing } from '@/theme';
+import { spacing, useContentWidth } from '@/theme';
 
 /** Days the body graph at the top of this screen covers. */
 const GRAPH_DAYS = 7;
@@ -64,7 +64,8 @@ const ADVANCED = [
 export default function StatisticsScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const [board, setBoard] = useState<MuscleBoard | null>(null);
 
   useDeferredFocusEffect(

@@ -117,7 +117,7 @@ export default function NewExerciseScreen() {
   };
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: 'New exercise',

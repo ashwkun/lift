@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 
 import {
+  canHover,
   font,
   fontSize,
   HIT_SLOP,
+  hoverFill,
   MIN_TOUCH_SIZE,
   PRESS_SCALE_SMALL,
   radius,
@@ -31,6 +33,31 @@ export type Tone = 'accent' | 'success' | 'warning' | 'danger' | 'record' | 'neu
 
 /** How far a control with no fill of its own fades under the thumb. */
 const PRESSED_OPACITY = 0.6;
+
+/**
+ * The two hover fills this file needs, built once per palette.
+ *
+ * Every hoverable surface here rests on one of two colours — `surface` for
+ * cards and the rows inside them, `surfaceMuted` for chips and filled icon
+ * buttons — and both press to `surfacePressed`. So there are exactly two
+ * blends, and computing them inside `ListRow` would repeat them per row of
+ * every list in the app. Same shape as `makeStyles` in the theme, and cached on
+ * the palette object for the same reason: there are two of those and they are
+ * stable.
+ */
+const hoverCache = new Map<Palette, { onSurface: string; onMuted: string }>();
+
+function hoverFills(c: Palette): { onSurface: string; onMuted: string } {
+  let fills = hoverCache.get(c);
+  if (!fills) {
+    fills = {
+      onSurface: hoverFill(c.surface, c.surfacePressed),
+      onMuted: hoverFill(c.surfaceMuted, c.surfacePressed),
+    };
+    hoverCache.set(c, fills);
+  }
+  return fills;
+}
 
 /**
  * Maps a tone to its foreground and its tinted background.
@@ -89,6 +116,10 @@ export function Card({ padded = true, elevated = false, onPress, style, ...rest 
         onPress={onPress}
         fill={surface}
         fillPressed={colors.surfacePressed}
+        // An elevated card rests a step above a plain one, so blending from
+        // `surface` would step it *down* on hover. Both press to the same place,
+        // so the blend just has to start where the card actually sits.
+        hoverFill={hoverFill(surface, colors.surfacePressed)}
         style={[styles.card, base, padded && styles.cardPadded, style]}
         {...(rest as Omit<PressableProps, 'style'>)}
       />
@@ -145,6 +176,10 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
       accessibilityState={{ selected }}
       fill={fill}
       fillPressed={fillPressed}
+      // A selected chip holds its accent tint through hover for the same reason
+      // it holds it through a press: it is already at the loud end and has
+      // nowhere brighter to go without reading as a second selected state.
+      hoverFill={selected ? fill : hoverFills(colors).onMuted}
       border={border}
       borderPressed={borderPressed}
       style={[styles.chip, { backgroundColor: fill, borderColor: border }]}
@@ -207,15 +242,31 @@ export function IconButton({
 }: IconButtonProps) {
   const colors = useColors();
 
+  /*
+   * An unfilled icon button grows a shape where there is a cursor to meet it.
+   *
+   * On a phone it has no background to darken, so it keeps the opacity dip and
+   * nothing else — that is what the `dimTo` below is, and it is right for a
+   * finger, which has already found the target by the time anything can respond.
+   * A cursor has to find it first, and a bare 22pt glyph gives no indication
+   * that it sits in a 44pt target: these are the smallest things in the app and
+   * they carry real actions, including the destructive ones in the headers.
+   *
+   * So where hovering is possible it borrows the filled variant's shape —
+   * nothing at rest, the muted surface under the cursor, the pressed surface
+   * under the click. Gated on `canHover` rather than applied everywhere, so a
+   * touch device cannot end up with a fill it has no way to reveal, and the
+   * phone behaviour is left exactly as it was.
+   */
+  const revealsShape = canHover && !filled;
+
   return (
     <PressableScale
       accessibilityRole="button"
       hitSlop={HIT_SLOP}
-      // Unfilled icon buttons have no background to darken, so they keep the
-      // opacity dip; filled ones crossfade to the pressed surface like
-      // everything else that has a fill.
-      fill={filled ? colors.surfaceMuted : undefined}
-      fillPressed={filled ? colors.surfacePressed : undefined}
+      fill={filled ? colors.surfaceMuted : revealsShape ? 'transparent' : undefined}
+      fillPressed={filled ? colors.surfacePressed : revealsShape ? colors.surfacePressed : undefined}
+      hoverFill={filled ? hoverFills(colors).onMuted : colors.surfaceMuted}
       dimTo={filled ? 1 : PRESSED_OPACITY}
       // A deeper press than the shared scale. These are the smallest targets in
       // the app — a bare 22pt glyph in a 44pt circle — and 3% of that is a
@@ -374,6 +425,13 @@ export function ListRow({
       onPress={onPress}
       fill={colors.surface}
       fillPressed={onPress ? colors.surfacePressed : colors.surface}
+      // A row that does nothing does not light up under the cursor either. This
+      // is the one component in the app that is routinely rendered inert — a
+      // settings row showing a value, a stat line inside a card — and on a phone
+      // that reads correctly because nothing responds until it is touched. A
+      // cursor asks the question earlier, and answering it on a row that cannot
+      // be clicked is a worse lie than staying dark.
+      hoverFill={onPress ? hoverFills(colors).onSurface : colors.surface}
       // No scale. A row runs the full width of its card, so shrinking it pulls
       // both edges off the margin at once and reads as the row lifting away
       // from the page rather than being pressed into it. See `PRESS_SCALE`.

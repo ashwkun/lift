@@ -1,7 +1,7 @@
 import { dayKey, formatDurationShort, formatVolume } from '@lift/shared';
 import { router, Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -29,7 +29,7 @@ import { haptics } from '@/features/feedback/haptics';
 import { WorkoutCard } from '@/features/workouts/workout-card';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { spacing, stroke, useColors } from '@/theme';
+import { spacing, stroke, useColors, useContentWidth } from '@/theme';
 
 /** What a figure reads before its query has answered. Never a zero — see Profile. */
 const PENDING = '—';
@@ -47,7 +47,8 @@ export default function CalendarScreen() {
   const scrollEdge = useScrollEdge();
 
   const colors = useColors();
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 

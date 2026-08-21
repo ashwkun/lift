@@ -11,6 +11,7 @@ import {
   controlHeight,
   font,
   fontSize,
+  hoverFill,
   radius,
   spacing,
   stroke,
@@ -82,6 +83,7 @@ const SIZES: Record<ButtonSize, SizeSpec> = {
 
 interface VariantSpec {
   bg: string;
+  bgHover: string;
   bgPressed: string;
   fg: string;
   border?: string;
@@ -93,26 +95,76 @@ interface VariantSpec {
  * Dimming works on a filled button and does nothing legible on a transparent
  * one, which is how ghost and outline ended up feeling dead to the touch while
  * primary felt fine. A colour per state makes all six respond identically.
+ *
+ * `bgHover` is the desktop addition, and it is derived rather than chosen — see
+ * `hoverFill` in the theme for the rule and why it stops halfway.
+ *
+ * The two transparent variants are the exception and take the pressed fill
+ * outright. There is nothing to blend from: `transparent` is not a colour, and
+ * blending from a guess at whatever is behind the button would be wrong on
+ * exactly the surfaces these two are for. They still answer a click, through
+ * the scale rather than the fill.
  */
 function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
   return {
-    primary: { bg: c.accent, bgPressed: c.accentPressed, fg: c.textOnAccent },
+    primary: {
+      bg: c.accent,
+      bgHover: hoverFill(c.accent, c.accentPressed),
+      bgPressed: c.accentPressed,
+      fg: c.textOnAccent,
+    },
     secondary: {
       bg: c.surfaceMuted,
+      bgHover: hoverFill(c.surfaceMuted, c.surfacePressed),
       bgPressed: c.surfacePressed,
       fg: c.text,
       border: c.border,
     },
     outline: {
       bg: 'transparent',
+      bgHover: c.surfaceMuted,
       bgPressed: c.surfaceMuted,
       fg: c.text,
       border: c.borderStrong,
     },
-    ghost: { bg: 'transparent', bgPressed: c.surfaceMuted, fg: c.accent },
-    danger: { bg: c.danger, bgPressed: c.dangerPressed, fg: c.textOnDanger },
-    success: { bg: c.success, bgPressed: c.successPressed, fg: c.textOnSuccess },
+    ghost: {
+      bg: 'transparent',
+      bgHover: c.surfaceMuted,
+      bgPressed: c.surfaceMuted,
+      fg: c.accent,
+    },
+    danger: {
+      bg: c.danger,
+      bgHover: hoverFill(c.danger, c.dangerPressed),
+      bgPressed: c.dangerPressed,
+      fg: c.textOnDanger,
+    },
+    success: {
+      bg: c.success,
+      bgHover: hoverFill(c.success, c.successPressed),
+      bgPressed: c.successPressed,
+      fg: c.textOnSuccess,
+    },
   };
+}
+
+/**
+ * Built once per palette, of which there are two.
+ *
+ * `variantSpecs` used to run on every render of every button, which was six
+ * object literals and no arithmetic. It now also runs four sRGB blends, and a
+ * button is a common enough leaf that recomputing a constant on every render of
+ * it is not worth the simplicity. Same shape as `makeStyles` in the theme.
+ */
+const specCache = new Map<Palette, Record<ButtonVariant, VariantSpec>>();
+
+function useVariantSpecs(colors: Palette): Record<ButtonVariant, VariantSpec> {
+  let specs = specCache.get(colors);
+  if (!specs) {
+    specs = variantSpecs(colors);
+    specCache.set(colors, specs);
+  }
+  return specs;
 }
 
 export function Button({
@@ -129,7 +181,7 @@ export function Button({
 }: ButtonProps) {
   const colors = useColors();
   const dimensions = SIZES[size];
-  const { bg, bgPressed, fg, border } = variantSpecs(colors)[variant];
+  const { bg, bgHover, bgPressed, fg, border } = useVariantSpecs(colors)[variant];
 
   const isDisabled = disabled || loading;
 
@@ -144,6 +196,7 @@ export function Button({
       // all then — so the 40% in `styles.disabled` is the whole story there.
       fill={bg}
       fillPressed={bgPressed}
+      hoverFill={bgHover}
       style={[
         styles.base,
         {

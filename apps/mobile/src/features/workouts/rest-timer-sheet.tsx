@@ -2,10 +2,9 @@ import { formatDuration } from '@lift/shared';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedProps } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
-import { Button, Chip, PressableScale, Text } from '@/components/ui';
+import { Button, Chip, PressableScale, Text, useSheetLayout } from '@/components/ui';
 import { haptics } from '@/features/feedback/haptics';
 import { useTicker } from '@/hooks/use-ticker';
 import { useSettings } from '@/store/settings';
@@ -90,7 +89,7 @@ export function RestTimerSheet({
   onEditRest,
 }: RestTimerSheetProps) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
+  const sheetLayout = useSheetLayout();
   const controls = useRestControls();
 
   const restEndsAt = useTimer((state) => state.restEndsAt);
@@ -179,7 +178,7 @@ export function RestTimerSheet({
       */}
       <Pressable
         accessible={false}
-        style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+        style={[styles.backdrop, { backgroundColor: colors.overlay }, sheetLayout.backdrop]}
         onPress={onClose}
       >
         {/* Swallows taps inside the card so they don't dismiss the sheet. */}
@@ -193,21 +192,29 @@ export function RestTimerSheet({
             styles.card,
             {
               backgroundColor: colors.surfaceElevated,
-              // The card is anchored to the bottom edge, so its buttons would
-              // otherwise sit under the gesture pill.
-              paddingBottom: spacing.xl + insets.bottom,
+              // Docked to the bottom edge, the buttons would otherwise sit under
+              // the gesture pill. Centred, there is no pill to clear.
+              paddingBottom: spacing.xl + sheetLayout.bottomInset,
             },
+            sheetLayout.sheet,
           ]}
           onPress={(event) => event.stopPropagation()}
         >
           {/* Decoration, not a control: this sheet is not draggable, and the
               grabber is here because a card against the bottom edge without one
               reads as stuck rather than dismissible. 36 × 4 is the size iOS
-              draws its own. */}
-          <View
-            style={[styles.grabber, { backgroundColor: colors.borderStrong }]}
-            pointerEvents="none"
-          />
+              draws its own.
+
+              It goes when the card stops touching that edge. A grabber on a
+              floating dialog is a handle for a drag that is not offered, in the
+              middle of a window, pointing at nothing — the affordance it exists
+              to supply is the one thing a centred dialog does not need. */}
+          {!sheetLayout.sheet && (
+            <View
+              style={[styles.grabber, { backgroundColor: colors.borderStrong }]}
+              pointerEvents="none"
+            />
+          )}
 
           <View style={styles.heading}>
             <View style={styles.status}>

@@ -62,7 +62,7 @@ export default function PlateCalculatorScreen() {
   }, [targetText, barKg, weightUnit, inventory]);
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'Plate calculator' }} />
 
       <ScrollView

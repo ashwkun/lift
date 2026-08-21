@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BodyMap } from '@/components/charts/body-map';
 import { Card, Divider, Screen, Text, useScrollEdge } from '@/components/ui';
@@ -13,12 +13,13 @@ import { VolumeLegend } from '@/features/analytics/volume-legend';
 import { addDays, startOfDay, startOfWeek } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { HIT_SLOP, MIN_TOUCH_SIZE, radius, spacing, stroke, useColors } from '@/theme';
+import { HIT_SLOP, MIN_TOUCH_SIZE, radius, spacing, stroke, useColors, useContentWidth } from '@/theme';
 
 export default function BodyDistributionScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const colors = useColors();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 

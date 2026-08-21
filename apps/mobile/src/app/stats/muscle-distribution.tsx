@@ -6,7 +6,7 @@ import {
 } from '@lift/shared';
 import { Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { RadarChart, RadarLegend, type RadarAxis } from '@/components/charts/radar-chart';
 import { Card, Divider, Screen, Text, splitMeasure, useScrollEdge } from '@/components/ui';
@@ -20,7 +20,7 @@ import { deltaOf, SummaryGrid, type SummaryFigure } from '@/features/analytics/s
 import { STAT_RANGE_LABELS, type StatRange } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { spacing } from '@/theme';
+import { spacing, useContentWidth } from '@/theme';
 
 /** What a figure reads while its range is still being counted. */
 const PENDING = '—';
@@ -28,7 +28,8 @@ const PENDING = '—';
 export default function MuscleDistributionScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [range, setRange] = useState<StatRange>('30d');

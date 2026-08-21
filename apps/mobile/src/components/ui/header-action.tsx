@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type PressableProps, type ViewStyle } from 'react-native';
 
 import {
+  canHover,
   controlHeight,
   font,
   fontSize,
@@ -100,6 +101,11 @@ export function HeaderAction({
   const colors = useColors();
   const filled = variant === 'filled';
 
+  // Only a plain action, only where there is a cursor, and never while
+  // disabled — a dead control that lights up on approach is worse than one that
+  // stays dark, because it invites the click it is about to ignore.
+  const revealsFrame = canHover && !filled && !disabled;
+
   const color = disabled
     ? colors.textTertiary
     : filled
@@ -132,6 +138,24 @@ export function HeaderAction({
       // that small is easy to miss where a dim is not.
       dimTo={PRESSED_OPACITY}
       scaleTo={PRESS_SCALE_SMALL}
+      /*
+       * Under a cursor, a plain action reveals the frame it already occupies.
+       *
+       * The whole point of this component is that the target is 44pt of real
+       * padding rather than slop — and on a phone that is invisible and fine,
+       * because a thumb aims at the word. A cursor aims at whatever looks
+       * clickable, which for a bare "Save" is the five characters and not the
+       * box around them. Tinting the frame on hover shows where the button
+       * actually is.
+       *
+       * A filled action is left alone: it already draws a pill in a role colour,
+       * so it is the one variant that is unmistakably a button at rest. Its
+       * shape is an inner view rather than this frame anyway, so a fill here
+       * would light the 44pt box *around* the 32pt pill.
+       */
+      fill={revealsFrame ? 'transparent' : undefined}
+      fillPressed={revealsFrame ? colors.surfacePressed : undefined}
+      hoverFill={revealsFrame ? colors.surfaceMuted : undefined}
       style={[
         styles.action,
         filled && styles.filledFrame,
@@ -225,6 +249,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: controlHeight.md,
     minWidth: MIN_TOUCH_SIZE,
+    // Only ever seen on hover, where the frame is tinted. Without it the reveal
+    // is a hard-edged rectangle in a header full of rounded shapes.
+    borderRadius: radius.md,
     // The native header container is 44pt, so a taller frame overflows it
     // rather than growing it — `iconSize={24}` alone would ask for 48.
     maxHeight: controlHeight.md,

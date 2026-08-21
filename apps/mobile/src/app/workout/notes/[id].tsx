@@ -155,7 +155,7 @@ export default function ExerciseNotesScreen() {
   };
 
   return (
-    <Screen>
+    <Screen width="form">
       <Stack.Screen
         options={{
           title: 'Note',

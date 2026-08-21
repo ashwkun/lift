@@ -14,12 +14,11 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { controlHeight, radius, spacing, stroke, timing, useColors } from '@/theme';
 import { haptics } from '@/features/feedback/haptics';
 
 import { Button } from './button';
+import { useSheetLayout } from './sheet-layout';
 import { Text } from './text';
 
 export interface ReorderItem {
@@ -71,7 +70,7 @@ const DRAG_SCALE = 1.03;
  */
 export function ReorderSheet({ visible, title, items, onClose, onCommit }: ReorderSheetProps) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
+  const sheetLayout = useSheetLayout();
   const { height } = useWindowDimensions();
 
   const [order, setOrder] = useState<ReorderItem[]>(items);
@@ -189,7 +188,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
             name in a row. */}
         <Pressable
           accessible={false}
-          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+          style={[styles.backdrop, { backgroundColor: colors.overlay }, sheetLayout.backdrop]}
           onPress={onClose}
         >
         <Pressable
@@ -199,8 +198,9 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
             styles.sheet,
             {
               backgroundColor: colors.surfaceElevated,
-              paddingBottom: spacing.lg + insets.bottom,
+              paddingBottom: spacing.lg + sheetLayout.bottomInset,
             },
+            sheetLayout.sheet,
           ]}
           onPress={(event) => event.stopPropagation()}
         >

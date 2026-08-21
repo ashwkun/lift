@@ -18,15 +18,33 @@ import { Platform } from 'react-native';
 type NotificationsModule = typeof import('expo-notifications');
 
 /**
- * False only in Expo Go on Android.
+ * False in Expo Go on Android, and false on the web.
  *
  * `StoreClient` is the execution environment Expo Go reports; a dev build
  * reports `Bare` and a store build `Standalone`. Expo Go on iOS still carries a
  * working module, so the platform half of this is not redundant.
+ *
+ * The web case is a different failure with the same handling. `expo-notifications`
+ * does load in a browser, so nothing throws at import — but the API this app
+ * actually uses is `scheduleNotificationAsync`, and scheduling a *local* alert
+ * for a future time has no web implementation at all: the browser equivalent
+ * needs a service worker and a push subscription, neither of which a static
+ * export has. Calling it raises an `UnavailabilityError` from inside the rest
+ * timer, on every set.
+ *
+ * Naming web here instead means the desktop build takes the same path as a
+ * phone with the permission denied, which is a path every call site already
+ * handles. Nothing is silently lost: the rest countdown, its bell (`RestCues`,
+ * which is `expo-audio` and works fine in a tab) and the docked timer bar are
+ * all on-screen anyway. The one thing a browser cannot do is tell you rest is
+ * over once the tab is in the background — and on a machine where the user is
+ * reading and planning rather than lifting, that is the least load-bearing
+ * feature in the app.
  */
 export const notificationsAvailable =
-  Platform.OS !== 'android' ||
-  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+  Platform.OS !== 'web' &&
+  (Platform.OS !== 'android' ||
+    Constants.executionEnvironment !== ExecutionEnvironment.StoreClient);
 
 let cached: NotificationsModule | null = null;
 

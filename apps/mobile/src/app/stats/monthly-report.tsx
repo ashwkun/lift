@@ -9,7 +9,7 @@ import {
 } from '@lift/shared';
 import { router, Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
 import {
@@ -38,7 +38,7 @@ import { deltaOf, SummaryGrid, type SummaryFigure } from '@/features/analytics/s
 import { addMonths, startOfMonth } from '@/features/analytics/windows';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, radius, spacing, useColors, useContentWidth } from '@/theme';
 
 /** What a figure reads while the month is still being counted. */
 const PENDING = '—';
@@ -82,7 +82,8 @@ const METRICS: Record<
 export default function MonthlyReportScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
   const formula = useSettings((state) => state.oneRepMaxFormula);

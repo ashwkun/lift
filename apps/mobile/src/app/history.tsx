@@ -8,7 +8,7 @@ import {
 import { and, desc, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, View } from 'react-native';
 
 import { BodyMap, UNMAPPED_MUSCLES } from '@/components/charts/body-map';
 import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
@@ -49,7 +49,7 @@ import { VolumeLegend } from '@/features/analytics/volume-legend';
 import { WorkoutCard } from '@/features/workouts/workout-card';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { radius, spacing, stroke, useColors } from '@/theme';
+import { radius, spacing, stroke, useColors, useContentWidth } from '@/theme';
 
 interface MonthSection {
   title: string;
@@ -94,7 +94,8 @@ const METRICS: Record<
 export default function HistoryScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [range, setRange] = useState<HistoryRange>('3m');

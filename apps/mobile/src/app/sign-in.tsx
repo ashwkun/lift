@@ -119,7 +119,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       <Stack.Screen
         options={{
           title: isSignUp ? 'Create account' : 'Sign in',

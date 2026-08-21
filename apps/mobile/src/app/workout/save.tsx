@@ -351,7 +351,7 @@ export default function SaveWorkoutScreen() {
     const settled = updatedAt !== undefined && !closing;
 
     return (
-      <Screen scrolled={scrollEdge.progress}>
+      <Screen width="form" scrolled={scrollEdge.progress}>
         {header}
         {settled && (
           <EmptyState
@@ -372,7 +372,7 @@ export default function SaveWorkoutScreen() {
   const startedAt = formatDateTime(workout.startedAt, DATE_MEDIUM);
 
   return (
-    <Screen scrolled={scrollEdge.progress}>
+    <Screen width="form" scrolled={scrollEdge.progress}>
       {header}
 
       <ScrollView

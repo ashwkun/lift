@@ -1,15 +1,18 @@
 /**
  * better-auth client for React Native.
  *
- * The Expo plugin stores the session token in SecureStore (not AsyncStorage —
- * a session token is a credential) and handles the deep-link round-trip that
- * OAuth requires.
+ * The Expo plugin keeps the session token in platform storage and handles the
+ * deep-link round-trip that OAuth requires. Which storage that is depends on
+ * where the app is running — see `token-storage`, which is also the reason this
+ * module no longer touches `expo-secure-store` directly.
  */
 
 import { expoClient } from '@better-auth/expo/client';
 import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
 import { createAuthClient } from 'better-auth/react';
+import { Platform } from 'react-native';
+
+import { readToken, tokenStorage } from './token-storage';
 
 /**
  * API base URL.
@@ -32,6 +35,19 @@ export function resolveApiUrl(): string {
     if (host) return `http://${host}:3000`;
   }
 
+  /*
+   * In a browser, the page's own host is a better guess than `localhost`.
+   *
+   * The reasoning is the mirror image of the phone case above: there, the
+   * device and the dev machine are different computers, so `localhost` is
+   * wrong. Here the tab and the API may well be on the same machine — but if
+   * the app is being reached over the LAN at `192.168.1.20:8081`, `localhost`
+   * once again means "this computer" and points at the wrong one.
+   */
+  if (Platform.OS === 'web' && typeof location !== 'undefined' && location.hostname) {
+    return `${location.protocol}//${location.hostname}:3000`;
+  }
+
   return 'http://localhost:3000';
 }
 
@@ -43,7 +59,7 @@ export const authClient = createAuthClient({
     expoClient({
       scheme: 'lift',
       storagePrefix: 'lift',
-      storage: SecureStore,
+      storage: tokenStorage,
     }),
   ],
 });
@@ -55,11 +71,7 @@ export const { signIn, signUp, signOut, useSession, getSession } = authClient;
  * Returns null when signed out — sync then stays local-only.
  */
 export async function getSessionToken(): Promise<string | null> {
-  try {
-    return (await SecureStore.getItemAsync('lift_session_token')) ?? null;
-  } catch {
-    return null;
-  }
+  return readToken('lift_session_token');
 }
 
 /** Authenticated fetch against the sync API. */

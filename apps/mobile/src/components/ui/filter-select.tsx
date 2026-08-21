@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { controlHeight, HIT_SLOP, radius, spacing, stroke, useColors } from '@/theme';
 
 import { Button } from './button';
+import { useSheetLayout } from './sheet-layout';
 import { Divider } from './surfaces';
 import { Text } from './text';
 
@@ -94,7 +94,7 @@ export interface FilterSheetProps {
  */
 export function FilterSheet({ visible, label, onClose, onClear, children }: FilterSheetProps) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
+  const sheetLayout = useSheetLayout();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -109,7 +109,7 @@ export function FilterSheet({ visible, label, onClose, onClear, children }: Filt
       */}
       <Pressable
         accessible={false}
-        style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+        style={[styles.backdrop, { backgroundColor: colors.overlay }, sheetLayout.backdrop]}
         onPress={onClose}
       >
         <Pressable
@@ -122,10 +122,12 @@ export function FilterSheet({ visible, label, onClose, onClear, children }: Filt
             styles.sheet,
             {
               backgroundColor: colors.surfaceElevated,
-              // The sheet is anchored to the bottom edge, so its footer would
-              // otherwise sit under the gesture pill.
-              paddingBottom: spacing.md + insets.bottom,
+              // Docked to the bottom edge, the footer would otherwise sit under
+              // the gesture pill. Centred, there is no pill to clear — see
+              // `bottomInset`.
+              paddingBottom: spacing.md + sheetLayout.bottomInset,
             },
+            sheetLayout.sheet,
           ]}
           onPress={(event) => event.stopPropagation()}
         >

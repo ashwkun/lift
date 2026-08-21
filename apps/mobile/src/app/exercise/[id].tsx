@@ -20,7 +20,7 @@ import {
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { LineChart, type DataPoint } from '@/components/charts/line-chart';
 import {
@@ -50,7 +50,7 @@ import { useExerciseUnits } from '@/features/exercises/units';
 import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import { showConfirm } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { spacing, useColors, useContentWidth } from '@/theme';
 
 type Tab = 'summary' | 'history';
 
@@ -132,7 +132,8 @@ export default function ExerciseDetailScreen() {
   const scrollEdge = useScrollEdge();
 
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { width } = useWindowDimensions();
+  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  const width = useContentWidth();
   const { oneRepMaxFormula, bodyweightKg } = useSettings();
 
   const [tab, setTab] = useState<Tab>('summary');

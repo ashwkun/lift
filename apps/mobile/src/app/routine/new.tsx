@@ -36,7 +36,7 @@ export default function NewRoutineScreen() {
   };
 
   return (
-    <Screen>
+    <Screen width="form">
       <Stack.Screen options={{ title: 'New routine' }} />
 
       <View style={styles.content}>

@@ -46,6 +46,28 @@ export function mix(from: string, to: string, factor: number): string {
   return rgbToHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
 }
 
+/**
+ * The fill a control takes under a cursor: halfway from resting to pressed.
+ *
+ * One rule, derived rather than chosen, because hover is a state the palette
+ * does not name and should not have to. Every control in this app already
+ * declares where it goes under a finger; a cursor is the same journey stopped
+ * partway, so the hover colour is a function of the two ends rather than a third
+ * token to keep in step with them.
+ *
+ * Halfway rather than all the way. Hover taking the pressed fill outright is the
+ * common mistake and it costs the click its feedback: the control lights up when
+ * the cursor arrives and then does nothing at the moment it is actually
+ * activated, which reads as a dead button on a live row.
+ *
+ * Both arguments must be hex — see the note at the top of this file. A control
+ * whose resting fill is `transparent` has nothing to blend from and should name
+ * its hover colour directly.
+ */
+export function hoverFill(resting: string, pressed: string): string {
+  return mix(resting, pressed, 0.5);
+}
+
 /** WCAG relative luminance — the perceived lightness a contrast ratio is built on. */
 function relativeLuminance(hex: string): number {
   const channel = (value: number) => {

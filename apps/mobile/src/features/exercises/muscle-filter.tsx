@@ -1,9 +1,16 @@
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { MuscleSelectMap, UNMAPPED_MUSCLES } from '@/components/charts/body-map';
-import { Button, Chip, FilterSheet, FilterTrigger, Text } from '@/components/ui';
+import {
+  Button,
+  Chip,
+  FilterSheet,
+  FilterTrigger,
+  Text,
+  useSheetLayout,
+} from '@/components/ui';
 import { spacing } from '@/theme';
 
 export interface MuscleFilterProps {
@@ -28,7 +35,9 @@ export interface MuscleFilterProps {
  * remember the first half of the answer.
  */
 export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
-  const { width } = useWindowDimensions();
+  // The sheet's width, not the window's. They are the same thing on a phone and
+  // nothing like it once the sheet becomes a centred dialog.
+  const sheetLayout = useSheetLayout();
   const [open, setOpen] = useState(false);
 
   const selected = useMemo(() => new Set(values), [values]);
@@ -64,7 +73,7 @@ export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
           <MuscleSelectMap
             selected={selected}
             onToggle={toggle}
-            width={width - spacing.xl * 2}
+            width={sheetLayout.width - spacing.xl * 2}
             maxHeight={300}
           />
 

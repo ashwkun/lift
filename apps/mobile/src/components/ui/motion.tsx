@@ -9,7 +9,7 @@
  * worse than none: it reads as the app having missed the tap.
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -22,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {
+  canHover,
   duration,
   easing,
   PRESS_SCALE,
@@ -65,6 +66,24 @@ export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   border?: string;
   /** Outline at full press, crossfaded from `border`. */
   borderPressed?: string;
+  /**
+   * Fill while a cursor is over the control. Requires `fill`.
+   *
+   * The desktop half of `fillPressed`, and it exists because a pointer needs an
+   * answer that a finger does not. A finger arrives already touching, so
+   * press-in *is* the first contact and the pressed fill is the whole response.
+   * A cursor hovers first, and a row that does not acknowledge it reads as
+   * decoration rather than as something you can click — the single most common
+   * way a phone layout feels wrong in a browser.
+   *
+   * Ignored where the pointer cannot hover, so a touchscreen never lights a
+   * state it has no way to leave. See `canHover`.
+   *
+   * Applied on the frame the cursor arrives rather than faded in — see the note
+   * on `hovered` in the implementation for why this one channel is React state
+   * while the other four are worklets.
+   */
+  hoverFill?: string;
   /** Scale at full press. Pass `1` for full-bleed rows — see `PRESS_SCALE`. */
   scaleTo?: number;
   /**
@@ -91,14 +110,42 @@ export function PressableScale({
   fillPressed,
   border,
   borderPressed,
+  hoverFill,
   scaleTo = PRESS_SCALE,
   dimTo = 1,
   disabled,
   onPressIn,
   onPressOut,
+  onHoverIn,
+  onHoverOut,
   ...rest
 }: PressableScaleProps) {
   const press = useSharedValue(0);
+
+  /*
+   * Hover is React state where press is a shared value, and the asymmetry is
+   * the point rather than an inconsistency.
+   *
+   * Press is on the UI thread because it has to be: it fires under a finger, on
+   * a set row inside a list of set rows, at the exact moment the screen is
+   * usually resolving a SQLite aggregate — the whole reason this component
+   * exists (see the note at the top of the file). Hover fires twice per pointer
+   * pass, on a desktop, from a mouse. Two renders of one pressable is not a
+   * budget worth a second worklet.
+   *
+   * It is also the only formulation the React Compiler accepts. A second shared
+   * value feeding `interpolateColor` makes its immutability analysis reclassify
+   * *both* shared values as frozen, and `react-hooks/immutability` then rejects
+   * every `.value` write in the component — including the two press writes that
+   * predate any of this. Reading a shared value into arithmetic is fine; routing
+   * one into a colour interpolation is not.
+   *
+   * What this costs is the crossfade on the hover itself: the resting fill
+   * changes in one frame instead of over 140ms. The press crossfade is
+   * unaffected and now simply starts from whichever fill is currently resting,
+   * so hovering and then clicking travels hover → pressed exactly as intended.
+   */
+  const [hovered, setHovered] = useState(false);
 
   // Which of the four channels are live is decided here, once, from props that
   // do not change under a finger — and a channel that is off is left out of the
@@ -119,6 +166,21 @@ export function PressableScale({
   const dimmed = dimTo !== 1;
   const tinted = fill !== undefined && fillPressed !== undefined;
   const outlined = border !== undefined && borderPressed !== undefined;
+  // Both halves have to be present, and the device has to have a cursor. A
+  // `hoverFill` with no `fill` has nothing to replace, and on a touchscreen the
+  // state could be entered and never left.
+  const hovers = canHover && tinted && hoverFill !== undefined;
+
+  /*
+   * Which fill the press crossfade starts from.
+   *
+   * This is the whole of the hover channel: the endpoint moves, and the
+   * existing single-shared-value interpolation carries it. The worklet is
+   * therefore byte-identical in shape to what it was before hover existed,
+   * which is what keeps the phone path — where `hovers` is always false and
+   * `resting` is always `fill` — exactly as it was.
+   */
+  const resting = hovers && hovered ? hoverFill : fill;
 
   const animatedStyle = useAnimatedStyle(() => {
     const progress = press.value;
@@ -126,8 +188,8 @@ export function PressableScale({
     return {
       ...(scaled ? { transform: [{ scale: 1 - (1 - scaleTo) * progress }] } : null),
       ...(dimmed ? { opacity: 1 - (1 - dimTo) * progress } : null),
-      ...(tinted
-        ? { backgroundColor: interpolateColor(progress, [0, 1], [fill, fillPressed]) }
+      ...(tinted && resting !== undefined
+        ? { backgroundColor: interpolateColor(progress, [0, 1], [resting, fillPressed]) }
         : null),
       ...(outlined
         ? { borderColor: interpolateColor(progress, [0, 1], [border, borderPressed]) }
@@ -146,6 +208,19 @@ export function PressableScale({
       onPressOut={(event) => {
         press.value = withSpring(0, spring.release);
         onPressOut?.(event);
+      }}
+      /*
+       * Gated on `hovers` so a pressable with no hover fill never re-renders
+       * for a cursor passing over it. The caller's own handlers are forwarded
+       * either way — that is their business, not this component's.
+       */
+      onHoverIn={(event) => {
+        if (hovers) setHovered(true);
+        onHoverIn?.(event);
+      }}
+      onHoverOut={(event) => {
+        if (hovers) setHovered(false);
+        onHoverOut?.(event);
       }}
       {...rest}
     />
