@@ -12,7 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import migrations from '../../drizzle/migrations';
 
 import { Button, DialogHost, headerOptions, SideRail, Text } from '@/components/ui';
-import { db } from '@/db/client';
+import { databaseReady, db, isDatabaseOpen } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
 import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
@@ -64,6 +64,62 @@ export default function RootLayout() {
 }
 
 /**
+ * Waits for the database to exist, before anything is allowed to read it.
+ *
+ * On native this is already true on the first render and this component is a
+ * pass-through — the handle is opened during `db/client`'s own evaluation.
+ *
+ * On web it is not. There the database is a worker that has to instantiate
+ * WebAssembly before it can answer, so `db` is assigned a moment after import
+ * (see the note in `db/client` for why it cannot be opened synchronously
+ * there). `useMigrations` reads `db` in a mount effect with no dependencies, so
+ * it must not be mounted a frame early: it would run once, against nothing, and
+ * never try again.
+ *
+ * Which is why this is a separate component rather than another flag inside
+ * `Startup`. A hook cannot be conditional, and the whole point is to not call
+ * that one yet.
+ */
+function Bootstrap({ onRetry }: { onRetry: () => void }) {
+  const [open, setOpen] = useState(isDatabaseOpen);
+  const [openError, setOpenError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (open) return;
+
+    let cancelled = false;
+    databaseReady.then(
+      () => {
+        if (!cancelled) setOpen(true);
+      },
+      (error: unknown) => {
+        if (!cancelled) setOpenError(error as Error);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // `Startup` hides the splash when it settles, and it is never mounted on this
+  // path — so without this the error screen renders underneath a splash that
+  // stays up forever, which reads as a hang rather than as the failure it is.
+  useEffect(() => {
+    if (openError) void SplashScreen.hideAsync();
+  }, [openError]);
+
+  // A database that will not open is a startup failure of exactly the kind
+  // `StartupError` exists for, and the retry it offers is a remount — which
+  // re-reads `isDatabaseOpen` rather than re-opening, because the promise is
+  // the module's and settles once.
+  if (openError) return <StartupError error={openError} onRetry={onRetry} />;
+  if (!open) return <StartupSpinner />;
+
+  return <Startup onRetry={onRetry} />;
+}
+
+/**
  * Runs the startup sequence in order: schema migrations, then the exercise
  * library seed (which needs the tables), then preferences and the rest period
  * left behind by the last process.
@@ -73,7 +129,7 @@ export default function RootLayout() {
  * first frame is already the bundled face instead of flashing a system one
  * and reflowing.
  */
-function Bootstrap({ onRetry }: { onRetry: () => void }) {
+function Startup({ onRetry }: { onRetry: () => void }) {
   const { success: migrated, error: migrationError } = useMigrations(db, migrations);
   const hydrate = useSettings((state) => state.hydrate);
   const hydrated = useSettings((state) => state.hydrated);
