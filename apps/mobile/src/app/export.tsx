@@ -197,6 +197,21 @@ export default function ExportScreen() {
           measurements, and nothing can be restored from it.
         </Text>
 
+        <SectionHeader title="Coach review" />
+        <Button
+          title="Build a prompt for an AI coach"
+          icon="chatbubble-ellipses-outline"
+          variant="secondary"
+          fullWidth
+          disabled={busy !== null}
+          onPress={() => router.push('/coach')}
+        />
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          The same training history written out for ChatGPT or Claude to criticise — sessions,
+          weekly sets per muscle, routines and records, ending in a request for the things you could
+          be doing better.
+        </Text>
+
         <SectionHeader title="Restore" />
         <Button
           title="Restore from a backup"

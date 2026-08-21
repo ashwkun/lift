@@ -216,6 +216,19 @@ export default function ProfileScreen() {
           />
           <Divider inset={spacing.lg} />
           {/*
+           * Its own row for the same reason Import has one: nobody looking for
+           * it is looking for the word "export". It is an export — the same
+           * read, written for a different reader — but what someone wants is
+           * an opinion on their training, and that is what the row has to say.
+           */}
+          <ListRow
+            icon="chatbubble-ellipses-outline"
+            title="Coach review"
+            subtitle="Have an AI criticise your training"
+            onPress={() => router.push('/coach')}
+          />
+          <Divider inset={spacing.lg} />
+          {/*
            * Its own row rather than a button inside Backup & export. Someone
            * arriving from Hevy is looking for the word "import" on the first
            * screen they open, and burying it one level down behind a word about
