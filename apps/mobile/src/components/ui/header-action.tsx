@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View, type PressableProps, type ViewStyle } from 'react-native';
+import { PixelRatio, StyleSheet, View, type PressableProps, type ViewStyle } from 'react-native';
 
 import {
   canHover,
@@ -186,6 +186,59 @@ export function HeaderAction({
   );
 }
 
+export interface HeaderHeadingProps {
+  /** The page's name — the same word the tab or the route is called by. */
+  title: string;
+  /**
+   * One line under it, naming what the screen is currently showing: the week a
+   * dashboard's figures cover, the range a chart is drawn over.
+   *
+   * Context, not a tagline. A screen with nothing to add here leaves it out and
+   * renders as a plain title — filling it with a restatement of the title, or
+   * with a sentence about what the tab is for, buys a second line of chrome on
+   * every frame and answers nothing.
+   */
+  subtitle?: string;
+}
+
+/**
+ * A header title with a second line under it.
+ *
+ * The three tabs are where this earns its place. Their headers were a single
+ * word — "Home", "Workout", "Profile" — repeating the label of the tab already
+ * highlighted at the bottom of the same screen, which made the app's most-seen
+ * piece of chrome the one that said the least. The second line is the part that
+ * is not knowable from anywhere else: Home states a volume "this week" in type
+ * an inch high and never once says which seven days that is.
+ *
+ * Rendered through `headerTitle` rather than `headerTitleStyle`, so the type
+ * here has to match `headerOptions` by hand: `heading` *is* that variant — 24 in
+ * the display cut at -0.3 — and the two are only the same because they are both
+ * written down. Change one and change the other.
+ *
+ * The subtitle sits at `textSecondary` where a `ListRow`'s sits at
+ * `textTertiary`, and the difference is not an oversight. The third tier is for
+ * text that repeats something already said; this line is the only place the week
+ * is stated, under a title twice the size of a row's, where 11px at the faintest
+ * tier is not a quiet line but an unread one.
+ */
+export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
+  return (
+    <View style={styles.heading}>
+      {/* The role the platform's own header title carries, restated because
+          replacing that component means replacing what it announced. */}
+      <Text variant="heading" numberOfLines={1} accessibilityRole="header">
+        {title}
+      </Text>
+      {subtitle !== undefined && (
+        <Text variant="caption" color="textSecondary" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 /**
  * The header options every navigator in the app shares.
  *
@@ -236,7 +289,71 @@ export function headerOptions(colors: Palette) {
   };
 }
 
+/**
+ * Content height of a tab header, above the status bar.
+ *
+ * 64 is what React Navigation already gives every header on Android, so this
+ * changes nothing there; on iOS it is 20pt more than the 44 a compact header
+ * gets, which is the room a subtitle needs. The tab headers are the ones that
+ * can spend it — they sit at the root of the app rather than on top of a screen
+ * you are on your way back from, and iOS itself makes the same distinction with
+ * its large titles.
+ *
+ * The height is set for all three tabs whether or not their header carries a
+ * second line. Sizing each one to its own content would make switching tabs
+ * move the top of the page.
+ */
+const TAB_HEADER_HEIGHT = 64;
+
+/**
+ * How far the header is allowed to grow with the system text size.
+ *
+ * A JS header takes a fixed number, so a box measured against the default text
+ * size clips the moment someone turns theirs up — and a two-line title clips
+ * twice as fast as a one-line one. Growing with the scale keeps both lines,
+ * which is what the setting was turned up to achieve.
+ *
+ * Capped, because the scale is not: iOS goes past 3x, and a header taking a
+ * third of the window is not an accessible header, it is a screen with no
+ * content on it. Past the cap the title truncates, which is what it does
+ * everywhere else in the app at that size.
+ */
+const TAB_HEADER_MAX_SCALE = 1.6;
+
+/**
+ * `headerOptions`, sized and inset for the tab navigator.
+ *
+ * Two things the stack gets from the platform and this header does not.
+ *
+ * The height is one: a JS header takes it from `headerStyle`, and the status bar
+ * is drawn *inside* that box rather than added to it, so the inset has to be
+ * part of the number.
+ *
+ * The right margin is the other, and it is the one that bites. A native-stack
+ * header gives its buttons their own margin from the screen edge — which is why
+ * `HeaderAction` pads inwards only, and would otherwise sit flush against the
+ * glass here. The padding goes on the container rather than on the action, so
+ * the action keeps a touch target that reaches in from an edge it is no longer
+ * touching.
+ */
+export function tabHeaderOptions(colors: Palette, topInset: number) {
+  return {
+    ...headerOptions(colors),
+    headerStyle: {
+      backgroundColor: colors.background,
+      height:
+        topInset +
+        TAB_HEADER_HEIGHT * Math.min(PixelRatio.getFontScale(), TAB_HEADER_MAX_SCALE),
+    },
+    headerRightContainerStyle: { paddingRight: spacing.lg },
+  };
+}
+
 const styles = StyleSheet.create({
+  // 2pt, not the 4 the mastheads use: at this size the two lines are one object
+  // and the tighter set is what keeps them reading as a title with a caption
+  // rather than as two stacked labels.
+  heading: { gap: 2 },
   action: {
     flexDirection: 'row',
     alignItems: 'center',

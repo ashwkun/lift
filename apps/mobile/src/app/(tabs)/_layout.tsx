@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import type { ColorValue } from 'react-native';
+import { router, Tabs } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, type ColorValue } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -11,7 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { headerOptions } from '@/components/ui';
+import { HeaderAction, HeaderHeading, tabHeaderOptions } from '@/components/ui';
+import { formatWeekRange, startOfWeek } from '@/features/analytics/windows';
 import { useOpenSession } from '@/features/workouts/use-open-session';
 import { font, fontSize, spacing, spring, stroke, timing, useColors, useLayout } from '@/theme';
 
@@ -70,10 +71,51 @@ function TabIcon({
   );
 }
 
+/**
+ * The seven days Home's figures cover, as a line of text.
+ *
+ * Monday-based, and deliberately not the `firstDayOfWeek` preference: the number
+ * this line sits under comes from `getDashboardStats`, which buckets on
+ * `startOfWeek`'s Monday default, as does the week streak beside it. A label
+ * that honoured the setting while the figure did not would be worse than no
+ * label — it would put a wrong week under a right number. The preference reaches
+ * the calendar grid and the two statistics screens that pass it through; if the
+ * dashboard ever learns it, this call learns it at the same time.
+ *
+ * Recomputed when the app comes back to the foreground rather than on a timer.
+ * The window it names only moves at one instant a week, and a phone is almost
+ * never awake and in this app when it does — but it is very often *asleep* in
+ * it, and coming back on Monday morning to last week's dates over this week's
+ * reset figures is exactly the sort of thing a label like this exists to avoid.
+ * A screen left open through the boundary is the case this does not cover, and
+ * it is not worth a ticker on the app's most-mounted component to cover it.
+ */
+function useThisWeek(): string {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+
+      // Same week returns the same object, so the common case — every
+      // foreground within the week — re-renders nothing.
+      setWeekStart((current) => {
+        const next = startOfWeek(new Date());
+        return next.getTime() === current.getTime() ? current : next;
+      });
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  return formatWeekRange(weekStart);
+}
+
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isWide } = useLayout();
+  const thisWeek = useThisWeek();
 
   /**
    * Does a session exist — nothing else about it.
@@ -164,14 +206,60 @@ export default function TabLayout() {
         // screens at 20/bold against the stack's 17/semibold, so pushing from
         // Home visibly shrank the title — `headerOptions` is where that lives
         // now, and neither navigator gets to disagree with it.
-        ...headerOptions(colors),
+        //
+        // The tab variant adds the two things a JS header does not get from the
+        // platform: its own height, and a right margin for the actions below.
+        ...tabHeaderOptions(colors, insets.top),
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
+      {/*
+        The three headers below are the tab bar's other half, and they are
+        configured here rather than by the screens for the same reason the bar
+        is: they are chrome the navigator owns, they are mounted whether or not
+        their screen has finished its queries, and the one bit any of them needs
+        — is a session open — is already read at the top of this component.
+
+        Setting them from inside the screens would mean `Tabs.Screen` options
+        rebuilt on every render, which on the Workout tab is once a second while
+        a session runs: its elapsed clock ticks, and every tick would push a new
+        options object through `setOptions` and re-render the navigator to draw
+        a header that had not changed.
+
+        `title` stays on all three because it is what the tab bar labels itself
+        with. `headerTitle` only overrides what the header draws.
+      */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
+          /*
+           * The week, under the word.
+           *
+           * This screen opens with "Volume this week" set in 24px and never
+           * says which seven days that is — so a Sunday session either counts
+           * or it doesn't, and the only way to find out was to log one and
+           * watch the number. It also silently resets on a Monday, which reads
+           * as data loss to anyone who does not know when the window turns.
+           */
+          headerTitle: () => <HeaderHeading title="Home" subtitle={thisWeek} />,
+          /*
+           * History, pinned.
+           *
+           * Home is a summary of what History holds, so it is the destination
+           * this tab leads to — but the only link to it lived at the bottom of
+           * the recent-workouts block, which means it was behind a scroll, and
+           * on an account with no workouts yet it did not exist at all. That
+           * block keeps its own button: it is the "see all of these" for the
+           * three rows above it, which is a different offer from this one.
+           */
+          headerRight: () => (
+            <HeaderAction
+              label="Open workout history"
+              title="History"
+              onPress={() => router.push('/history')}
+            />
+          ),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name="home" size={size} color={color} focused={focused} />
           ),
@@ -185,9 +273,22 @@ export default function TabLayout() {
         thing this app is opened to do. Everything that was competing for that
         position was a place to *read* about training rather than to do it.
 
-        `add-circle` says "start"; once a session is open the tab means "go
-        back to it", so the glyph becomes `play-circle` — the same play/add
-        pairing the Workout screen's own button uses, so the two agree.
+        Idle, the glyph is `barbell` — Ionicons has no `dumbbell`, and this is
+        that icon in this set. It names the domain rather than the action, which
+        is the trade against the `add-circle` it replaced: the tab is now
+        recognisably the training tab at a glance, and gives up saying "start"
+        to get there. The Workout screen's own button still carries `add`, so
+        the instruction survives one level in, on the control that performs it.
+
+        Once a session is open the tab means "go back to it", so the glyph
+        becomes `play-circle` — which is both the clearer verb and the same
+        `play` the screen's button switches to, so the two still agree there.
+
+        The two are set at different sizes on purpose. `play-circle` is a
+        compact filled disc that has to be pushed past its neighbours to read as
+        the bar's anchor; `barbell` is a wide horizontal glyph that reaches that
+        width on its own, and at the same value it would overhang Home and
+        Profile rather than outrank them.
 
         The tint is the louder half. While a session runs the icon holds
         `accent` even when the tab is blurred, so from Home or Profile the
@@ -205,13 +306,37 @@ export default function TabLayout() {
         name="workout"
         options={{
           title: 'Workout',
+          /*
+           * Resume, for as long as there is something to resume.
+           *
+           * The screen already opens with a card that does this, and the card
+           * scrolls away — under a routine list of any length, the one thing
+           * you are mid-way through is the first thing to leave the screen.
+           * The header does not scroll.
+           *
+           * `filled` is spent here rather than saved: it is reserved for the
+           * one action a screen exists to complete, and while a session is open
+           * this tab exists to get you back into it. It is also the only header
+           * in the app whose action appears and disappears, which is the point
+           * — a pill that is only ever there when it means something.
+           */
+          headerRight: sessionOpen
+            ? () => (
+                <HeaderAction
+                  label="Resume the workout in progress"
+                  title="Resume"
+                  variant="filled"
+                  onPress={() => router.push('/workout/active')}
+                />
+              )
+            : undefined,
           // Only overridden while live: otherwise the tab announces its label,
           // which is already right.
           tabBarAccessibilityLabel: sessionOpen ? 'Workout, session in progress' : undefined,
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon
-              name={sessionOpen ? 'play-circle' : 'add-circle'}
-              size={size + 6}
+              name={sessionOpen ? 'play-circle' : 'barbell'}
+              size={sessionOpen ? size + 6 : size + 2}
               color={sessionOpen ? colors.accent : color}
               focused={focused}
             />
@@ -237,6 +362,23 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          /*
+           * Settings, from the top of the screen instead of the bottom.
+           *
+           * Profile is five cards deep — Insights, Account, Library, Tracking,
+           * App — and Settings is a row inside the last of them, which puts the
+           * most-visited destination on this tab below everything the tab is
+           * sorted into. The row stays: the App card is an index of a section
+           * and a hole in it would be worse than a second path. The desktop
+           * rail already makes the same call, pinning Settings to its footer.
+           */
+          headerRight: () => (
+            <HeaderAction
+              label="Open settings"
+              title="Settings"
+              onPress={() => router.push('/settings')}
+            />
+          ),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name="person" size={size} color={color} focused={focused} />
           ),

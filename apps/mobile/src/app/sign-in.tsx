@@ -129,10 +129,23 @@ export default function SignInScreen() {
            * — and where a chevron only says "back", "Not now" says the account
            * is a choice, on the one screen in the app that could be mistaken for
            * a gate in front of everything else.
+           *
+           * It sits at the far end rather than in the chevron's own place, which
+           * is the one thing this header got wrong. Every title in this app is
+           * left-aligned (see `headerOptions`), so a control on the left is not
+           * standing where the back button stood — it is standing in front of
+           * the title, shunting "Create account" inwards and leaving the two
+           * words crowded against each other with the whole right half of the
+           * header empty. Opposite ends is also where the pair belongs by
+           * meaning: the title names the screen, "Not now" leaves it.
+           *
+           * Leaving is still possible without it. The iOS back-swipe and
+           * Android's system back are untouched by hiding the chevron — this is
+           * the visible way out, not the only one.
            */
           headerBackVisible: false,
-          headerLeft: () => (
-            <HeaderAction label="Leave without an account" title="Not now" side="left" onPress={leave} />
+          headerRight: () => (
+            <HeaderAction label="Leave without an account" title="Not now" onPress={leave} />
           ),
         }}
       />

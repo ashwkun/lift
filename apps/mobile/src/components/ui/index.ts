@@ -11,10 +11,13 @@ export {
 } from './filter-select';
 export {
   HeaderAction,
+  HeaderHeading,
   headerOptions,
+  tabHeaderOptions,
   type HeaderActionProps,
   type HeaderActionTone,
   type HeaderActionVariant,
+  type HeaderHeadingProps,
 } from './header-action';
 export {
   ListPicker,

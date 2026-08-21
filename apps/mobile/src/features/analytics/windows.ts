@@ -95,6 +95,35 @@ export function advance(date: Date, granularity: Granularity, steps = 1): Date {
   return next;
 }
 
+/**
+ * The seven days a week covers, on one line: "17 Aug – 23 Aug".
+ *
+ * Both ends name their month even when it is the same month twice, which reads
+ * a word longer than it needs to in English and is the only form that survives
+ * translation. The locale decides whether a date is "17 Aug" or "Aug 17", so
+ * dropping the first month — the obvious saving — yields "17 – Aug 23" wherever
+ * the month leads, which is not a range anyone can read.
+ *
+ * The year appears only on a week that crosses one, and then on both ends:
+ * "29 Dec 2025 – 4 Jan 2026". Inside a single year it is the one thing a reader
+ * already knows.
+ */
+export function formatWeekRange(weekStart: Date): string {
+  const weekEnd = addDays(weekStart, 6);
+  const crossesYear = weekStart.getFullYear() !== weekEnd.getFullYear();
+
+  const shape: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    ...(crossesYear && { year: 'numeric' }),
+  };
+
+  return `${weekStart.toLocaleDateString(undefined, shape)} – ${weekEnd.toLocaleDateString(
+    undefined,
+    shape,
+  )}`;
+}
+
 export function bucketLabel(date: Date, granularity: Granularity): string {
   switch (granularity) {
     case 'week':
