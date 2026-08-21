@@ -69,5 +69,28 @@ services:
     ports:
       - '8080:80'
 
+  # Also not started by default — `pnpm landing` is how you develop this, and it
+  # hot-reloads. This exists to check the built image before it goes anywhere:
+  #
+  #   docker compose --profile landing up --build landing
+  #
+  # then open http://localhost:8090. The two things worth looking at are whether
+  # the download button names the release GitHub is actually serving, and
+  # whether the page's social card resolves — both come from build-time network
+  # calls that silently degrade rather than fail.
+  landing:
+    profiles: ['landing']
+    build:
+      context: .
+      dockerfile: apps/landing/Dockerfile
+      args:
+        # Baked into the bundle at build time; see the Dockerfile. Locally this
+        # only has to be a well-formed absolute URL — nothing fetches it, it is
+        # the base the social card's image URL is resolved against.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:8090}
+    restart: unless-stopped
+    ports:
+      - '8090:3000'
+
 volumes:
   postgres-data:

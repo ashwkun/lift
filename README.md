@@ -227,25 +227,39 @@ On Dokploy:
 
 1. Create a **Postgres** service and copy the connection URL it hands back.
 2. Create a **Compose** application from this repository and set the compose
-   path to `docker-compose.dokploy.yml`. That file defines the API and the web
-   app — the database is the service from step 1, not a container of its own.
+   path to `docker-compose.dokploy.yml`. That file defines the API, the web app
+   and the landing page — the database is the service from step 1, not a
+   container of its own.
 3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
    as the public `https://` address including scheme, `TRUSTED_ORIGINS`, which
-   has to list `lift://` or the app cannot complete an OAuth round trip, and
-   `EXPO_PUBLIC_API_URL`, the API's public URL as the browser will call it. All
-   five are required; the stack refuses to start without them rather than
-   inventing defaults.
-4. Add a domain pointing at the `api` service on port 3000, and a second one
-   pointing at `web` on port 80.
-5. Add that second domain's origin to `TRUSTED_ORIGINS` —
+   has to list `lift://` or the app cannot complete an OAuth round trip,
+   `EXPO_PUBLIC_API_URL`, the API's public URL as the browser will call it, and
+   `NEXT_PUBLIC_SITE_URL`, the landing page's own public URL. All six are
+   required; the stack refuses to start without them rather than inventing
+   defaults.
+4. Add three domains, one per service:
+
+   | Service   | Port   | What it is             |
+   | --------- | ------ | ---------------------- |
+   | `api`     | `3000` | sync server            |
+   | `web`     | `80`   | the app in a browser   |
+   | `landing` | `3000` | the marketing page     |
+
+   `api` and `landing` both name port 3000 and do not clash: they are separate
+   containers, and the number is the port inside each one.
+5. Add the `web` domain's origin to `TRUSTED_ORIGINS` —
    `lift://,https://app.example.com`. Without it the browser can load the app
    and then fails every request it makes, which reads as a broken sign-in
-   rather than as a missing setting.
+   rather than as a missing setting. The **landing page's origin does not go in
+   here**: it makes no request the API has to trust, and listing it widens what
+   the API accepts for nothing.
 
 `EXPO_PUBLIC_API_URL` is baked into the web bundle at build time, so moving the
-API means redeploying the web app, not restarting it. The phone builds are
-unaffected by any of this — they carry their own copy, set when the APK is
-built.
+API means redeploying the web app, not restarting it. `NEXT_PUBLIC_SITE_URL` is
+the same kind of value for the landing page — it is what the social card's image
+URL is resolved against, so a wrong one leaves the page looking perfect while
+every share preview comes back blank. The phone builds are unaffected by any of
+this; they carry their own copy, set when the APK is built.
 
 The schema is created on first boot. A migration that fails takes the container
 down with it instead of serving against a half-applied schema, so a broken

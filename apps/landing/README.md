@@ -15,7 +15,31 @@ Next 16 (App Router, Turbopack), Tailwind v4, shadcn/ui primitives on Base UI.
 to set it. Next resolves the social card against it, so left unset the card's
 URL points at localhost and every share preview comes back blank. It is
 substituted into the bundle at build time, so moving the site means rebuilding
-rather than restarting.
+rather than restarting; the Dockerfile refuses to build without it.
+
+## Deploying
+
+`apps/landing/Dockerfile` builds it, and the `landing` service in both compose
+files uses that. In Dokploy it wants **its own domain, routed to `landing` on
+port 3000** — the same number the API uses, which is fine because they are
+separate containers.
+
+To check the built image before it goes anywhere:
+
+```bash
+docker compose --profile landing up --build landing   # http://localhost:8090
+```
+
+It ships as a Node server rather than an export, and that is not incidental. The
+download button names the version and size of the release GitHub is currently
+serving, which it reads from GitHub's API and revalidates hourly. An exported
+page would freeze that at whatever was true when the image was built, which is
+the bug the hardcoded version constant used to have.
+
+The version is **not** read from `package.json`, and that is deliberate. A
+release exists once a `v*` tag is pushed and the Android workflow attaches an
+APK to it, which happens after the version bump — in between, `package.json`
+names a version nobody can download. See the header of `lib/release.ts`.
 
 ## Where the design comes from
 

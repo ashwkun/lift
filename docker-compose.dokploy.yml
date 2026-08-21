@@ -7,13 +7,23 @@
 # is used as-is. Nothing is published: Traefik reaches both services over
 # dokploy-network, which is also how the database hostname resolves.
 #
-# Two services means two domains in Dokploy — one routed to `api` on port 3000,
-# one to `web` on port 80. They have to know about each other:
+# Three services means three domains in Dokploy:
+#
+#   api       port 3000
+#   web       port 80
+#   landing   port 3000   (its own container, so it does not clash with api)
+#
+# The first two have to know about each other:
 #
 #   EXPO_PUBLIC_API_URL   the API's public URL, baked into the web bundle
 #   TRUSTED_ORIGINS       must include the web app's origin, or better-auth
 #                         rejects every request the browser makes
 #   BETTER_AUTH_URL       the API's own public URL, scheme included
+#
+# `landing` knows about neither. It is the marketing page: static apart from one
+# hourly call to the GitHub releases API, it holds no data and talks to nothing
+# in this stack. Its origin does **not** belong in TRUSTED_ORIGINS, because it
+# never makes a request the API would have to trust.
 
 services:
   api:
@@ -54,6 +64,36 @@ services:
     restart: unless-stopped
     expose:
       - '80'
+    networks:
+      - dokploy-network
+
+  # The marketing page. Nothing else in this stack depends on it, and it depends
+  # on nothing here — deploying it cannot take the app down, and the app being
+  # down does not take it down.
+  #
+  # A Node server rather than a directory of static files, which is the one way
+  # it differs from `web`. The download button shows the version and size of the
+  # release GitHub is currently serving, read from GitHub's API and revalidated
+  # hourly; an export would freeze that at whatever was true when the image was
+  # built. See apps/landing/lib/release.ts.
+  landing:
+    build:
+      context: .
+      dockerfile: apps/landing/Dockerfile
+      args:
+        # A build arg rather than an environment variable, because that is what
+        # it is: `NEXT_PUBLIC_*` is substituted into the bundle by the compiler.
+        # Changing this means rebuilding the image — restarting the container
+        # with a new value does nothing at all.
+        #
+        # This is the landing page's *own* public URL, the one people will type,
+        # and it is what the social card's image URL is resolved against. Unset
+        # or wrong and the page still looks perfect while every share preview
+        # comes back blank.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?set NEXT_PUBLIC_SITE_URL to the landing page's public URL}
+    restart: unless-stopped
+    expose:
+      - '3000'
     networks:
       - dokploy-network
 
