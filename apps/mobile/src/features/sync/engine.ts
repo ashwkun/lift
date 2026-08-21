@@ -8,6 +8,7 @@
  */
 
 import {
+  SYNCABLE_TABLES,
   uuidv7,
   type Mutation,
   type SyncPullResponse,
@@ -309,9 +310,36 @@ async function sweepRetired(): Promise<void> {
 // Pull
 // ---------------------------------------------------------------------------
 
+/**
+ * Collects every page, then applies them parent table first.
+ *
+ * Both halves of that are load-bearing, and the reason is a foreign key.
+ *
+ * `seq` is a single global sequence that is *bumped on update*, so a row can
+ * sort behind its own children: edit a workout after logging its sets and the
+ * workout's seq moves past them. The server pages strictly by seq
+ * (`sync.service.ts`), and builds each page's `changes` keyed in the order rows
+ * are met — so a child table can both precede its parent within a page and land
+ * a whole page ahead of it. With `PRAGMA foreign_keys = ON` (see `db/client`)
+ * that insert raises `FOREIGN KEY constraint failed`, which is why this used to
+ * die partway through a large first sync.
+ *
+ * Applying in `SYNCABLE_TABLES` order fixes it, because that list is already
+ * parent-before-child and no syncable table references itself. Doing it across
+ * the *whole* pull rather than per page is what handles the parent being on a
+ * later page — sorting within a page leaves that case failing exactly as before.
+ *
+ * There is deliberately no transaction around this. expo-sqlite's
+ * `withTransactionAsync` is documented as non-exclusive, so a set logged while
+ * a sync ran would be swept into it and rolled back with it on failure, and
+ * `withExclusiveTransactionAsync` runs on a separate connection this `db` does
+ * not write through. Neither is worth risking a logged set for: every write
+ * here is an idempotent upsert, and the cursor only advances once they all
+ * land, so an interrupted pull is re-applied rather than half-kept.
+ */
 async function pullChanges(): Promise<number> {
   let cursor = await readMeta(CURSOR_KEY);
-  let applied = 0;
+  const collected = new Map<string, Record<string, unknown>[]>();
 
   for (;;) {
     const response = await apiFetch<SyncPullResponse>('/api/sync/pull', {
@@ -320,33 +348,46 @@ async function pullChanges(): Promise<number> {
     });
 
     for (const [name, rows] of Object.entries(response.changes ?? {})) {
-      const table = SYNC_TABLE_MAP[name as keyof typeof SYNC_TABLE_MAP];
-      if (!table || !Array.isArray(rows)) continue;
+      if (!Array.isArray(rows)) continue;
 
-      for (const row of rows) {
-        const values = toLocalRow({
-          ...(row as Record<string, unknown>),
-          // Rows arriving from the server are by definition already synced.
-          // Marking them 'pending' would push them straight back.
-          syncState: 'synced',
-        });
-
-        await db
-          .insert(table)
-          .values(values as never)
-          .onConflictDoUpdate({ target: table.id, set: values as never });
-
-        applied += 1;
-      }
+      const existing = collected.get(name);
+      if (existing) existing.push(...rows);
+      else collected.set(name, [...rows]);
     }
 
     cursor = response.cursor;
-    // Persist after every page so an interrupted sync resumes rather than
-    // restarting from the beginning.
-    await writeMeta(CURSOR_KEY, cursor);
 
     if (!response.hasMore) break;
   }
+
+  let applied = 0;
+
+  for (const name of SYNCABLE_TABLES) {
+    const table = SYNC_TABLE_MAP[name as keyof typeof SYNC_TABLE_MAP];
+    const rows = collected.get(name);
+    if (!table || !rows) continue;
+
+    for (const row of rows) {
+      const values = toLocalRow({
+        ...row,
+        // Rows arriving from the server are by definition already synced.
+        // Marking them 'pending' would push them straight back.
+        syncState: 'synced',
+      });
+
+      await db
+        .insert(table)
+        .values(values as never)
+        .onConflictDoUpdate({ target: table.id, set: values as never });
+
+      applied += 1;
+    }
+  }
+
+  // Advanced only once every row is in. Persisting it per page — which is what
+  // this did — would strand the rest of the pull behind a cursor that claimed
+  // it had already been applied.
+  if (cursor !== null) await writeMeta(CURSOR_KEY, cursor);
 
   return applied;
 }

@@ -210,6 +210,9 @@ function describeStatus(status: SyncStatus, pending: number, rejected: number): 
     return `${count} change${rejected === 1 ? '' : 's'} could not sync`;
   }
   if (status === 'offline') return 'Offline — will retry';
+  // Distinct from 'offline' because nothing retries it into working: the
+  // changes arrived and this device would not store them.
+  if (status === 'error') return 'Sync failed on this device';
   if (pending > 0) {
     return `${pending} change${pending === 1 ? '' : 's'} pending`;
   }
