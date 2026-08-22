@@ -3,7 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { BarChart as GiftedBarChart, type barDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { font, fontSize, radius, spacing, stroke, useColors } from '@/theme';
+import { spacing, useColors } from '@/theme';
 
 export interface BarDatum {
   label: string;
@@ -14,20 +14,25 @@ export interface BarDatum {
 export interface BarChartProps {
   data: BarDatum[];
   formatValue?: (value: number) => string;
-  /** Renders horizontal bars with the label on the left. */
-  horizontal?: boolean;
-  height?: number;
-  /**
-   * Vertical layout only: puts a value axis and its rules behind the columns.
-   *
-   * A horizontal chart prints each bar's figure past its end and needs none of
-   * this. A vertical one has nowhere to print twelve figures, so a series that
-   * has to be read against a quantity (volume per week) asks for the axis
-   * instead. A comparison that only has to be read against its own peak, like
-   * sets by body part, leaves it off.
-   */
-  valueAxis?: boolean;
 }
+
+/**
+ * Corner radius on a bar. `ColumnChart` holds the same number for the same
+ * reasons, and the two are meant to match.
+ *
+ * Rounded, but well short of a cap. These bars used to take `radius.pill`,
+ * which on a 10px bar is a semicircular end 5px deep, against a `MIN_FILL`
+ * floor of about the same: the least-worked body part came out as a dot rather
+ * than as a short bar, and every bar's tip tapered away from the edge the eye
+ * measures it against. At 3 the end keeps a flat middle, so a bar still reads
+ * as reaching a length.
+ *
+ * Below the `radius` scale's smallest step on purpose. That scale is for
+ * surfaces the finger touches, and it starts at 6 because a 6px corner is what
+ * reads as deliberate on a card. A bar is a measurement rather than a surface,
+ * and 6 is most of a thin one's width.
+ */
+const BAR_RADIUS = 3;
 
 /** Thickness of a horizontal bar, and the pitch of one row around it. */
 const BAR_THICKNESS = 10;
@@ -44,14 +49,13 @@ const VALUE_GAP = spacing.sm;
 
 /**
  * The strip the library draws an axis label into: one line at the 18px it
- * hard-codes per line. Both layouts are told this explicitly so the space each
- * one reserves and the space the library actually uses cannot drift apart.
+ * hard-codes per line. Stated here rather than left implicit so the space this
+ * component reserves and the space the library actually uses cannot drift
+ * apart.
  */
 const LABEL_STRIP = 18;
 /** The 6px the library leaves between the baseline and that strip. */
 const LABEL_GUTTER = 6;
-/** Total band below the baseline that the vertical layout's captions occupy. */
-const CAPTION_BAND = LABEL_GUTTER + LABEL_STRIP;
 
 /**
  * Floor for a bar's fill, as a fraction of the plot.
@@ -67,16 +71,6 @@ const MIN_FILL = 0.02;
  * labels. Both are extended by props (`labelsExtraHeight`, `yAxisExtraHeight`)
  * because the label column and the trailing value are wider than the default.
  */
-/**
- * The gutter a vertical chart's value axis sits in. Deliberately the same width
- * as `LineChart`'s, so a screen that stacks the two (Home does) lines their
- * plots up on one left edge rather than on two that nearly agree.
- */
-const VALUE_AXIS_WIDTH = spacing.xxl + spacing.xl;
-
-/** Rules drawn behind a vertical chart's columns, and the labels against them. */
-const AXIS_SECTIONS = 2;
-
 const LIBRARY_LABEL_ALLOWANCE = 60;
 const LABEL_BAND = LABEL_COLUMN + LABEL_GAP + spacing.xs;
 const LABEL_HEADROOM = Math.max(0, LABEL_BAND - LIBRARY_LABEL_ALLOWANCE);
@@ -114,30 +108,33 @@ const SHIFT_X = PLOT_INSET - ROTATED_ORIGIN_X - LABEL_HEADROOM + VALUE_HEADROOM 
 const SHIFT_Y = (ROW_HEIGHT - BAR_THICKNESS) / 2 - ROTATED_ORIGIN_Y - VALUE_HEADROOM / 2;
 
 /**
- * Proportional bar chart.
+ * Proportional horizontal bar chart: a named row, a bar, and its figure.
  *
- * Both layouts are gifted-charts' `BarChart`. Horizontal bars are its own
- * `horizontal` mode, which is the vertical chart rotated a quarter turn, and
- * every offset above exists to undo one consequence of that rotation. Nothing
- * here draws a rectangle by hand.
+ * The counterpart to `ColumnChart`, and the split between them is what each is
+ * for rather than which way the bars point. This one ranks a handful of named
+ * things against each other (sets by body part, a session's split) and prints
+ * every figure, so it needs no axis at all. `ColumnChart` plots a series over
+ * time, where the names are dates, there are too many to print, and the reading
+ * has to come off an axis. This component drew both for a while, and the
+ * vertical half went unused the moment Home's weekly run moved to the other
+ * one: a chart of weeks wants a tappable column and a rounded ceiling, which
+ * are `ColumnChart`'s whole subject.
+ *
+ * Underneath it is gifted-charts' `BarChart` in its own `horizontal` mode,
+ * which is the vertical chart rotated a quarter turn, and every offset above
+ * exists to undo one consequence of that rotation. Nothing here draws a
+ * rectangle by hand.
  *
  * Bars are proportional to the largest value in the set rather than to a
  * rounded ceiling: this reads as "which body part got the work", not "how many
  * sets exactly", and a nice axis maximum would leave the peak bar short of the
  * end for no reason the user can see.
  */
-export function BarChart({
-  data,
-  formatValue = (value) => String(Math.round(value)),
-  horizontal = true,
-  height = 140,
-  valueAxis = false,
-}: BarChartProps) {
+export function BarChart({ data, formatValue = (value) => String(Math.round(value)) }: BarChartProps) {
   const colors = useColors();
 
-  // The call site hands us no width, and both layouts need one: the horizontal
-  // plot has to know what is left after the label column and the value, and the
-  // vertical one sizes its columns from it.
+  // The call site hands us no width, and the plot needs one: it has to know
+  // what is left after the label column and the trailing figure.
   const [width, setWidth] = useState(0);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     setWidth(event.nativeEvent.layout.width);
@@ -147,7 +144,7 @@ export function BarChart({
 
   if (data.length === 0 || max === 0) {
     return (
-      <View style={[styles.empty, { height: horizontal ? undefined : height }]}>
+      <View style={styles.empty}>
         <Text variant="label" color="textTertiary">
           No data yet
         </Text>
@@ -166,133 +163,64 @@ export function BarChart({
    */
   const paint = (item: BarDatum) => ({ frontColor: item.color ?? colors.accent });
 
-  if (horizontal) {
-    const plotLength = width - PLOT_INSET - VALUE_HEADROOM;
-    const bars: barDataItem[] = data.map((item) => ({
-      ...paint(item),
-      value: item.value,
-      // The library's own axis label is a bare `Text` in whatever the platform
-      // font happens to be, so both slots are handed a component instead.
-      labelComponent: () => (
-        <View style={styles.hLabel}>
-          <Text variant="label" color="textSecondary" numberOfLines={1}>
-            {item.label}
-          </Text>
-        </View>
-      ),
-      topLabelComponent: () => (
-        <View style={styles.hValue}>
-          <Text variant="label" numberOfLines={1}>
-            {formatValue(item.value)}
-          </Text>
-        </View>
-      ),
-    }));
-
-    return (
-      <View onLayout={onLayout} style={{ height: data.length * ROW_HEIGHT }}>
-        {plotLength > 0 ? (
-          <GiftedBarChart
-            data={bars}
-            horizontal
-            // Only moves where the (hidden) value axis is drawn, but it also
-            // picks the smaller of the library's two rotation offsets.
-            yAxisAtTop
-            /*
-             * Transposed on purpose. A horizontal chart is rendered rotated, so
-             * the library reads `width` as the length of the bars and `height`
-             * as the extent across them. The height here is exactly the rows
-             * the wrapper reserves.
-             */
-            width={plotLength}
-            height={data.length * ROW_HEIGHT}
-            barWidth={BAR_THICKNESS}
-            spacing={ROW_GAP}
-            initialSpacing={0}
-            endSpacing={0}
-            maxValue={max}
-            minHeight={plotLength * MIN_FILL}
-            barBorderRadius={radius.pill}
-            labelWidth={LABEL_WIDTH}
-            labelsDistanceFromXaxis={LABEL_DISTANCE}
-            labelsExtraHeight={LABEL_HEADROOM}
-            yAxisExtraHeight={VALUE_HEADROOM}
-            shiftX={SHIFT_X}
-            shiftY={SHIFT_Y}
-            // Every row already prints its own figure, so a value axis, its
-            // spine and a set of rules behind the bars would all be restating it.
-            hideAxesAndRules
-            yAxisLabelWidth={0}
-            yAxisThickness={0}
-            xAxisThickness={0}
-            disableScroll
-            isAnimated={false}
-          />
-        ) : null}
-      </View>
-    );
-  }
-
-  const plotHeight = Math.max(1, height - CAPTION_BAND);
-  const axisWidth = valueAxis ? VALUE_AXIS_WIDTH : 0;
-  const plotWidth = Math.max(1, width - axisWidth);
-  const slot = plotWidth / data.length;
-  // Cap the column so a three-bar set doesn't render three slabs; whatever is
-  // left over is the gap, split in half at each end so every column sits dead
-  // centre of its slot.
-  const barWidth = Math.max(3, Math.min(slot * 0.62, 34));
-  const gap = slot - barWidth;
-
-  // Bottom-up, one per rule, and given as text because the axis is in the
-  // caller's unit, which this chart is never told.
-  const axisLabels = Array.from({ length: AXIS_SECTIONS + 1 }, (_, index) =>
-    formatValue((max / AXIS_SECTIONS) * index),
-  );
-
+  const plotLength = width - PLOT_INSET - VALUE_HEADROOM;
   const bars: barDataItem[] = data.map((item) => ({
     ...paint(item),
     value: item.value,
+    // The library's own axis label is a bare `Text` in whatever the platform
+    // font happens to be, so both slots are handed a component instead.
     labelComponent: () => (
-      <Text variant="caption" color="textTertiary" align="center" numberOfLines={1}>
-        {item.label}
-      </Text>
+      <View style={styles.hLabel}>
+        <Text variant="label" color="textSecondary" numberOfLines={1}>
+          {item.label}
+        </Text>
+      </View>
+    ),
+    topLabelComponent: () => (
+      <View style={styles.hValue}>
+        <Text variant="label" numberOfLines={1}>
+          {formatValue(item.value)}
+        </Text>
+      </View>
     ),
   }));
 
   return (
-    <View onLayout={onLayout} style={{ height }}>
-      {width > 0 ? (
+    <View onLayout={onLayout} style={{ height: data.length * ROW_HEIGHT }}>
+      {plotLength > 0 ? (
         <GiftedBarChart
           data={bars}
-          width={plotWidth}
-          height={plotHeight}
-          barWidth={barWidth}
-          spacing={gap}
-          initialSpacing={gap / 2}
-          endSpacing={gap / 2}
+          horizontal
+          // Only moves where the (hidden) value axis is drawn, but it also
+          // picks the smaller of the library's two rotation offsets.
+          yAxisAtTop
+          /*
+           * Transposed on purpose. A horizontal chart is rendered rotated, so
+           * the library reads `width` as the length of the bars and `height`
+           * as the extent across them. The height here is exactly the rows
+           * the wrapper reserves.
+           */
+          width={plotLength}
+          height={data.length * ROW_HEIGHT}
+          barWidth={BAR_THICKNESS}
+          spacing={ROW_GAP}
+          initialSpacing={0}
+          endSpacing={0}
           maxValue={max}
-          minHeight={plotHeight * MIN_FILL}
-          barBorderRadius={Math.min(radius.sm, barWidth / 2)}
-          xAxisLabelsHeight={LABEL_STRIP}
-          noOfSections={AXIS_SECTIONS}
-          // Without the axis this is a baseline and nothing else: rules need a
-          // value axis to be read against, and a chart that is only a comparison
-          // has none. With it they are the reading.
-          hideRules={!valueAxis}
-          rulesType="solid"
-          rulesColor={colors.border}
-          rulesThickness={stroke.outline}
-          hideYAxisText={!valueAxis}
-          yAxisLabelTexts={valueAxis ? axisLabels : undefined}
-          yAxisTextStyle={[styles.axisText, { color: colors.textTertiary }]}
-          yAxisLabelContainerStyle={styles.axisLabel}
-          yAxisLabelWidth={axisWidth}
+          minHeight={plotLength * MIN_FILL}
+          barBorderRadius={BAR_RADIUS}
+          labelWidth={LABEL_WIDTH}
+          labelsDistanceFromXaxis={LABEL_DISTANCE}
+          labelsExtraHeight={LABEL_HEADROOM}
+          yAxisExtraHeight={VALUE_HEADROOM}
+          shiftX={SHIFT_X}
+          shiftY={SHIFT_Y}
+          // Every row already prints its own figure, so a value axis, its
+          // spine and a set of rules behind the bars would all be restating it.
+          hideAxesAndRules
+          yAxisLabelWidth={0}
           yAxisThickness={0}
-          yAxisExtraHeight={0}
-          xAxisColor={colors.border}
-          // Doubled because this is an SVG stroke rather than a view border. A
-          // hairline stroke gets antialiased away to almost nothing.
-          xAxisThickness={stroke.rule * 2}
+          xAxisThickness={0}
           disableScroll
           isAnimated={false}
         />
@@ -303,9 +231,6 @@ export function BarChart({
 
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl },
-  // Matched to `LineChart`'s axis, for the same reason `VALUE_AXIS_WIDTH` is.
-  axisText: { fontSize: fontSize.xs, ...font('regular') },
-  axisLabel: { alignItems: 'flex-end', paddingRight: spacing.xs },
   hLabel: {
     height: LABEL_STRIP,
     justifyContent: 'center',

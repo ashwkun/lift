@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
+import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
 import {
   Button,
   Card,
@@ -13,23 +14,26 @@ import {
   Reveal,
   Screen,
   SectionHeader,
+  SegmentedControl,
   Text,
   splitMeasure,
   useScrollEdge,
 } from '@/components/ui';
+import { METRIC, TREND_METRICS, type TrendMetric } from '@/features/analytics/metrics';
+import { bucketLabel } from '@/features/analytics/windows';
 import {
   getDashboardStats,
   getMuscleDistribution,
-  getWeeklyVolume,
+  getWeeklyTotals,
   type DashboardStats,
   type MuscleDistributionEntry,
-  type WeeklyVolumePoint,
+  type WeeklyPoint,
 } from '@/features/analytics/repository';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { mix, spacing, useColors, useLayout } from '@/theme';
+import { mix, spacing, useColors, useContentWidth, useLayout } from '@/theme';
 
 const BODY_PART_LABELS: Record<string, string> = {
   chest: 'Chest',
@@ -46,12 +50,48 @@ export default function HomeScreen() {
   const { isExpanded } = useLayout();
   const colors = useColors();
 
+  // `ColumnChart` is laid out from a width rather than measuring itself, so the
+  // strip's own margins come off the board this screen is drawn in. `board`,
+  // not the window: on a desktop the pane beside the rail is capped at 1040 and
+  // the chart has to be told the same number the `Screen` used.
+  const chartWidth = useContentWidth('board') - spacing.lg * 2;
+
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [weekly, setWeekly] = useState<WeeklyVolumePoint[]>([]);
+  const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
   const [distribution, setDistribution] = useState<MuscleDistributionEntry[]>([]);
   const [recent, setRecent] = useState<Workout[]>([]);
+
+  /*
+   * Which of the three the masthead is answering in.
+   *
+   * State rather than a setting, so it resets to volume on every launch. It is
+   * a question you ask of the screen rather than a preference: "how much did I
+   * move" is the one this app is built around, and the other two are checks
+   * against it rather than replacements for it.
+   *
+   * Nothing here refetches when it changes. `getWeeklyTotals` returns all three
+   * per week in one pass, so a tap is a re-render.
+   */
+  const [metric, setMetric] = useState<TrendMetric>('volume');
+
+  /*
+   * Which week the masthead is reporting on, as that week's Monday.
+   *
+   * Null is this week, and it is not the same value as the current week's own
+   * timestamp: holding the key would pin the masthead to a week that stops
+   * being the current one at the next Monday. Null means "whichever week it is
+   * now" and survives the rollover.
+   *
+   * Held as a key rather than as the point itself so it stays valid across a
+   * refetch. `weekly` is replaced wholesale on every focus, and a key is looked
+   * up again against the new array; a captured object would be a stale copy of
+   * a week whose totals had since changed. A key that no longer appears, which
+   * is what a week falling out of the twelve looks like, resolves to null and
+   * the masthead returns to this week on its own.
+   */
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
   // Aggregates are recomputed on focus rather than live: they only change when
   // a workout is finished, and re-running them on every set write would be
@@ -63,7 +103,7 @@ export default function HomeScreen() {
       void (async () => {
         const [nextStats, nextWeekly, nextDistribution, nextRecent] = await Promise.all([
           getDashboardStats(),
-          getWeeklyVolume(12),
+          getWeeklyTotals(12),
           getMuscleDistribution(30),
           listCompletedWorkouts(3),
         ]);
@@ -100,12 +140,36 @@ export default function HomeScreen() {
    */
   if (!stats) return <Screen width="board" scrolled={scrollEdge.progress}>{null}</Screen>;
 
-  const [weekVolume, weekVolumeUnit] = splitMeasure(
-    formatVolume(stats.thisWeekVolumeKg, weightUnit),
-  );
+  /*
+   * The week the masthead is reporting on, and the one before it.
+   *
+   * `shownIndex` is the tapped week if one is still in the window and the last
+   * week otherwise, so every figure below is written against one index and
+   * there is no second path through this block for the selected case.
+   *
+   * The headline used to come from `getDashboardStats` and the comparison from
+   * `weekly`, which was a delta whose two halves were counted by different
+   * queries. They agreed, because both bucket on the same `startOfWeek` over
+   * the same filter, but only by coincidence: nothing made them, and duration
+   * and reps would have needed two more fields on `DashboardStats` to keep the
+   * arrangement. One source, three metrics, any week, and the fields that
+   * supplied the old headline are gone from that query.
+   */
+  const selectedIndex = weekly.findIndex((point) => point.weekStart === selectedWeek);
+  const shownIndex = selectedIndex >= 0 ? selectedIndex : weekly.length - 1;
+  const isThisWeek = shownIndex === weekly.length - 1;
+
+  const shown = weekly[shownIndex] ?? null;
+  const before = shownIndex > 0 ? weekly[shownIndex - 1]! : null;
+
+  const config = METRIC[metric];
+  const shownValue = shown ? config.pick(shown) : 0;
+  const beforeValue = before ? config.pick(before) : 0;
+
+  const [weekFigure, weekUnit] = splitMeasure(config.format(shownValue, weightUnit));
 
   /*
-   * The twelve columns, and only the last one is the accent.
+   * The twelve columns, and only one of them is the accent.
    *
    * Every bar on this screen used to be lime: twelve here, six in the chart
    * below, plus the kicker and the History link. `tokens.ts` budgets roughly
@@ -114,52 +178,52 @@ export default function HomeScreen() {
    * the screen's background texture, which is the actual reason this screen
    * felt busy rather than the amount of content on it.
    *
-   * Spending it on the current week instead turns the run from decoration into
-   * a sentence: here is where this week sits among the last twelve. The rest
+   * Spending it on one week turns the run from decoration into a sentence: here
+   * is where the week you are reading sits among the last twelve. It follows
+   * the selection rather than staying on the current week, so the accent always
+   * marks the bar the figure above belongs to, and a tap moves it. The rest
    * fade from `borderStrong` to `textSecondary` with recency, so the run reads
    * as time passing without needing an axis to say so. Both ends of that mix
    * are defined in every palette and move together: on the light ones the fade
    * runs light-to-dark, which is the same "older is fainter" in reverse.
    */
-  const volumeData: BarDatum[] = weekly.map((point, index) => {
-    const week = new Date(point.weekStart);
-    const previous = index > 0 ? new Date(weekly[index - 1]!.weekStart) : null;
-    const startsMonth = !previous || previous.getMonth() !== week.getMonth();
-    const isCurrent = index === weekly.length - 1;
+  const trendData: ColumnDatum[] = weekly.map((point, index) => {
     // Stops at 0.7 rather than 1 so the most recent *past* week still sits
     // clearly below the accent instead of arriving alongside it.
     const recency = weekly.length > 1 ? (index / (weekly.length - 1)) * 0.7 : 0;
 
     return {
-      // Labelled at month boundaries rather than per week. Twelve columns
-      // across a phone leaves each one about 25pt, which fits neither "18 Aug"
-      // nor "Aug 18"; three or four month names over the run say where in the
-      // year the bars are, which is the only thing the x axis is being asked.
-      label: startsMonth ? week.toLocaleDateString(undefined, { month: 'short' }) : '',
-      value: point.volumeKg,
-      color: isCurrent ? colors.accent : mix(colors.borderStrong, colors.textSecondary, recency),
+      key: point.weekStart,
+      // Every column carries its own date and `ColumnChart` thins them to five
+      // or so: twelve of these across a phone would collide, and which weeks
+      // get printed is a layout decision the chart is better placed to make.
+      // `bucketLabel` rather than a local format, so a week is written the same
+      // way here as in the chart on History.
+      label: bucketLabel(new Date(point.weekStart), 'week'),
+      value: config.pick(point),
+      color:
+        index === shownIndex
+          ? colors.accent
+          : mix(colors.borderStrong, colors.textSecondary, recency),
     };
   });
 
   /*
-   * How this week compares with the one before it.
+   * How that week compares with the one before it.
    *
-   * A volume figure on its own is inert. 52.6k is neither good nor bad without
+   * A figure on its own is inert. 52.6k is neither good nor bad without
    * something to read it against, and the screen was asking the user to supply
-   * that from memory. Both numbers come out of `weekly` rather than one from
-   * `weekly` and one from `stats`, because a delta whose baseline is bucketed
-   * differently from its subject is worse than no delta; both bucket on the
-   * same `startOfWeek`.
+   * that from memory. Both numbers are the selected metric out of two adjacent
+   * buckets, so the comparison holds whichever tab is showing and whichever
+   * week is being read: a percentage is one of the few things that means the
+   * same in kilograms, minutes and reps.
    *
-   * Null when there is nothing honest to say: no previous week in the window,
-   * or a previous week of zero, where the change is not "infinitely better" but
-   * "this is the first week".
+   * Null when there is nothing honest to say: no week before this one in the
+   * window, or a previous week of zero, where the change is not "infinitely
+   * better" but "this is the first week".
    */
-  const previousWeekVolumeKg = weekly.length > 1 ? weekly[weekly.length - 2]!.volumeKg : 0;
   const deltaPercent =
-    previousWeekVolumeKg > 0
-      ? Math.round(((stats.thisWeekVolumeKg - previousWeekVolumeKg) / previousWeekVolumeKg) * 100)
-      : null;
+    beforeValue > 0 ? Math.round(((shownValue - beforeValue) / beforeValue) * 100) : null;
 
   /*
    * The two supporting figures, as a sentence rather than a band.
@@ -168,15 +232,41 @@ export default function HomeScreen() {
    * columns, occupying its own block under the masthead. That is the right
    * component for a table of figures being compared, and these two are not
    * that: they are context for the headline above them. Set as one quiet line
-   * they belong to the volume figure, which turns two blocks into one and takes
-   * a whole horizontal rule of structure off the screen.
+   * they belong to the figure, which turns two blocks into one and takes a
+   * whole horizontal rule of structure off the screen.
+   *
+   * Neither of them changes with the metric, which is the point of leaving them
+   * out of the tabs: the sessions behind the headline are the same sessions
+   * whichever way it is being counted.
+   *
+   * The streak is dropped on a past week, and that is not tidiness. A streak is
+   * a fact about now, counted back from this week; printed under August it
+   * would read as the streak as it stood in August, which is a different number
+   * this screen does not have. The session count is a property of the week
+   * itself and follows the selection.
    */
+  const sessions = shown?.workouts ?? 0;
   const meta = [
-    `${stats.thisWeekWorkouts} ${stats.thisWeekWorkouts === 1 ? 'session' : 'sessions'}`,
-    stats.weekStreak > 0 ? `${stats.weekStreak}-week streak` : null,
+    `${sessions} ${sessions === 1 ? 'session' : 'sessions'}`,
+    isThisWeek && stats.weekStreak > 0 ? `${stats.weekStreak}-week streak` : null,
   ]
     .filter(Boolean)
     .join(' · ');
+
+  /*
+   * What the kicker calls the week, and what the delta compares it to.
+   *
+   * "this week" only when it is: on any other week the kicker names the Monday
+   * it starts on, because a 40px figure with no date on it is read as the
+   * current one. "vs last week" moves with it for the same reason. Read under a
+   * selected August week it would mean the week before today rather than the
+   * week before that one, which is the sort of caption that is worse than none.
+   */
+  const kicker =
+    isThisWeek || !shown
+      ? `${config.label} this week`
+      : `${config.label} · week of ${bucketLabel(new Date(shown.weekStart), 'week')}`;
+  const deltaCaption = isThisWeek ? 'vs last week' : 'vs week before';
 
   /*
    * Neutral, for the same reason the run above it is.
@@ -245,21 +335,27 @@ export default function HomeScreen() {
            * both schemes with no branching on the colour scheme. Do not swap
            * these back.
            *
-           * `heading` rather than `display`: the figure came down from 40px to
-           * 24 along with every other statistic in the app. A number that fills
-           * the width of a phone reads as a scoreboard, and this one is context
-           * for the week rather than a score. What gives it presence now is the
-           * room around it, not its size.
+           * `display` at 40px, which is the largest type in the app and the only
+           * place it is used. The figure spent a release at `heading` (24) on
+           * the grounds that a number filling the width of a phone reads as a
+           * scoreboard, and at 24 it read as a caption instead: it is the answer
+           * to the only question this screen asks, and every other line in the
+           * block is a footnote to it. `adjustsFontSizeToFit` is what makes 40
+           * safe rather than optimistic: the figure is one line by contract, and
+           * between a seven-figure volume in pounds and a phone set to a large
+           * system text size it will not always fit at full size. It shrinks
+           * rather than truncating or wrapping, so the worst case is a smaller
+           * number and never half of one.
            */}
           <View style={styles.masthead}>
-            <Text variant="overline" color="accent">
-              Volume this week
+            <Text variant="overline" color="accent" numberOfLines={1}>
+              {kicker}
             </Text>
-            <Text variant="heading" color="text" numberOfLines={1} adjustsFontSizeToFit>
-              {weekVolume}
-              {weekVolumeUnit ? (
-                <Text variant="label" color="textTertiary">
-                  {` ${weekVolumeUnit}`}
+            <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
+              {weekFigure}
+              {weekUnit ? (
+                <Text variant="subheading" color="textTertiary">
+                  {` ${weekUnit}`}
                 </Text>
               ) : null}
             </Text>
@@ -273,14 +369,17 @@ export default function HomeScreen() {
                  */}
                 <Ionicons
                   name={deltaPercent >= 0 ? 'caret-up' : 'caret-down'}
-                  size={11}
+                  size={13}
                   color={deltaPercent >= 0 ? colors.success : colors.danger}
                 />
-                <Text variant="caption" color={deltaPercent >= 0 ? 'success' : 'danger'}>
+                {/* A size up from the words beside it, and the only figure in
+                    the block other than the headline. At 11 under a 40px number
+                    it read as a footnote to a footnote. */}
+                <Text variant="label" color={deltaPercent >= 0 ? 'success' : 'danger'}>
                   {`${Math.abs(deltaPercent)}%`}
                 </Text>
                 <Text variant="caption" color="textTertiary">
-                  vs last week
+                  {deltaCaption}
                 </Text>
               </View>
             ) : null}
@@ -291,32 +390,78 @@ export default function HomeScreen() {
           </View>
 
           {/*
-           * The run of twelve, with no heading and no value axis.
+           * The run of twelve, on both axes, tappable, and with no heading.
            *
-           * Both are removed for the same reason: this strip is no longer a
-           * section that has to introduce itself, it is the tail of the sentence
-           * the figure above starts. A heading would re-open it as a section,
-           * and the axis: 44pt of gutter plus two rules across the plot.
-           * Would push the columns off the margin every other element on this
-           * screen sits on. The quantity it would report is already stated at
-           * full size directly above, and the delta says which way it moved;
-           * what is left for the bars to carry is shape, which needs neither.
+           * `ColumnChart` rather than the `BarChart` this was: History's chart
+           * already had the value axis, the rounded ceiling, the thinned date
+           * labels and a full-height touch target per bucket, and the alternative
+           * was teaching a second component the same four things. What Home adds
+           * to it is a colour per column, because the accent has to be able to
+           * mark the week being read: see `trendData`.
            *
-           * Columns, not a line. A week's volume is a quantity that was either
-           * banked or wasn't. It does not vary continuously between Sunday and
-           * Monday, and a line drawn through twelve of them invents a slope
-           * across the gap where the reading is simply the next week. Bars also
-           * make a missed week read as what it is, a gap on the floor, where the
-           * line just leaned through it.
+           * The heading stays off: this strip is not a section that has to
+           * introduce itself, it is the tail of the sentence the figure above
+           * starts, and a title would re-open it as one.
+           *
+           * Both axes are drawn, where before there were bars and a baseline.
+           * The value axis costs a 44pt gutter, so the plot starts inboard of
+           * the margin every other element on this screen sits on, and it buys
+           * the thing a bare run cannot do: read a week that is not this one.
+           * Without it the only labelled quantity was the headline, so the
+           * eleven columns before the last were a shape and nothing more.
+           *
+           * A tap on any column is the rest of that: it moves the accent, the
+           * kicker, the figure, the delta and the session count onto that week.
+           * Tapping it again clears the selection and the block returns to this
+           * week, which is also what the twelfth column does, since selecting
+           * the current week and selecting nothing show the same figures.
+           *
+           * 150 tall against the 100 it was. The two rules divide the plot in
+           * thirds, and 25pt bands with an 11pt figure beside them read as a
+           * label sitting on a line rather than against it. The extra height is
+           * also what makes a rest week tappable: the target is the full column
+           * slot, not the bar.
            */}
           <View style={styles.strip}>
-            <BarChart
-              data={volumeData}
-              horizontal={false}
-              height={100}
-              formatValue={(value) => formatVolume(value, weightUnit, { withUnit: false })}
+            <ColumnChart
+              data={trendData}
+              width={chartWidth}
+              height={150}
+              selectedKey={selectedWeek}
+              onSelect={(datum) => setSelectedWeek(datum?.key ?? null)}
+              formatValue={(value) => config.axis(value, weightUnit)}
+              emptyLabel="No data yet"
             />
           </View>
+
+          {/*
+           * The three metrics, at the foot of the run they redraw.
+           *
+           * Under the chart rather than over it, and not at the top of the
+           * masthead either, which is where a control governing a whole block
+           * usually goes. Two reasons it ends up last. The room above the kicker
+           * is what the 40px figure is set into, and a track of tabs anywhere in
+           * that stack takes it back; and the block reads as one sentence
+           * downwards, figure then change then shape, which a control cutting
+           * across it interrupts. Sitting under the bars it reads as the axis
+           * the run is drawn against, which is what it is.
+           *
+           * The cost, and it is a real one: the tabs are below the figure they
+           * retitle, so the first tap is the one that teaches you they move it.
+           * The kicker naming the metric in full ("Duration this week") is what
+           * makes that tap legible after the fact.
+           *
+           * `sm` because it is inside a block rather than heading a screen: the
+           * one on History that picks a time range for the page is `md`.
+           */}
+          <SegmentedControl
+            options={TREND_METRICS}
+            value={metric}
+            onChange={setMetric}
+            size="sm"
+            label="Metric"
+            style={styles.tabs}
+          />
 
           {/*
            * The one rule on the screen, and it is doing structural work: above
@@ -414,8 +559,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     // Deeper above than the `lg` it was, and shallower below, because the strip
     // under it now belongs to this block rather than following it. The space
-    // this buys above the kicker is what gives the figure its presence. The
-    // size was deliberately taken away from it, so the room has to do that job.
+    // this buys above the kicker is what the figure is set into, and it is the
+    // reason the tabs sit under the block rather than over it.
     paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
     gap: spacing.xs,
@@ -424,6 +569,11 @@ const styles = StyleSheet.create({
   // not type, so its baseline is not where its arrow is.
   delta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   meta: { marginTop: spacing.sm },
+  // On the screen's margin like everything else, and nearer the bars above it
+  // than the rule below: `md` up against the `xl` the rule brings with it, so
+  // the control reads as belonging to the chart rather than as a third thing
+  // between the chart and whatever follows the rule.
+  tabs: { marginHorizontal: spacing.lg, marginTop: spacing.md },
   strip: { marginHorizontal: spacing.lg },
   rule: { marginHorizontal: spacing.lg, marginTop: spacing.xl },
   chart: { marginHorizontal: spacing.lg },

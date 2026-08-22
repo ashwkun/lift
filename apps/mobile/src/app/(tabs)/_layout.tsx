@@ -75,7 +75,7 @@ function TabIcon({
  * The seven days Home's figures cover, as a line of text.
  *
  * Monday-based, and deliberately not the `firstDayOfWeek` preference: the number
- * this line sits under comes from `getDashboardStats`, which buckets on
+ * this line sits under comes from `getWeeklyTotals`, which buckets on
  * `startOfWeek`'s Monday default, as does the week streak beside it. A label
  * that honoured the setting while the figure did not would be worse than no
  * label. It would put a wrong week under a right number. The preference reaches

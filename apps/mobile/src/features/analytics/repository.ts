@@ -36,8 +36,6 @@ export interface DashboardStats {
   totalWorkouts: number;
   weekStreak: number;
   activeDays: number;
-  thisWeekWorkouts: number;
-  thisWeekVolumeKg: number;
   lastWorkoutAt: Date | null;
   /**
    * Every kilogram ever moved. Included here rather than left to the one screen
@@ -60,40 +58,56 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .orderBy(desc(workouts.startedAt));
 
   const dates = completed.map((row) => row.startedAt);
-  const weekStart = startOfWeek(new Date()).getTime();
-  const thisWeek = completed.filter((row) => row.startedAt.getTime() >= weekStart);
 
   return {
     totalWorkouts: completed.length,
     weekStreak: computeWeekStreak(dates),
     activeDays: countActiveDays(dates),
-    thisWeekWorkouts: thisWeek.length,
-    thisWeekVolumeKg: thisWeek.reduce((sum, row) => sum + row.totalVolumeKg, 0),
     lastWorkoutAt: dates[0] ?? null,
     lifetimeVolumeKg: completed.reduce((sum, row) => sum + row.totalVolumeKg, 0),
   };
 }
 
-export interface WeeklyVolumePoint {
+/**
+ * One week's totals, in the three metrics a session records.
+ *
+ * The names match `TrendBucket`'s deliberately, so `METRIC` in `metrics.ts`
+ * reads either one without knowing which it was handed: Home plots weeks and
+ * History plots its own buckets, and there is one definition of what "duration"
+ * means to a chart.
+ */
+export interface WeeklyPoint {
   /** Epoch ms of that week's Monday. */
   weekStart: number;
   volumeKg: number;
+  durationSeconds: number;
+  reps: number;
   workouts: number;
 }
 
 /**
- * Volume per week over the trailing `weeks` window.
+ * Per-week totals over the trailing `weeks` window.
  *
  * Empty weeks are included with zero rather than skipped: a gap in training
  * should read as a dip in the chart, not get quietly compressed away.
+ *
+ * All three metrics are summed in the one pass whichever the caller is showing.
+ * They are columns on `workouts` rather than joins, so the second and third
+ * cost a `+=` each, and Home switches between them without going back to the
+ * database.
  */
-export async function getWeeklyVolume(weeks = 12): Promise<WeeklyVolumePoint[]> {
+export async function getWeeklyTotals(weeks = 12): Promise<WeeklyPoint[]> {
   const currentWeekStart = startOfWeek(new Date());
   const windowStart = new Date(currentWeekStart);
   windowStart.setDate(windowStart.getDate() - (weeks - 1) * 7);
 
   const rows = await db
-    .select({ startedAt: workouts.startedAt, totalVolumeKg: workouts.totalVolumeKg })
+    .select({
+      startedAt: workouts.startedAt,
+      totalVolumeKg: workouts.totalVolumeKg,
+      durationSeconds: workouts.durationSeconds,
+      totalReps: workouts.totalReps,
+    })
     .from(workouts)
     .where(
       and(
@@ -103,11 +117,17 @@ export async function getWeeklyVolume(weeks = 12): Promise<WeeklyVolumePoint[]> 
       ),
     );
 
-  const buckets = new Map<number, WeeklyVolumePoint>();
+  const buckets = new Map<number, WeeklyPoint>();
   for (let i = 0; i < weeks; i++) {
     const start = new Date(windowStart);
     start.setDate(start.getDate() + i * 7);
-    buckets.set(start.getTime(), { weekStart: start.getTime(), volumeKg: 0, workouts: 0 });
+    buckets.set(start.getTime(), {
+      weekStart: start.getTime(),
+      volumeKg: 0,
+      durationSeconds: 0,
+      reps: 0,
+      workouts: 0,
+    });
   }
 
   for (const row of rows) {
@@ -115,6 +135,10 @@ export async function getWeeklyVolume(weeks = 12): Promise<WeeklyVolumePoint[]> 
     const bucket = buckets.get(key);
     if (!bucket) continue;
     bucket.volumeKg += row.totalVolumeKg;
+    // Nullable on the table: a session that was never finished properly has no
+    // duration, and it counts as a workout with none rather than as a gap.
+    bucket.durationSeconds += row.durationSeconds ?? 0;
+    bucket.reps += row.totalReps;
     bucket.workouts += 1;
   }
 
@@ -257,15 +281,6 @@ export const HISTORY_RANGES = [
 ] as const;
 
 export type HistoryRange = (typeof HISTORY_RANGES)[number]['value'];
-
-/** The metrics the history chart can plot. All are stored per workout. */
-export const HISTORY_METRICS = [
-  { value: 'volume', label: 'Volume' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'reps', label: 'Reps' },
-] as const;
-
-export type HistoryMetric = (typeof HISTORY_METRICS)[number]['value'];
 
 export interface TrendBucket {
   /** Epoch ms of the bucket's first day. Doubles as its identity. */

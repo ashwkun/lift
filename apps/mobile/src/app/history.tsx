@@ -33,15 +33,14 @@ import { workouts, type Workout } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
 import {
   getHistoryAnalytics,
-  HISTORY_METRICS,
   HISTORY_RANGES,
   type HistoryAnalytics,
-  type HistoryMetric,
   type HistoryRange,
   type MuscleBreakdownEntry,
   type TrendBucket,
 } from '@/features/analytics/repository';
 import { formatSets } from '@/features/analytics/format';
+import { METRIC, TREND_METRICS, type TrendMetric } from '@/features/analytics/metrics';
 import { volumeColor } from '@/features/analytics/volume-landmarks';
 import { VolumeLegend } from '@/features/analytics/volume-legend';
 import { WorkoutCard } from '@/features/workouts/workout-card';
@@ -56,39 +55,6 @@ interface MonthSection {
   data: Workout[];
 }
 
-/**
- * How each metric is pulled off a bucket and rendered.
- *
- * The axis formatter is deliberately terser than the readout one: the y-gutter
- * is 46px, so "12.4k" belongs there and "12,431 kg" belongs in the readout.
- */
-const METRICS: Record<
-  HistoryMetric,
-  {
-    pick: (bucket: TrendBucket) => number;
-    format: (value: number, unit: WeightUnit) => string;
-    axis: (value: number, unit: WeightUnit) => string;
-  }
-> = {
-  volume: {
-    pick: (bucket) => bucket.volumeKg,
-    format: (value, unit) => formatVolume(value, unit),
-    axis: (value, unit) => formatVolume(value, unit).replace(` ${unit}`, ''),
-  },
-  duration: {
-    pick: (bucket) => bucket.durationSeconds,
-    format: (value) => formatDurationShort(value),
-    axis: (value) =>
-      value >= 3600 ? `${Math.round(value / 3600)}h` : `${Math.round(value / 60)}m`,
-  },
-  reps: {
-    pick: (bucket) => bucket.reps,
-    format: (value) => `${Math.round(value).toLocaleString()} reps`,
-    axis: (value) =>
-      value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(Math.round(value)),
-  },
-};
-
 export default function HistoryScreen() {
   const scrollEdge = useScrollEdge();
 
@@ -97,7 +63,7 @@ export default function HistoryScreen() {
   const weightUnit = useSettings((state) => state.weightUnit);
 
   const [range, setRange] = useState<HistoryRange>('3m');
-  const [metric, setMetric] = useState<HistoryMetric>('volume');
+  const [metric, setMetric] = useState<TrendMetric>('volume');
   const [analytics, setAnalytics] = useState<HistoryAnalytics | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | null>(null);
@@ -168,7 +134,7 @@ export default function HistoryScreen() {
       (ranged?.buckets ?? []).map((bucket) => ({
         key: bucket.start,
         label: bucket.label,
-        value: METRICS[metric].pick(bucket),
+        value: METRIC[metric].pick(bucket),
       })),
     [ranged, metric],
   );
@@ -242,7 +208,7 @@ export default function HistoryScreen() {
 
               <Card style={styles.card}>
                 <SegmentedControl
-                  options={HISTORY_METRICS}
+                  options={TREND_METRICS}
                   value={metric}
                   onChange={setMetric}
                   size="sm"
@@ -262,7 +228,7 @@ export default function HistoryScreen() {
                   width={chartWidth}
                   selectedKey={selectedBucket}
                   onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
-                  formatValue={(value) => METRICS[metric].axis(value, weightUnit)}
+                  formatValue={(value) => METRIC[metric].axis(value, weightUnit)}
                 />
               </Card>
 
@@ -386,10 +352,10 @@ function ChartReadout({
 }: {
   bucket: TrendBucket | null;
   analytics: HistoryAnalytics | null;
-  metric: HistoryMetric;
+  metric: TrendMetric;
   weightUnit: WeightUnit;
 }) {
-  const config = METRICS[metric];
+  const config = METRIC[metric];
 
   // The figure holds its line while the range is being counted, and the second
   // line is deliberately blank rather than absent, so the chart below it doesn't

@@ -3,13 +3,24 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { BarChart, type barDataItem } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { font, fontSize, radius, spacing, stroke, useColors } from '@/theme';
+import { font, fontSize, spacing, stroke, useColors } from '@/theme';
 
 export interface ColumnDatum {
   /** Stable identity for selection. The bucket's start timestamp. */
   key: number;
   label: string;
   value: number;
+  /**
+   * Overrides `color` for this column alone.
+   *
+   * For a run where the columns are not all the same thing: Home paints the
+   * week it is reporting in the accent and fades the rest by age, so the chart
+   * says which bar the figure above it belongs to. Selection is still drawn by
+   * fading the others back, so a per-column colour and a highlight compose:
+   * the colour says which bar is being read, the opacity says the others are
+   * not.
+   */
+  color?: string;
 }
 
 export interface ColumnChartProps {
@@ -24,6 +35,15 @@ export interface ColumnChartProps {
   color?: string;
   /** Roughly how many x-axis labels to show before thinning them out. */
   maxLabels?: number;
+  /**
+   * Shown in place of the plot when there is nothing to draw.
+   *
+   * Worded by the caller because the two screens mean different things by it:
+   * on History the window is one the user chose and can change, and on Home it
+   * is a fixed twelve weeks, where "in this range" would name a control that
+   * screen does not have.
+   */
+  emptyLabel?: string;
 }
 
 /** The y-axis tick gutter. `formatValue` has to fit inside this. */
@@ -36,6 +56,8 @@ const LABEL_ROW = spacing.lg;
 const SECTIONS = 2;
 /** Floor for a column's height, in px. See the note on empty buckets below. */
 const MIN_BAR = 2;
+/** Corner radius on a column. Matches `BarChart`; the reasoning is recorded there. */
+const BAR_RADIUS = 3;
 /** How far back the columns that are not selected fade. */
 const LOWLIGHT = 0.3;
 
@@ -60,6 +82,7 @@ export function ColumnChart({
   onSelect,
   color,
   maxLabels = 5,
+  emptyLabel = 'No data in this range',
 }: ColumnChartProps) {
   const colors = useColors();
   const fill = color ?? colors.accent;
@@ -77,9 +100,13 @@ export function ColumnChart({
   const plotHeight = Math.max(1, height - TOP_PAD - LABEL_ROW);
 
   const chart = useMemo(() => {
-    if (data.length === 0) return null;
-
+    // A run of zeroes is as empty as no run at all, and it is worse to draw:
+    // `niceCeiling` floors at 1, so an untrained window would print an axis
+    // reading 0, 1, 1 under a flat baseline. Home hits this on a fresh install
+    // and on any metric a user's sessions do not record.
     const peak = data.reduce((max, item) => Math.max(max, item.value), 0);
+    if (data.length === 0 || peak <= 0) return null;
+
     const maxValue = niceCeiling(peak);
 
     const slot = plotWidth / data.length;
@@ -98,7 +125,7 @@ export function ColumnChart({
       label: item.label,
       // An empty bucket still gets a bar, painted in nothing: `minHeight` would
       // otherwise draw a rest week and a light week as the same 2px sliver.
-      frontColor: item.value > 0 ? fill : 'transparent',
+      frontColor: item.value > 0 ? (item.color ?? fill) : 'transparent',
       // The library's own label is a bare `Text`, which inherits none of the
       // app's font stack. Thinned-out buckets render nothing rather than being
       // dropped, so the label slots stay aligned to the columns.
@@ -124,7 +151,7 @@ export function ColumnChart({
     return (
       <View style={[styles.empty, { height }]}>
         <Text variant="label" color="textTertiary">
-          No data in this range
+          {emptyLabel}
         </Text>
       </View>
     );
@@ -148,7 +175,7 @@ export function ColumnChart({
         spacing={chart.gap}
         initialSpacing={chart.gap / 2}
         endSpacing={chart.gap / 2}
-        barBorderRadius={Math.min(radius.sm, chart.barWidth / 2)}
+        barBorderRadius={Math.min(BAR_RADIUS, chart.barWidth / 2)}
         // A non-zero value always gets a visible sliver, otherwise a light week
         // is indistinguishable from a rest week.
         minHeight={MIN_BAR}
