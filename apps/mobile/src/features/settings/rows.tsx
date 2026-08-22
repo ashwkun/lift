@@ -347,30 +347,60 @@ export interface SettingActionProps {
   label: string;
   description?: string;
   onPress: () => void;
+  /**
+   * `danger` by default, because for a long time Reset was the only row of this
+   * shape and the colour *was* the warning. A row that does something ordinary
+   * and reversible passes `neutral` and reads like the rest of the card.
+   */
+  tone?: 'danger' | 'neutral';
+  /**
+   * Dead but still legible, for a row whose action is not available yet rather
+   * than not permitted. Dims the same two elements `RowFace` does.
+   */
+  disabled?: boolean;
+  /** A readout at the trailing edge, where `SettingValue` puts its value. */
+  trailing?: ReactNode;
 }
 
 /**
- * A row that does something rather than holding a value, in the danger colour.
+ * A row that does something rather than holding a value.
  *
- * The only one of these is Reset, and it is coloured because that is the whole
- * warning a settings screen gets to give before the dialog: every other row on
- * this screen is reversible by tapping it again, and this one is not.
+ * Reset is the danger-coloured one, and it is coloured because that is the
+ * whole warning a settings screen gets to give before the dialog: every other
+ * row on this screen is reversible by tapping it again, and that one is not.
  */
-export function SettingAction({ icon, label, description, onPress }: SettingActionProps) {
+export function SettingAction({
+  icon,
+  label,
+  description,
+  onPress,
+  tone = 'danger',
+  disabled = false,
+  trailing,
+}: SettingActionProps) {
   const colors = useColors();
+  const danger = tone === 'danger';
 
   return (
     <PressableRow
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={description}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
     >
-      <View style={[styles.glyph, { backgroundColor: colors.dangerSurface }]}>
-        <Ionicons name={icon} size={17} color={colors.danger} />
+      <View
+        style={[
+          styles.glyph,
+          { backgroundColor: danger ? colors.dangerSurface : colors.surfaceMuted },
+          disabled && styles.dimmed,
+        ]}
+      >
+        <Ionicons name={icon} size={17} color={danger ? colors.danger : colors.textSecondary} />
       </View>
-      <View style={styles.body}>
-        <Text variant="bodyMedium" style={{ color: colors.danger }}>
+      <View style={[styles.body, disabled && styles.dimmed]}>
+        <Text variant="bodyMedium" style={danger ? { color: colors.danger } : undefined}>
           {label}
         </Text>
         {description && (
@@ -379,6 +409,7 @@ export function SettingAction({ icon, label, description, onPress }: SettingActi
           </Text>
         )}
       </View>
+      {trailing}
     </PressableRow>
   );
 }

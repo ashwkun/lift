@@ -20,7 +20,7 @@ import {
 import Constants from 'expo-constants';
 import { Stack } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Card,
@@ -42,6 +42,8 @@ import {
   SettingValue,
 } from '@/features/settings/rows';
 import { THEME_LABELS, ThemePicker } from '@/features/settings/theme-picker';
+import { UpdateFooter, UpdateRow } from '@/features/updates/update-row';
+import { UPDATES_SUPPORTED } from '@/features/updates/use-app-update';
 import { showConfirm } from '@/store/dialog';
 import { DEFAULT_SETTINGS, useSettings } from '@/store/settings';
 import { spacing } from '@/theme';
@@ -441,6 +443,33 @@ export default function SettingsScreen() {
         </Reveal>
 
         {/*
+         * Updates, directly above Reset.
+         *
+         * Last of the sections that do something, because it is the only one
+         * that is not a preference: nothing here is remembered, and the row
+         * reports a state rather than holding a value.
+         *
+         * The whole section is gated, header and footnote included, rather than
+         * left to the row to render nothing: a development build and the web
+         * export have no update mechanism at all, and a heading over an empty
+         * card is worse than either a working row or no section.
+         */}
+        {UPDATES_SUPPORTED && (
+          <Reveal index={7}>
+            <SectionHeader title="Updates" />
+            <Card padded={false} style={styles.section}>
+              <UpdateRow />
+            </Card>
+            <Footnote>
+              Updates carry the app itself, not your training log, and arrive without going through
+              the APK again. Anything that changes the parts of Lift the phone has to install, a new
+              permission or a new Android feature, still needs a new APK, and this row will not
+              offer one.
+            </Footnote>
+          </Reveal>
+        )}
+
+        {/*
          * Reset, last and on its own.
          *
          * This replaces a footer that read "Defaults: KG · 2m": a statement of
@@ -449,7 +478,7 @@ export default function SettingsScreen() {
          * called it. The subtitle quotes `DEFAULT_SETTINGS` rather than naming
          * the values again, so it cannot drift from what the button does.
          */}
-        <Reveal index={7}>
+        <Reveal index={8}>
           <SectionHeader title="Reset" />
           <Card padded={false} style={styles.section}>
             <SettingAction
@@ -463,10 +492,15 @@ export default function SettingsScreen() {
           </Card>
 
           {/* The build number, which is what people quote in a bug report, and
-              the same footer the profile screen ends on. */}
-          <Text variant="caption" color="textTertiary" align="center" style={styles.footer}>
-            {APP_VERSION ? `Lift ${APP_VERSION}` : 'Lift'}
-          </Text>
+              the same footer the profile screen ends on. The bundle id sits
+              under it because with updates on, the version alone no longer
+              identifies what is running. */}
+          <View style={styles.footer}>
+            <Text variant="caption" color="textTertiary" align="center">
+              {APP_VERSION ? `Lift ${APP_VERSION}` : 'Lift'}
+            </Text>
+            <UpdateFooter />
+          </View>
         </Reveal>
       </ScrollView>
 
@@ -551,5 +585,5 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg + spacing.xs,
     marginTop: spacing.sm,
   },
-  footer: { marginTop: spacing.xxl },
+  footer: { marginTop: spacing.xxl, gap: 2 },
 });

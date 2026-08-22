@@ -41,6 +41,80 @@ repository variable before building. A release build has no Metro server to
 infer a host from, so it otherwise falls back to `localhost`, which on a phone
 means the phone itself.
 
+## Over-the-air updates
+
+`expo-updates` ships JavaScript and assets to installed builds through EAS
+Update, so a fix reaches the phone without going through the APK, the download
+and the install prompt again. The app checks on launch, downloads in the
+background, and applies what it downloaded on the next cold start. Settings has
+an **Updates** row that reports where that process got to and offers to restart
+early, and the screen's footer names the bundle actually running, because with
+updates on the version number no longer identifies it.
+
+**It cannot replace anything native.** A new Expo module, a new Android
+permission, an SDK bump: those need a new APK. `runtimeVersion` is on the
+`fingerprint` policy, a hash of everything that shapes the native app, and a
+build only accepts updates carrying its own fingerprint. That is what stops a
+JavaScript bundle reaching a build with no native module to back it, and it is
+enforced rather than remembered.
+
+### Setup
+
+Already done, and recorded here because none of it is visible from the code:
+the EAS project is [`@pawant67/lift`](https://expo.dev/accounts/pawant67/projects/lift),
+`8a625a40-8cba-4aa3-ac08-9ae4dd880d8e`, and the `production` channel and the
+branch of the same name both exist. `app.json` carries that id twice, once as
+`extra.eas.projectId` and once inside `updates.url`, and they have to agree:
+publishing checks it, because two different ids is a state where the publish
+succeeds and no phone ever hears about it.
+
+The one part CI cannot do for itself is authenticate. Create an
+[access token](https://expo.dev/settings/access-tokens) and add it as the
+`EXPO_TOKEN` repository secret under Settings, Secrets and variables, Actions.
+Until that exists the OTA workflow stops on its first step rather than part way
+through a publish.
+
+Because the app is built from this repository rather than by EAS Build, the
+channel is not injected into the binary for us. It is set in `app.json` under
+`updates.requestHeaders` as `expo-channel-name`, which works only because
+`android/` is generated rather than committed and `expo prebuild` writes that
+header into the manifest on every build.
+
+### Publishing
+
+Run the **OTA Update** workflow by hand from the Actions tab, or push a `v*`
+tag, which builds an APK for new installs and publishes an update for existing
+ones at the same time. The workflow refuses to publish if `API_URL` is unset:
+Metro bakes it into the bundle, so an update without it would replace a working
+app with one that syncs to itself.
+
+Locally, from `apps/mobile`:
+
+```bash
+EXPO_PUBLIC_API_URL=https://lift-api.example.com \
+  eas update --branch production --message "Fix the volume figure"
+```
+
+### When updates stop arriving
+
+The failure mode is silence. An update published against a fingerprint no
+installed build shares is not an error: the publish succeeds, phones check in,
+and they are told they are up to date forever. Both workflows print the runtime
+version they used to the job summary for exactly this reason. If the APK's and
+the update's disagree, something native changed and the answer is a new APK.
+
+The same applies to the first release after this feature was added: adding the
+`updates` block changed `app.json`, `app.json` is a fingerprint input, so builds
+made before it cannot receive anything. Updates start working from the first
+APK built with this configuration in it.
+
+To see what a working tree would publish against:
+
+```bash
+cd apps/mobile
+node ../../node_modules/expo-updates/bin/cli.js runtimeversion:resolve --platform android
+```
+
 ## Getting started
 
 Requires Node 22+, pnpm, and (for the API) Docker.

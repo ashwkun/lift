@@ -5,7 +5,7 @@ name: Android APK
 # `android/` is gitignored (see .gitignore), so every run regenerates it with
 # `expo prebuild` before Gradle ever sees it. Nothing native is committed.
 #
-# The APK is signed with the debug key that Expo's prebuild template ships —
+# The APK is signed with the debug key that Expo's prebuild template ships:
 # the generated app/build.gradle points `release` at `signingConfigs.debug`.
 # That is fine for sideloading onto your own device and needs no secrets, but
 # it is not publishable to the Play Store. To move to a real keystore, add the
@@ -31,7 +31,7 @@ on:
   #
   # Deliberately no `branches: [main]` trigger: a build is ~10 minutes of the
   # 2000 free minutes/month a private repo gets, and most commits do not need
-  # an APK. Add the two commented lines below if you want one per push — but
+  # an APK. Add the two commented lines below if you want one per push, but
   # note that mixing `branches` and `tags` under a single `push` makes the
   # `paths` filter apply to tag pushes too, which can silently skip releases.
   push:
@@ -48,7 +48,7 @@ concurrency:
 
 env:
   # Release builds have no Metro server to infer a LAN address from, so
-  # resolveApiUrl() would fall through to http://localhost:3000 — which on a
+  # resolveApiUrl() would fall through to http://localhost:3000, which on a
   # phone means the phone itself. Set the repo variable API_URL (Settings →
   # Secrets and variables → Actions → Variables) to point at your deployed API.
   EXPO_PUBLIC_API_URL: ${{ inputs.api_url || vars.API_URL }}
@@ -95,6 +95,27 @@ jobs:
         run: |
           echo "::warning title=No API URL::EXPO_PUBLIC_API_URL is empty, so the app will fall back to http://localhost:3000 and sync will not work. Set the API_URL repository variable."
 
+      # What this APK will and will not accept over the air.
+      #
+      # `runtimeVersion` is on the fingerprint policy, so this hash stands for
+      # every input that shapes the native app: the config plugins, app.json,
+      # the dependency list. Gradle embeds it below, and the OTA workflow prints
+      # the same figure for what it published. An update only reaches a build
+      # whose hash matches, so when someone reports that updates have stopped
+      # arriving, these two numbers are the first thing to compare.
+      #
+      # Resolved before prebuild, which is where `eas update` also stands when
+      # it computes its own. `android/` is gitignored, so fingerprint treats
+      # this as a managed project and does not hash the generated directory at
+      # all, which is what lets the two agree.
+      - name: Resolve runtime version
+        id: runtime
+        working-directory: apps/mobile
+        run: |
+          version=$(node ../../node_modules/expo-updates/bin/cli.js runtimeversion:resolve --platform android \
+            | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).runtimeVersion")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Generate native project
         working-directory: apps/mobile
         run: pnpm exec expo prebuild --platform android --no-install
@@ -120,7 +141,11 @@ jobs:
             echo "| File | \`$name\` |"
             echo "| Size | $(du -h "dist/$name" | cut -f1) |"
             echo "| ABIs | \`$RN_ARCHS\` |"
-            echo "| API URL | \`${EXPO_PUBLIC_API_URL:-(unset — sync disabled)}\` |"
+            echo "| API URL | \`${EXPO_PUBLIC_API_URL:-(unset, sync disabled)}\` |"
+            echo "| Runtime version | \`${{ steps.runtime.outputs.version }}\` |"
+            echo ""
+            echo "This build accepts over-the-air updates published against that"
+            echo "runtime version and no other. See the OTA Update workflow."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4

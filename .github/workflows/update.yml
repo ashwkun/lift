@@ -1,0 +1,156 @@
+name: OTA Update
+
+# Publishes the JavaScript bundle to EAS Update, where installed builds pick it
+# up on their next launch.
+#
+# This ships to phones that already have the app. It does not build anything and
+# it cannot replace anything native: a new Expo module, a new permission, an SDK
+# bump. Those change the fingerprint in app.json's `runtimeVersion` policy, and
+# an installed build only ever accepts updates whose fingerprint matches its
+# own. That is the safety property, and it is also the thing that makes a failed
+# rollout look like nothing happening at all, so this job prints the runtime
+# version it published against and the APK workflow prints the one it built.
+# When those two disagree, the fix is an APK, not another update.
+#
+# Publishing needs one secret and one variable:
+#
+#   EXPO_TOKEN  (Settings -> Secrets and variables -> Actions -> Secrets)
+#               A personal access token from https://expo.dev/settings/access-tokens.
+#   API_URL     (same page -> Variables)
+#               Already required by the APK workflow. Read again here because
+#               Metro bakes it into the bundle, so an update published without
+#               it would replace a working app with one that syncs to itself.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "EAS branch to publish to. `production` is the one the app asks for."
+        required: false
+        default: production
+        type: string
+      message:
+        description: "Update message. Defaults to the commit subject."
+        required: false
+        type: string
+  # Cutting a release ships both halves of it: the APK workflow builds for new
+  # installs, this publishes to existing ones. Deliberately no `branches: [main]`
+  # trigger, matching the APK workflow's reasoning: an update reaches phones
+  # immediately and with no review, so it is worth a deliberate act rather than
+  # a consequence of pushing.
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  EXPO_PUBLIC_API_URL: ${{ vars.API_URL }}
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Everything that would make the publish meaningless, checked before the
+      # ten minutes of install and bundling rather than after. Each of these
+      # fails silently at runtime on someone's phone if it is wrong here, which
+      # is the worst place to find out.
+      - name: Check configuration
+        working-directory: apps/mobile
+        run: |
+          fail() { echo "::error title=$1::$2"; exit 1; }
+
+          [ -n "${{ secrets.EXPO_TOKEN }}" ] || fail "No Expo token" \
+            "EXPO_TOKEN is not set. Create one at https://expo.dev/settings/access-tokens and add it under Settings -> Secrets and variables -> Actions."
+
+          project_id=$(node -p "require('./app.json').expo.extra?.eas?.projectId ?? ''")
+          case "$project_id" in
+            ''|REPLACE_WITH_EAS_PROJECT_ID)
+              fail "EAS project not linked" \
+                "app.json still carries the placeholder project id. Run 'eas init' in apps/mobile, commit the ids it writes into app.json, then re-run this workflow." ;;
+          esac
+
+          # The id lives in app.json twice and only one of them is written for
+          # us: `eas init` sets `extra.eas.projectId`, and `updates.url` is
+          # edited by hand. Disagree, and the publish goes to this project while
+          # every phone asks a different one, which answers "no update" forever
+          # rather than erroring. Nothing else in the pipeline compares them.
+          update_url=$(node -p "require('./app.json').expo.updates?.url ?? ''")
+          case "$update_url" in
+            *"$project_id") ;;
+            *) fail "Update URL does not match the project" \
+                 "updates.url is '$update_url' but the linked project is '$project_id'. They have to name the same id." ;;
+          esac
+
+          # A hard failure rather than the warning the APK workflow gives. An
+          # APK built without this is a new install that never worked; an update
+          # published without it silently breaks sync on installs that did.
+          [ -n "$EXPO_PUBLIC_API_URL" ] || fail "No API URL" \
+            "The API_URL repository variable is empty. Metro bakes it into the bundle, so publishing now would point every phone at its own localhost."
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      # The same value the APK build's Gradle step computes and embeds. Resolved
+      # here only so it can be reported: `eas update` computes its own, and the
+      # two agree because both run from a clean checkout of this commit. See the
+      # note in the APK workflow about `android/` being regenerated. It is
+      # gitignored, which is what makes the fingerprint ignore it.
+      - name: Resolve runtime version
+        id: runtime
+        working-directory: apps/mobile
+        run: |
+          version=$(node ../../node_modules/expo-updates/bin/cli.js runtimeversion:resolve --platform android \
+            | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).runtimeVersion")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Publish update
+        id: publish
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          branch="${{ inputs.branch || 'production' }}"
+          message="${{ inputs.message }}"
+          [ -n "$message" ] || message=$(git log -1 --pretty=%s)
+
+          eas update --branch "$branch" --message "$message" --non-interactive
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "message=$message" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        if: always() && steps.publish.outcome == 'success'
+        run: |
+          {
+            echo "### Update published"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Branch | \`${{ steps.publish.outputs.branch }}\` |"
+            echo "| Message | ${{ steps.publish.outputs.message }} |"
+            echo "| Runtime version | \`${{ steps.runtime.outputs.version }}\` |"
+            echo "| API URL | \`$EXPO_PUBLIC_API_URL\` |"
+            echo ""
+            echo "Only builds whose runtime version matches will take this update."
+            echo "If the APK on your phone was built from a commit with a different"
+            echo "runtime version, it will keep reporting that it is up to date."
+          } >> "$GITHUB_STEP_SUMMARY"
