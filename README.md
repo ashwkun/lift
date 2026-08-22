@@ -92,8 +92,12 @@ Locally, from `apps/mobile`:
 
 ```bash
 EXPO_PUBLIC_API_URL=https://lift-api.example.com \
-  eas update --branch production --message "Fix the volume figure"
+  eas update --branch production --environment production \
+             --message "Fix the volume figure"
 ```
+
+`--environment` is required whenever the command is not interactive. It names
+an EAS environment, not the channel that happens to share its name.
 
 ### When updates stop arriving
 

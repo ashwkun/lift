@@ -133,7 +133,14 @@ jobs:
           message="${{ inputs.message }}"
           [ -n "$message" ] || message=$(git log -1 --pretty=%s)
 
-          eas update --branch "$branch" --message "$message" --non-interactive
+          # `--environment` is not optional under `--non-interactive`: eas-cli
+          # refuses to guess which set of server-side environment variables to
+          # resolve, and stops before uploading anything. It names the EAS
+          # environment, which is unrelated to the channel that happens to share
+          # its name. Nothing is configured on the server, so this only decides
+          # which environment EXPO_PUBLIC_* would be read from if it were.
+          eas update --branch "$branch" --message "$message" \
+            --environment production --non-interactive
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "message=$message" >> "$GITHUB_OUTPUT"
 
