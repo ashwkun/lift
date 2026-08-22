@@ -37,6 +37,7 @@ export const THEME_LABELS: Record<ThemePreference, string> = {
   gruvbox: 'Gruvbox',
   catppuccin: 'Catppuccin',
   spotify: 'Spotify',
+  fitness: 'Fitness',
   solarized: 'Solarized',
 };
 

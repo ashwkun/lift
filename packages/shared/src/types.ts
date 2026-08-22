@@ -255,6 +255,7 @@ export const THEME_PREFERENCES = [
   'gruvbox',
   'catppuccin',
   'spotify',
+  'fitness',
   'solarized',
 ] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];

@@ -1,21 +1,22 @@
 /**
- * The named palettes, ported from five existing ones.
+ * The named palettes, ported from six existing ones.
  *
  * `tokens.ts` holds the two palettes this app designed for itself and the
- * reasoning behind every value in them. These five are ports: the neutrals and
- * hues come from Nord, Gruvbox, Catppuccin Mocha, Spotify and Solarized Light,
- * and mostly only their *lightness* has been re-solved. Read the note on
- * `darkPalette` first. The constraints named there are the ones every palette
- * below had to meet, and the per-theme comments here only record where a source
- * colour could not be used as published.
+ * reasoning behind every value in them. These six are ports: the neutrals and
+ * hues come from Nord, Gruvbox, Catppuccin Mocha, Spotify, Apple's Fitness app
+ * and Solarized Light, and mostly only their *lightness* has been re-solved.
+ * Read the note on `darkPalette` first. The constraints named there are the
+ * ones every palette below had to meet, and the per-theme comments here only
+ * record where a source colour could not be used as published.
  *
  * ## Why any of them needed changing
  *
- * Four of the five were designed for code editors, where colour marks syntax on
+ * Four of the six were designed for code editors, where colour marks syntax on
  * a single background and 4.5:1 is nobody's requirement. Four things follow,
- * and they account for nearly every deviation below. Spotify is the exception
- * to most of it. See its own note, which is about a brand colour that is not
- * allowed to move rather than about an editor palette that is:
+ * and they account for nearly every deviation below. Spotify and Fitness are
+ * the exceptions to most of it. See their own notes, which are about brand
+ * colours that are not allowed to move rather than about editor palettes that
+ * are:
  *
  * 1. **A mid-dark canvas raises every floor.** On the AMOLED palette a role
  *    only has to clear 4.5:1 against black. Against Nord's Polar Night it has
@@ -45,7 +46,10 @@
  *    palettes have a yellow brighter than their signature colour, so the accent
  *    is lifted and the roles come down to meet it. Neither side alone works:
  *    holding the roles put pushes the accent past 0.98, and holding the accent
- *    still crushes Catppuccin's pastels into vivid mid-tones.
+ *    still crushes Catppuccin's pastels into vivid mid-tones. Fitness is the
+ *    one palette here that does not meet this rule at all, because its accent
+ *    is a red and no role fits underneath one; its note records what pays for
+ *    the exception and what breaks if the rest of that palette is loosened.
  *
  * Every value was checked against the same bar the shipped two meet: AA on all
  * three grounds and on each role's own tint, a readable foreground on every
@@ -289,13 +293,131 @@ export const spotifyPalette: Palette = {
 };
 
 /**
+ * Fitness, taken from Apple's app rather than from a published palette.
+ *
+ * The accent is the Move ring, #FF375F, at Apple's published value. That is the
+ * whole theme: the colour that app draws the outer ring, the calorie figure and
+ * the day's total in, on the black canvas it uses everywhere. `accentPressed`
+ * is #FA114F, the other end of the same ring's gradient. `success` is the
+ * Exercise ring, `danger` is systemRed nudged off the accent, and the greys are
+ * iOS's own.
+ *
+ * **This is the one palette here where `accent` does not outrank every other
+ * role in luminance, and it is deliberate.** See point 4 at the top of this
+ * file for what the rule buys everywhere else. The crimson sits at 0.248, and
+ * no role can be placed under it: a role has to clear 4.5 against the canvas,
+ * the card, a muted fill *and* its own tint, and the tint is the binding one at
+ * roughly 0.25 even after the neutrals below are taken as deep as they go.
+ * Something had to give, and lifting the crimson until it cleared the others
+ * was the alternative. It does not survive that: by 0.40 it is a rose, by 0.50
+ * a salmon, and a Fitness theme whose Move colour is salmon has nothing left to
+ * be.
+ *
+ * What is done instead is to close the gap from the other side. Every role sits
+ * as deep as it can while still passing and still reading as its own colour,
+ * 0.31 to 0.46 against `darkPalette`'s 0.26 to 0.78, so the palette spans 0.21
+ * of luminance in total rather than half the scale. Nothing in it shouts, which
+ * is what lets the one saturated red be the loud thing by hue instead of by
+ * brightness. The arrangement is only stable because it is *flat*. Lift any
+ * role back towards its published value, particularly systemYellow at 0.694 or
+ * the Exercise ring at 0.640, and that role becomes the accent in everything
+ * but name.
+ *
+ * The neutrals are a step under Apple's. #1C1C1E is the card in that app and is
+ * `surfaceElevated` here, because with it as `surface` the crimson measures
+ * 4.14 on its own tint: below AA, on the label of every selected chip. On
+ * #141416 it reads 4.51. The same move Nord makes with `nord0`, and for the
+ * same reason: the alternative is bleaching the colour that the theme is for.
+ *
+ * `text` is pure white, which no other dark palette here uses. Two reasons, and
+ * the second is the one that decides it. iOS's label colour is #FFFFFF, so the
+ * theme is quoting rather than departing; and the calendar's third ramp stop is
+ * a mid crimson at 0.157, which is the dead zone between a light foreground and
+ * a dark one. It measures 4.54 under an off-white and 5.07 under white, against
+ * a bar of 5. A red accent is what puts a stop there at all: a bright accent
+ * ramps past that band in one step, and this one climbs through it.
+ *
+ * Two things this palette is honestly worse at, both consequences of the same
+ * choice:
+ *
+ * 1. The calendar's lightest trained day reads 1.87 against its card, where the
+ *    shipped dark palette manages 3.57. It is the light palette's problem
+ *    arriving on a dark theme, and it has the light palette's backstop: the day
+ *    number takes a different colour on a trained square, and the square is
+ *    labelled for a screen reader. See `month-grid.tsx`.
+ * 2. `danger` cannot get far from a red accent. It holds 18° and 0.06 of
+ *    luminance off the crimson, which is what the floors allow, and its pressed
+ *    step lands on systemRed. What actually separates a destructive control
+ *    here is that it is not filled: see `danger` in `ui/button.tsx`.
+ *
+ * Trademark, as with Spotify: the name and these colours are Apple's. Fine for
+ * a private build; worth a rename before this ships anywhere public.
+ */
+export const fitnessPalette: Palette = {
+  background: '#000000',
+  // A step under systemGray6, which is `surfaceElevated` below. See the note.
+  surface: '#141416',
+  surfaceElevated: '#1C1C1E',
+  surfaceMuted: '#202022',
+  surfacePressed: '#2C2C2E',
+  border: '#242426',
+  borderStrong: '#3A3A3C',
+
+  // Apple greys, and the canvas is dark enough that none of them needed
+  // lifting. The middle one is systemGray2 rather than iOS's own secondary
+  // label, which is #EBEBF5 at 60% and composites over black to #8D8D93: the
+  // same colour as systemGray below it, to within one step per channel. Quoting
+  // both would leave this palette with two tiers where it needs three.
+  text: '#FFFFFF',
+  textSecondary: '#AEAEB2',
+  textTertiary: '#8E8E93',
+
+  accent: '#FF375F',
+  accentPressed: '#FA114F',
+  // 0.15 rather than 0.16, which is the last of the headroom the accent needs
+  // to clear its own tint. At 0.16 it reads 4.42.
+  accentSurface: 'rgba(255, 55, 95, 0.15)',
+
+  // The Exercise ring at 0.418 rather than its published 0.640. See the note:
+  // at 0.640 this is the brightest thing in the palette by a distance, and a
+  // checked-off set row becomes the loudest element on the screen.
+  success: '#73C115',
+  successPressed: '#69B013',
+  successSurface: 'rgba(115, 193, 21, 0.16)',
+
+  warning: '#E78D00',
+  warningSurface: 'rgba(231, 141, 0, 0.16)',
+
+  danger: '#FF6553',
+  // Effectively systemRed (#FF453A), which is where a pressed step from the
+  // resting value lands anyway.
+  dangerPressed: '#FF4733',
+  dangerSurface: 'rgba(255, 101, 83, 0.16)',
+
+  // systemYellow deepened from 0.694, the single largest cut in the palette.
+  record: '#D6B200',
+  recordSurface: 'rgba(214, 178, 0, 0.16)',
+
+  textOnAccent: '#1A0008',
+  textOnSuccess: '#0A1602',
+  textOnWarning: '#1A1002',
+  textOnDanger: '#2A0603',
+
+  overlay: 'rgba(0, 0, 0, 0.72)',
+  skeleton: '#1C1C1E',
+  // systemGray6 light. Softer than pure white, for the reason `darkPalette`
+  // gives under its own plate.
+  mediaPlate: '#F2F2F7',
+};
+
+/**
  * Solarized Light: https://ethanschoonover.com/solarized (MIT).
  *
- * The only one of the four that is a light theme, and the only one that could
- * not be used at its published depths at all. Solarized's body text is `base00`
- * (#657B83), which measures **4.05** on `base3` (its own background) and its
- * accents sit alongside it. That is a known and deliberate property of the
- * palette; it is also below AA, so every foreground here is deepened.
+ * The only light theme here, and the only one that could not be used at its
+ * published depths at all. Solarized's body text is `base00` (#657B83), which
+ * measures **4.05** on `base3` (its own background) and its accents sit
+ * alongside it. That is a known and deliberate property of the palette; it is
+ * also below AA, so every foreground here is deepened.
  *
  * What is kept is the part that makes Solarized recognisable: the two warm
  * paper tones (`base3`, `base2`) as surface and canvas, and the accent hues.

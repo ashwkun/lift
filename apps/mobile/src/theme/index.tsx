@@ -17,6 +17,7 @@ import { useSettings } from '@/store/settings';
 
 import {
   catppuccinPalette,
+  fitnessPalette,
   gruvboxPalette,
   nordPalette,
   solarizedPalette,
@@ -60,6 +61,7 @@ export const THEMES: Record<ThemeName, { colors: Palette; scheme: ColorScheme }>
   gruvbox: { colors: gruvboxPalette, scheme: 'dark' },
   catppuccin: { colors: catppuccinPalette, scheme: 'dark' },
   spotify: { colors: spotifyPalette, scheme: 'dark' },
+  fitness: { colors: fitnessPalette, scheme: 'dark' },
   solarized: { colors: solarizedPalette, scheme: 'light' },
 };
 
