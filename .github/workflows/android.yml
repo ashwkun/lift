@@ -149,9 +149,50 @@ jobs:
             echo "kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g"
           } >> gradle.properties
 
+      # The fingerprint the APK embeds, pinned to the one resolved above.
+      #
+      # Without this the build computes its own, and it computes it wrong. The
+      # task that writes `assets/fingerprint` runs *during* the Gradle build,
+      # and by then Gradle has written `build/` directories into the packages
+      # under node_modules that `@expo/fingerprint` hashes. The v0.6.1 APK came
+      # out at 0bcbd1e6 while every clean checkout, including the one `eas
+      # update` publishes from, resolves 026503a8. Two sources differed:
+      # @react-native-masked-view/masked-view and expo-updates' own Gradle
+      # plugin, both of them directories the build had already written into.
+      #
+      # The effect is the silent one again. The APK asks for updates under a
+      # hash that exists nowhere, the server truthfully answers that there are
+      # none, and the app reports itself up to date forever.
+      #
+      # `EXPO_UPDATES_FINGERPRINT_OVERRIDE` is expo-updates' own hook for this
+      # (see utils/build/createFingerprintForBuildAsync.js). The value comes
+      # from the resolve step above, which runs before prebuild and before
+      # anything has been built, so it is the same figure a clean checkout
+      # produces and therefore the same one the update is published against.
       - name: Build release APK
         working-directory: apps/mobile/android
+        env:
+          EXPO_UPDATES_FINGERPRINT_OVERRIDE: ${{ steps.runtime.outputs.version }}
         run: ./gradlew :app:assembleRelease -PreactNativeArchitectures="$RN_ARCHS" --console=plain
+
+      # Reads back what actually landed in the APK, rather than trusting that
+      # the override above was honoured.
+      #
+      # This is the check that was missing when v0.6.1 shipped: everything
+      # reported success, both workflows printed a runtime version, and the two
+      # numbers were never compared against the binary. `assets/fingerprint` is
+      # the file the app reads at launch to decide which updates apply to it, so
+      # it is the only figure that actually decides whether updates work.
+      - name: Verify embedded fingerprint
+        run: |
+          embedded=$(unzip -p apps/mobile/android/app/build/outputs/apk/release/app-release.apk assets/fingerprint)
+          expected="${{ steps.runtime.outputs.version }}"
+          echo "embedded: $embedded"
+          echo "expected: $expected"
+          if [ "$embedded" != "$expected" ]; then
+            echo "::error title=Fingerprint mismatch::The APK embeds '$embedded' but updates are published against '$expected'. This build would never accept an update. See the note on EXPO_UPDATES_FINGERPRINT_OVERRIDE above."
+            exit 1
+          fi
 
       - name: Stage APK
         id: stage
