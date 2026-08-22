@@ -3,7 +3,7 @@
  *
  * Everything here takes `#rgb` or `#rrggbb` and returns `#rrggbb`. The
  * palette's `*Surface` tokens are `rgba(...)` strings and are **not** valid
- * input — they are already the result of a blend, and the opaque tokens they
+ * input. They are already the result of a blend, and the opaque tokens they
  * were blended from are what belongs here.
  *
  * This lives in the theme rather than beside its first caller because two
@@ -60,7 +60,7 @@ export function mix(from: string, to: string, factor: number): string {
  * the cursor arrives and then does nothing at the moment it is actually
  * activated, which reads as a dead button on a live row.
  *
- * Both arguments must be hex — see the note at the top of this file. A control
+ * Both arguments must be hex: see the note at the top of this file. A control
  * whose resting fill is `transparent` has nothing to blend from and should name
  * its hover colour directly.
  */
@@ -73,7 +73,7 @@ export function hoverFill(resting: string, pressed: string): string {
  *
  * The complement to everything above it: those take `#rrggbb` and reject the
  * palette's `rgba(...)` tokens, and this one takes only those. It exists for
- * the tinted controls — the destructive button is the first — which need a
+ * the tinted controls (the destructive button is the first) which need a
  * resting, a hover and a pressed depth of *one* colour without the palette
  * naming three tokens per role to say it.
  *
@@ -88,7 +88,7 @@ export function hoverFill(resting: string, pressed: string): string {
  *
  * A word of warning for anyone reaching for a bigger factor. Strengthening a
  * tint that a role colour is *printed on* moves the two closer together, so
- * contrast falls as the fill deepens — the pressed state is the one most likely
+ * contrast falls as the fill deepens. The pressed state is the one most likely
  * to fail. On the dark palette, danger's own label goes under AA at roughly
  * 1.5×. That is why the destructive button presses mostly through its outline;
  * see `danger` in `ui/button.tsx`.
@@ -103,7 +103,7 @@ export function scaleAlpha(color: string, factor: number): string {
   return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${Math.min(1, alpha * factor)})`;
 }
 
-/** WCAG relative luminance — the perceived lightness a contrast ratio is built on. */
+/** WCAG relative luminance: the perceived lightness a contrast ratio is built on. */
 function relativeLuminance(hex: string): number {
   const channel = (value: number) => {
     const c = value / 255;
@@ -133,7 +133,7 @@ export function contrastRatio(a: string, b: string): number {
  * gets that right in both schemes without any call site branching on the theme.
  *
  * The candidates are `text` and `textOnAccent` because those are the palette's
- * two ends — see the note on `textOnAccent` in the tokens for why the app does
+ * two ends: see the note on `textOnAccent` in the tokens for why the app does
  * not simply use white.
  */
 export function readableOn(background: string, colors: Palette): string {

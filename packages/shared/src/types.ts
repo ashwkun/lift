@@ -142,17 +142,17 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
 
 /**
  * Determines which input fields the set row renders and how volume is derived.
- * This is the single most important field on an exercise — getting it wrong
+ * This is the single most important field on an exercise: getting it wrong
  * means the logger asks for weight on a plank.
  */
 export const TRACKING_TYPES = [
-  'weight_reps', // Barbell bench press — weight × reps
-  'bodyweight_reps', // Push-ups — reps, bodyweight counts toward volume
-  'weighted_bodyweight', // Weighted pull-ups — bodyweight + added weight
-  'assisted_bodyweight', // Assisted dips — bodyweight − assistance
-  'duration', // Plank — time only
-  'distance_duration', // Running — distance + time
-  'weight_distance', // Farmer's walk — weight + distance
+  'weight_reps', // Barbell bench press: weight × reps
+  'bodyweight_reps', // Push-ups. Reps, bodyweight counts toward volume
+  'weighted_bodyweight', // Weighted pull-ups: bodyweight + added weight
+  'assisted_bodyweight', // Assisted dips: bodyweight − assistance
+  'duration', // Plank: time only
+  'distance_duration', // Running: distance + time
+  'weight_distance', // Farmer's walk: weight + distance
   'reps_only', // Any untimed, unloaded rep count
 ] as const;
 
@@ -178,7 +178,7 @@ export const TRACKING_FIELDS: Record<
  *
  * `TRACKING_FIELDS` cannot express this: it describes what the *set row* asks
  * for, and bodyweight is asked for once in Settings rather than per set. The
- * two disagree in both directions — `bodyweight_reps` renders no weight field
+ * two disagree in both directions. `bodyweight_reps` renders no weight field
  * yet its entire volume is bodyweight, while `weight_reps` renders one and
  * ignores bodyweight completely. A push-up session with no bodyweight on record
  * therefore logs zero volume, so anything that writes or prompts for the value
@@ -213,8 +213,8 @@ export const SET_TYPE_LABELS: Record<SetType, string> = {
 };
 
 /**
- * Warm-up sets are excluded from volume, PR detection and 1RM estimates —
- * counting them would inflate every stat in the app.
+ * Warm-up sets are excluded from volume, PR detection and 1RM estimates.
+ * Counting them would inflate every stat in the app.
  */
 export function isWorkingSet(setType: SetType): boolean {
   return setType !== 'warmup';
@@ -233,8 +233,34 @@ export type DistanceUnit = (typeof DISTANCE_UNITS)[number];
 export const MEASUREMENT_UNITS = ['cm', 'in'] as const;
 export type MeasurementUnit = (typeof MEASUREMENT_UNITS)[number];
 
-export const THEME_PREFERENCES = ['system', 'light', 'dark'] as const;
+/**
+ * The themes on offer, in the order the picker draws them.
+ *
+ * `system` is not a palette: it defers to whichever of `light` and `dark` the
+ * phone is in. Everything after those two is a named palette that applies
+ * regardless of the OS setting, which is the point of choosing one: someone who
+ * picks Gruvbox wants Gruvbox at 6am as well.
+ *
+ * Persisted verbatim into the settings blob, so these strings are storage keys
+ * as much as they are identifiers. Rename one and you silently reset that
+ * theme for everybody already using it. The mobile app maps each to a palette
+ * in `theme/palettes.ts`; adding a value here without adding it there is a type
+ * error, which is the intended way round.
+ */
+export const THEME_PREFERENCES = [
+  'system',
+  'light',
+  'dark',
+  'nord',
+  'gruvbox',
+  'catppuccin',
+  'spotify',
+  'solarized',
+] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+
+/** Every preference that names a palette of its own: i.e. all but `system`. */
+export type ThemeName = Exclude<ThemePreference, 'system'>;
 
 // ---------------------------------------------------------------------------
 // Personal records

@@ -12,7 +12,7 @@
  * So there are two mechanisms here and they do different jobs:
  *
  *   - `useLayoutSize` answers *what kind of device is this*, and screens use it
- *     to change structure — one column or two, bottom bar or side rail.
+ *     to change structure: one column or two, bottom bar or side rail.
  *   - `contentWidth` answers *how wide may this be*, and is a cap rather than a
  *     size. Below the cap everything behaves exactly as it does today.
  *
@@ -36,7 +36,7 @@ import { Platform, useWindowDimensions } from 'react-native';
  *
  * `expanded` is 1180 because that is where a second column becomes real rather
  * than nominal. Minus the rail that leaves 932 of content, so two columns land
- * near 450 each — wide enough for a chart with a value axis. Splitting earlier
+ * near 450 each: wide enough for a chart with a value axis. Splitting earlier
  * produces two columns too narrow to hold what was in one.
  *
  * Deliberately not 768/1024. Those are iPad dimensions, and this app's own
@@ -61,19 +61,19 @@ export type LayoutSize = 'compact' | 'medium' | 'expanded';
  * These are maximums. A screen asking for `board` on a 900pt window gets 900pt,
  * not a horizontal scrollbar.
  *
- * `form` is for a screen that is one task — signing in, naming a routine,
+ * `form` is for a screen that is one task: signing in, naming a routine,
  * saving a workout. A single column of fields at 720 looks abandoned; the
  * fields stretch and the eye has to travel from a label on the left to a value
  * on the right for no reason.
  *
  * `column` is the default and covers everything that is a list or a detail
  * view. 720 holds the app's `bodyMedium` at roughly 90 characters, which is
- * past the 65–75 prose ideal and correctly so — almost nothing here is prose.
+ * past the 65–75 prose ideal and correctly so: almost nothing here is prose.
  * These are rows: a title, a subtitle of three stats, a chevron. The number
  * that actually sets it is the row, and past about 720 a row starts reading as
  * two separate things pinned to opposite edges.
  *
- * `board` is for the screens that are genuinely multiple things at once — the
+ * `board` is for the screens that are genuinely multiple things at once: the
  * dashboard, the stats index. It is the only cap that earns a second column.
  */
 export const contentWidth = {
@@ -92,8 +92,8 @@ export const RAIL_WIDTH = 248;
  *
  * `useWindowDimensions` re-renders on resize, which on native fires on rotation
  * and on web fires as the user drags the window edge. That is the behaviour we
- * want and the reason this is a hook rather than a module constant read once —
- * a constant would be captured at the size the tab was opened at and never
+ * want and the reason this is a hook rather than a module constant read once.
+ * A constant would be captured at the size the tab was opened at and never
  * update, which is the classic way a "responsive" React Native web app ends up
  * responding only to a reload.
  */
@@ -121,7 +121,7 @@ export interface Layout {
  * Size, the two questions screens actually ask, and the raw dimensions.
  *
  * `isWide` rather than `isMedium` because no screen wants "medium and not
- * expanded" — the question is always "is there room for the rail" or "is there
+ * expanded". The question is always "is there room for the rail" or "is there
  * room for two columns", and those are thresholds, not bands. Naming them as
  * thresholds is what stops call sites writing `size !== 'compact'` and getting
  * it subtly wrong somewhere.
@@ -158,7 +158,7 @@ export function useLayout(): Layout {
  * card it is in and clipped by it.
  *
  * This mirrors what `Screen` does with the same `width` prop, so the two cannot
- * disagree — pass the same value here as the screen passes there. A screen that
+ * disagree: pass the same value here as the screen passes there. A screen that
  * leaves `Screen`'s default alone leaves this one alone too.
  *
  * Still the window on a phone, to the pixel, so nothing about the mobile layout
@@ -185,7 +185,7 @@ export function useContentWidth(kind: ContentWidth = 'column'): number {
  * Answered by capability rather than by user agent. `matchMedia('(hover: hover)')`
  * is what the browser itself uses to decide, it updates when a mouse is plugged
  * into a tablet, and it needs no list of devices to maintain. Native is `false`
- * unconditionally — React Native's `Pressable` does surface `onHoverIn` there,
+ * unconditionally. React Native's `Pressable` does surface `onHoverIn` there,
  * but only ever fires it under a trackpad on iPadOS, and this app is portrait
  * phone-first everywhere off the web.
  *

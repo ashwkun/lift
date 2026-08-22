@@ -3,7 +3,7 @@
  *
  * Same reasoning as `spacing` and `radius`: durations picked per call site
  * drift, and drifting durations are how an interface starts feeling assembled
- * rather than designed. Four durations, three easings, two springs — every
+ * rather than designed. Four durations, three easings, two springs: every
  * animation in the app is built from these.
  *
  * The numbers are short on purpose. Motion here is feedback, not decoration:
@@ -15,7 +15,7 @@
  * is honoured on the UI thread without a JS round trip to observe it. Reanimated
  * then jumps straight to the target value: the state change still happens and
  * still reads, it just doesn't travel. Use `useReduceMotion` only when the
- * *content* has to change too (skipping confetti entirely, say) — for anything
+ * *content* has to change too (skipping confetti entirely, say): for anything
  * built from these configs it is already handled.
  */
 
@@ -42,7 +42,7 @@ export const easing = {
 } as const;
 
 /**
- * Ready-made `withTiming` configs. Spread-free — pass them straight through:
+ * Ready-made `withTiming` configs. Spread-free: pass them straight through:
  * `withTiming(1, timing.press)`.
  */
 export const timing = {
@@ -62,14 +62,14 @@ export const spring = {
    * after the user has already moved on to whatever they tapped it for.
    */
   release: { damping: 18, stiffness: 420, mass: 0.6, reduceMotion: ReduceMotion.System },
-  /** Genuinely celebratory — a set completing, a record landing. Allowed to overshoot. */
+  /** Genuinely celebratory. A set completing, a record landing. Allowed to overshoot. */
   bounce: { damping: 11, stiffness: 340, mass: 0.5, reduceMotion: ReduceMotion.System },
 } as const;
 
 /**
  * How far a pressable shrinks under the thumb.
  *
- * One scale for controls that sit in the layout as objects — buttons, cards,
+ * One scale for controls that sit in the layout as objects: buttons, cards,
  * chips. Full-bleed list rows deliberately do *not* use it: a row that spans
  * the screen has its edges against the margin, so shrinking it pulls both edges
  * inward at once and reads as the row detaching from the page rather than being
@@ -77,7 +77,7 @@ export const spring = {
  */
 export const PRESS_SCALE = 0.97;
 
-/** Small targets take a deeper press — 3% of a 44pt circle is not visible. */
+/** Small targets take a deeper press. 3% of a 44pt circle is not visible. */
 export const PRESS_SCALE_SMALL = 0.9;
 
 /**

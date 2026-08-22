@@ -2,7 +2,7 @@
  * The parts of a browser this app has to dress, and cannot dress from a
  * stylesheet React Native owns.
  *
- * Three things live outside every React tree there is — the document's own
+ * Three things live outside every React tree there is. The document's own
  * background, the scrollbars and form controls the browser draws, and the focus
  * ring it puts on whatever has keyboard focus. React Native Web has no style
  * prop for any of them, so on the web they keep their defaults, and all three
@@ -14,7 +14,7 @@
  *
  * ## Why a CSS variable rather than re-injecting the sheet
  *
- * The palette can change while the app is running — the theme preference is a
+ * The palette can change while the app is running. The theme preference is a
  * setting, and 'system' follows the OS at runtime. Rewriting a `<style>` element
  * on every change invalidates the document's style rules and forces a full
  * restyle; setting one custom property re-resolves only the rules that reference
@@ -25,8 +25,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import type { ColorScheme } from './index';
-import type { Palette } from './tokens';
+import type { ColorScheme, Palette } from './tokens';
 
 const STYLE_ID = 'lift-web-chrome';
 
@@ -36,13 +35,13 @@ const RULES = `
  *
  * Without the heights, a short route leaves the body shorter than the window
  * and the app's canvas stops partway down the screen. \`overscroll-behavior\`
- * turns off the rubber-band and, on touch laptops and phones, pull-to-refresh —
+ * turns off the rubber-band and, on touch laptops and phones, pull-to-refresh,
  * which in a local-first app reloads the entire bundle to fetch nothing.
  *
  * The canvas colour is deliberately *not* set here. \`+html.tsx\` paints it
  * before this file exists, from \`prefers-color-scheme\`, and a rule in this
  * sheet would win the cascade with a variable that is undefined for the first
- * frame after the sheet lands — reintroducing the white flash the shell exists
+ * frame after the sheet lands: reintroducing the white flash the shell exists
  * to prevent. It is handed over imperatively below instead, where there is no
  * window in which it is unset.
  */
@@ -90,7 +89,7 @@ html, body { height: 100%; overscroll-behavior-y: none; }
  * one property gives correctly-themed scrollbars, text-selection highlights,
  * spinner controls on number inputs and the default background behind the page.
  * Restyling scrollbars by hand with `::-webkit-scrollbar` would be a worse
- * version of this — a reinvented standard affordance that only works in Blink,
+ * version of this: a reinvented standard affordance that only works in Blink,
  * and one that has to be maintained against two palettes.
  */
 export function useWebChrome(colors: Palette, scheme: ColorScheme): void {
@@ -113,7 +112,7 @@ export function useWebChrome(colors: Palette, scheme: ColorScheme): void {
      *
      * Set as an inline style on the elements themselves rather than through a
      * variable the injected sheet reads. An inline style beats any rule, so the
-     * handover is atomic — there is no frame in which the shell's colour has
+     * handover is atomic. There is no frame in which the shell's colour has
      * been overridden by a rule whose variable has not been set yet.
      *
      * `html` as well as `body`, because the two disagree at the edges: an
