@@ -88,16 +88,26 @@ ones at the same time. The workflow refuses to publish if `API_URL` is unset:
 Metro bakes it into the bundle, so an update without it would replace a working
 app with one that syncs to itself.
 
-Locally, from `apps/mobile`:
+**Publish from CI, not from a working copy.** This is not a style preference.
+Gradle writes `build/` and `.cxx/` directories *inside* the native modules in
+`node_modules`, and `@expo/fingerprint` hashes those directories, so any
+machine that has ever run `expo run:android` computes a different runtime
+version than a clean checkout does. It has been measured here rather than
+assumed: the same commit resolved `6b8b6d2c…` on a developer machine and
+`797f5e24…` both in CI and in a fresh clone, differing across nine module
+directories. An update published from a working copy is therefore addressed to
+a fingerprint no CI-built APK has, and disappears without an error.
+
+If you do have to publish by hand, do it from a clean clone with a fresh
+`pnpm install --frozen-lockfile` and no native build in it, and note that
+`--environment` is required whenever the command is not interactive (it names
+an EAS environment, not the channel that happens to share its name):
 
 ```bash
 EXPO_PUBLIC_API_URL=https://lift-api.example.com \
   eas update --branch production --environment production \
              --message "Fix the volume figure"
 ```
-
-`--environment` is required whenever the command is not interactive. It names
-an EAS environment, not the channel that happens to share its name.
 
 ### When updates stop arriving
 
