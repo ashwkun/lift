@@ -60,8 +60,21 @@ export interface ColumnChartProps {
 const AXIS_GUTTER = 44;
 /** Headroom above the top gridline, so a peak column is not flush with the card. */
 const TOP_PAD = spacing.md;
+/**
+ * Clear air between the baseline and the labels under it.
+ *
+ * The strip used to be a single 16px number with the text pinned to the top of
+ * it, which put the labels hard against the axis rule: they read as hanging off
+ * the line rather than as annotating it, and at a glance the descenders looked
+ * like part of the axis. Splitting the strip into a gap and a line of type is
+ * what lets the gap be stated rather than left as whatever the line height did
+ * not use.
+ */
+const LABEL_GAP = spacing.xs;
+/** One line of `caption`, which is what an x-axis label is. */
+const LABEL_TEXT = 14;
 /** The strip below the baseline that the x-axis labels are drawn into. */
-const LABEL_ROW = spacing.lg;
+const LABEL_ROW = LABEL_GAP + LABEL_TEXT;
 /**
  * How much room one x-axis label is given, in px.
  *
@@ -364,5 +377,5 @@ const styles = StyleSheet.create({
   // Pinned to the baseline rather than laid out after the plot, for the reason
   // recorded on the outer box.
   labelRow: { position: 'absolute', height: LABEL_ROW },
-  label: { position: 'absolute', top: 0, width: LABEL_SLOT },
+  label: { position: 'absolute', top: LABEL_GAP, width: LABEL_SLOT, lineHeight: LABEL_TEXT },
 });

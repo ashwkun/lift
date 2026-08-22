@@ -574,7 +574,15 @@ const styles = StyleSheet.create({
   // than the rule below: `md` up against the `xl` the rule brings with it, so
   // the control reads as belonging to the chart rather than as a third thing
   // between the chart and whatever follows the rule.
-  tabs: { marginHorizontal: spacing.lg, marginTop: spacing.md },
+  // Further from the chart than a control usually sits from what it drives.
+  //
+  // The gap is measured from the chart's box, and the box ends only a few px
+  // below the "0" tick, so at `md` the track was landing on the y-axis origin
+  // and reading as part of the plot rather than as something under it. The
+  // clearance that is actually wanted is from the glyph, not from the box, and
+  // there is no way to say that in a margin: hence a step that looks larger
+  // than it is on paper and comes out as ordinary on screen.
+  tabs: { marginHorizontal: spacing.lg, marginTop: spacing.xl },
   strip: { marginHorizontal: spacing.lg },
   rule: { marginHorizontal: spacing.lg, marginTop: spacing.xl },
   chart: { marginHorizontal: spacing.lg },
