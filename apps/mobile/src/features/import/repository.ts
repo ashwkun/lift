@@ -16,13 +16,13 @@
  *   `await` inside a callback resolves, so a 20,000-row import has no rollback.
  *   Each session is therefore written on its own and tombstoned again if it
  *   fails partway, leaving complete workouts behind it and untouched ones in
- *   front — which the summary reports rather than hides.
+ *   front, which the summary reports rather than hides.
  *
  * One consequence worth knowing about: records are compared against the bests
  * already on the device, so importing history *older* than what is here awards
  * few records, because today's ceiling is higher than the day's was. That is the
- * conservative direction. The alternative — recomputing every record from
- * scratch — would rewrite records the user earned in this app, dated to
+ * conservative direction. The alternative: recomputing every record from
+ * scratch. Would rewrite records the user earned in this app, dated to
  * sessions they imported from another one.
  */
 
@@ -57,7 +57,7 @@ export interface ImportSummary {
   duplicates: number;
   personalRecords: number;
   /**
-   * Rows queued for the account. Zero while signed out — the oplog entries are
+   * Rows queued for the account. Zero while signed out. The oplog entries are
    * written either way, but there is nothing to promise them to.
    */
   queued: number;
@@ -75,8 +75,8 @@ export interface ImportProgress {
  * close is the same session arriving twice.
  *
  * A minute rather than an exact match because the same training day can reach
- * this function from two files at different precisions — Hevy exports
- * minute-resolution wall clock, an API sync carries seconds — and re-importing
+ * this function from two files at different precisions: Hevy exports
+ * minute-resolution wall clock, an API sync carries seconds, and re-importing
  * should recognise them as one workout.
  */
 const DUPLICATE_WINDOW_MS = 60_000;
@@ -142,7 +142,7 @@ export async function importWorkouts(
       bests,
     });
 
-    // Nothing resolved — every exercise in the session was dropped. Recording
+    // Nothing resolved: every exercise in the session was dropped. Recording
     // the workout would put an empty session in the history.
     if (staged.sets.length === 0) continue;
 
@@ -150,7 +150,7 @@ export async function importWorkouts(
       await writeWorkout(staged);
     } catch {
       // Sessions already written are untouched, and the ones after this still
-      // get their turn — aborting an import that is nine-tenths done helps
+      // get their turn. Aborting an import that is nine-tenths done helps
       // nobody. This one is rolled back and counted, so a second run of the
       // same file picks it up as missing rather than as a duplicate.
       await discardPartial(staged.workout.id);
@@ -211,8 +211,8 @@ interface StageContext {
  *
  * Totals and records are derived here rather than by re-reading what was just
  * inserted, which is what lets the workout row be written once with its
- * finished figures already on it. `finishWorkout` cannot do that — it is
- * closing a session whose rows already exist — but an import owns the ids it is
+ * finished figures already on it. `finishWorkout` cannot do that. It is
+ * closing a session whose rows already exist, but an import owns the ids it is
  * about to use, so there is nothing to read back.
  */
 function stageWorkout(imported: ImportedWorkout, context: StageContext): StagedWorkout {
@@ -367,7 +367,7 @@ async function writeWorkout(staged: StagedWorkout): Promise<void> {
  * Foreign keys are on, so the parent has to exist before its children and
  * there is no ordering that makes the last write the commit point. What is left
  * behind is a workout carrying finished totals it does not have the sets to
- * back — a session that reads as a full training day and renders as an empty
+ * back. A session that reads as a full training day and renders as an empty
  * one. Tombstoning it takes it out of every query (they all filter `deletedAt`)
  * and out of the duplicate check, so importing the file again gets it right.
  *

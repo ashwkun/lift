@@ -7,7 +7,7 @@
  * pull into its module graph to get a unit conversion.
  *
  * Everything here is pure. Writing what it produces to the database is the
- * mobile app's job — see `features/import` — which is what lets the import
+ * mobile app's job (see `features/import`) which is what lets the import
  * screen show a file's contents before committing any of it.
  */
 

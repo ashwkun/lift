@@ -7,7 +7,7 @@ import { radius } from '@/theme';
  * Deterministic PRNG (mulberry32), seeded from the run key.
  *
  * `Math.random` would be an impure call during render, which the React Compiler
- * rejects — and rightly: a re-render mid-fall would re-roll every particle and
+ * rejects, and rightly: a re-render mid-fall would re-roll every particle and
  * make them jump. Seeding from `runKey` keeps generation a pure function of the
  * props, so a given burst is identical however many times it re-renders, while
  * successive bursts still look different.

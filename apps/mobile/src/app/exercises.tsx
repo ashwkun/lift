@@ -53,7 +53,7 @@ export default function ExercisesScreen() {
 
   // Live query: the list re-renders whenever the exercises table changes, so a
   // newly created custom exercise appears without any manual refetch. Only the
-  // columns a row draws are selected — see `exerciseListColumns`. `loaded` is
+  // columns a row draws are selected. See `exerciseListColumns`. `loaded` is
   // what keeps this screen from claiming the library is empty while the largest
   // query in the app is still running.
   const { rows: allExercises, loaded } = useRows(
@@ -73,7 +73,7 @@ export default function ExercisesScreen() {
    *
    * Scoring 6,800 names is far too much work to finish between two keystrokes
    * on a mid-range phone, and doing it synchronously means every character
-   * waits for the previous one's filter — the keyboard visibly falls behind.
+   * waits for the previous one's filter. The keyboard visibly falls behind.
    * `useDeferredValue` lets the TextInput commit at input priority and re-runs
    * the filter at transition priority, where React can abandon it the moment
    * another character arrives. The list lags the field by a frame or two under
@@ -125,13 +125,13 @@ export default function ExercisesScreen() {
 
   /*
    * The status line is the only place the app confirms that a filter or a
-   * keystroke did anything — the list below just quietly becomes shorter.
+   * keystroke did anything. The list below just quietly becomes shorter.
    *
    * What it no longer says is how many exercises exist. "6,847 exercises" is
    * the catalog's fact, not the reader's: nobody opens this screen to find out
    * how big it is, and the number mostly announced how much scrolling stood
    * between them and one lift. Unfiltered, the line explains the ordering
-   * instead — the one non-obvious thing about this list. Filtered, it names
+   * instead: the one non-obvious thing about this list. Filtered, it names
    * what it filtered on and steps up a level of contrast, because at that point
    * it is an answer rather than a label.
    */

@@ -22,7 +22,7 @@ export interface BarChartProps {
    *
    * A horizontal chart prints each bar's figure past its end and needs none of
    * this. A vertical one has nowhere to print twelve figures, so a series that
-   * has to be read against a quantity — volume per week — asks for the axis
+   * has to be read against a quantity (volume per week) asks for the axis
    * instead. A comparison that only has to be read against its own peak, like
    * sets by body part, leaves it off.
    */
@@ -69,7 +69,7 @@ const MIN_FILL = 0.02;
  */
 /**
  * The gutter a vertical chart's value axis sits in. Deliberately the same width
- * as `LineChart`'s, so a screen that stacks the two — Home does — lines their
+ * as `LineChart`'s, so a screen that stacks the two (Home does) lines their
  * plots up on one left edge rather than on two that nearly agree.
  */
 const VALUE_AXIS_WIDTH = spacing.xxl + spacing.xl;
@@ -87,8 +87,8 @@ const VALUE_HEADROOM = VALUE_GAP + VALUE_COLUMN;
  *
  * A horizontal `BarChart` is the vertical one rotated 90°, and the library
  * corrects for the rotation with a fixed offset folded into that transform.
- * These two numbers are that offset — the distance from the top-left of the
- * chart's layout box to the origin of the first bar — and `shiftX`/`shiftY`,
+ * These two numbers are that offset: the distance from the top-left of the
+ * chart's layout box to the origin of the first bar, and `shiftX`/`shiftY`,
  * the library's own escape hatch, then move the origin to where this component
  * wants it. They describe the library rather than the design, so they are the
  * first thing to re-measure if an upgrade moves the chart bodily.
@@ -116,7 +116,7 @@ const SHIFT_Y = (ROW_HEIGHT - BAR_THICKNESS) / 2 - ROTATED_ORIGIN_Y - VALUE_HEAD
 /**
  * Proportional bar chart.
  *
- * Both layouts are gifted-charts' `BarChart` — horizontal bars are its own
+ * Both layouts are gifted-charts' `BarChart`. Horizontal bars are its own
  * `horizontal` mode, which is the vertical chart rotated a quarter turn, and
  * every offset above exists to undo one consequence of that rotation. Nothing
  * here draws a rectangle by hand.
@@ -201,7 +201,7 @@ export function BarChart({
             /*
              * Transposed on purpose. A horizontal chart is rendered rotated, so
              * the library reads `width` as the length of the bars and `height`
-             * as the extent across them — the height here is exactly the rows
+             * as the extent across them. The height here is exactly the rows
              * the wrapper reserves.
              */
             width={plotLength}
@@ -244,7 +244,7 @@ export function BarChart({
   const gap = slot - barWidth;
 
   // Bottom-up, one per rule, and given as text because the axis is in the
-  // caller's unit — which this chart is never told.
+  // caller's unit, which this chart is never told.
   const axisLabels = Array.from({ length: AXIS_SECTIONS + 1 }, (_, index) =>
     formatValue((max / AXIS_SECTIONS) * index),
   );
@@ -290,7 +290,7 @@ export function BarChart({
           yAxisThickness={0}
           yAxisExtraHeight={0}
           xAxisColor={colors.border}
-          // Doubled because this is an SVG stroke rather than a view border — a
+          // Doubled because this is an SVG stroke rather than a view border. A
           // hairline stroke gets antialiased away to almost nothing.
           xAxisThickness={stroke.rule * 2}
           disableScroll

@@ -13,7 +13,7 @@ export type ExerciseMatcher = (name: string) => number;
  *
  * The catalog is ~6,800 rows and the list re-filters on every keystroke, so
  * anything done per row is done 6,800 times per character typed. Building the
- * word-boundary `RegExp` is the expensive part — hoisting it out of the loop
+ * word-boundary `RegExp` is the expensive part: hoisting it out of the loop
  * measured 6.2-6.5x faster over the real catalog, which is the difference
  * between a search that keeps up with the keyboard and one that doesn't.
  *
@@ -52,7 +52,7 @@ export function createExerciseMatcher(query: string): ExerciseMatcher | null {
  * mid-word ones so "row" surfaces "Row (Cable)" above "Narrow Grip …".
  *
  * Scoring one name against one query. To score many names against the *same*
- * query — which is what every list screen does — use `createExerciseMatcher`
+ * query (which is what every list screen does) use `createExerciseMatcher`
  * and reuse the result; this compiles the query afresh on each call.
  */
 export function scoreExerciseMatch(name: string, query: string): number {

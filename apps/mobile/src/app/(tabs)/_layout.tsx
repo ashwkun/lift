@@ -32,7 +32,7 @@ const ICON_POP_SCALE = 1.14;
  *
  * It fires on becoming focused and never on mount. A bar whose icon jumps the
  * first time it is drawn is announcing the app's own startup, which is not an
- * event the user did anything to cause — and on a cold launch it lands in the
+ * event the user did anything to cause, and on a cold launch it lands in the
  * same few frames as the first screen's first paint, which is the last moment
  * to be spending on decoration.
  */
@@ -78,13 +78,13 @@ function TabIcon({
  * this line sits under comes from `getDashboardStats`, which buckets on
  * `startOfWeek`'s Monday default, as does the week streak beside it. A label
  * that honoured the setting while the figure did not would be worse than no
- * label — it would put a wrong week under a right number. The preference reaches
+ * label. It would put a wrong week under a right number. The preference reaches
  * the calendar grid and the two statistics screens that pass it through; if the
  * dashboard ever learns it, this call learns it at the same time.
  *
  * Recomputed when the app comes back to the foreground rather than on a timer.
  * The window it names only moves at one instant a week, and a phone is almost
- * never awake and in this app when it does — but it is very often *asleep* in
+ * never awake and in this app when it does, but it is very often *asleep* in
  * it, and coming back on Monday morning to last week's dates over this week's
  * reset figures is exactly the sort of thing a label like this exists to avoid.
  * A screen left open through the boundary is the case this does not cover, and
@@ -97,8 +97,8 @@ function useThisWeek(): string {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
 
-      // Same week returns the same object, so the common case — every
-      // foreground within the week — re-renders nothing.
+      // Same week returns the same object, so the common case: every
+      // foreground within the week: re-renders nothing.
       setWeekStart((current) => {
         const next = startOfWeek(new Date());
         return next.getTime() === current.getTime() ? current : next;
@@ -118,7 +118,7 @@ export default function TabLayout() {
   const thisWeek = useThisWeek();
 
   /**
-   * Does a session exist — nothing else about it.
+   * Does a session exist: nothing else about it.
    *
    * A workout is app-global but its only affordance used to live on one tab out
    * of five, so anyone who tapped History mid-session had to remember which tab
@@ -143,7 +143,7 @@ export default function TabLayout() {
          *
          * Height and bottom padding both include `insets.bottom`. React
          * Navigation normally works that inset in for you, but only while it
-         * owns the height — giving `tabBarStyle` a fixed `height` overrides that
+         * owns the height: giving `tabBarStyle` a fixed `height` overrides that
          * calculation entirely, and on Android's edge-to-edge default the bar
          * then renders underneath the gesture pill or the 3-button bar.
          */
@@ -151,7 +151,7 @@ export default function TabLayout() {
          * Hidden once the side rail is up, and hidden rather than restructured.
          *
          * React Navigation can mount this bar down the left edge instead
-         * (`tabBarPosition: 'left'`), and that is not what the app does — see
+         * (`tabBarPosition: 'left'`), and that is not what the app does: see
          * `SideRail` for why a rail owned by this navigator is covered by every
          * screen pushed over it. The rail is a sibling of the whole stack, so
          * what is left here is one bar too many.
@@ -190,7 +190,7 @@ export default function TabLayout() {
          * What the cut actually bought was a *shorter* glitch, not the absence
          * of one: an instant jump to a tab that has not painted yet, then its
          * content popping in a few frames later. A crossfade covers exactly
-         * that gap — there is no moving edge for the eye to track, so a scene
+         * that gap. There is no moving edge for the eye to track, so a scene
          * that is still resolving underneath simply arrives during the fade.
          *
          * `fade` rather than `shift` for the same reason. A slide would give a
@@ -204,7 +204,7 @@ export default function TabLayout() {
         freezeOnBlur: true,
         // The same set the root stack spreads. This navigator titled its own
         // screens at 20/bold against the stack's 17/semibold, so pushing from
-        // Home visibly shrank the title — `headerOptions` is where that lives
+        // Home visibly shrank the title. `headerOptions` is where that lives
         // now, and neither navigator gets to disagree with it.
         //
         // The tab variant adds the two things a JS header does not get from the
@@ -218,7 +218,7 @@ export default function TabLayout() {
         configured here rather than by the screens for the same reason the bar
         is: they are chrome the navigator owns, they are mounted whether or not
         their screen has finished its queries, and the one bit any of them needs
-        — is a session open — is already read at the top of this component.
+        (is a session open) is already read at the top of this component.
 
         Setting them from inside the screens would mean `Tabs.Screen` options
         rebuilt on every render, which on the Workout tab is once a second while
@@ -237,7 +237,7 @@ export default function TabLayout() {
            * The week, under the word.
            *
            * This screen opens with "Volume this week" set in 24px and never
-           * says which seven days that is — so a Sunday session either counts
+           * says which seven days that is, so a Sunday session either counts
            * or it doesn't, and the only way to find out was to log one and
            * watch the number. It also silently resets on a Monday, which reads
            * as data loss to anyone who does not know when the window turns.
@@ -247,7 +247,7 @@ export default function TabLayout() {
            * History, pinned.
            *
            * Home is a summary of what History holds, so it is the destination
-           * this tab leads to — but the only link to it lived at the bottom of
+           * this tab leads to, but the only link to it lived at the bottom of
            * the recent-workouts block, which means it was behind a scroll, and
            * on an account with no workouts yet it did not exist at all. That
            * block keeps its own button: it is the "see all of these" for the
@@ -268,12 +268,12 @@ export default function TabLayout() {
       {/*
         The middle tab, and the one that changes when something is happening.
 
-        Three tabs rather than four is what puts it in the middle — under the
-        thumb, at the widest target the bar has — and starting a workout is the
+        Three tabs rather than four is what puts it in the middle: under the
+        thumb, at the widest target the bar has, and starting a workout is the
         thing this app is opened to do. Everything that was competing for that
         position was a place to *read* about training rather than to do it.
 
-        Idle, the glyph is `barbell` — Ionicons has no `dumbbell`, and this is
+        Idle, the glyph is `barbell`. Ionicons has no `dumbbell`, and this is
         that icon in this set. It names the domain rather than the action, which
         is the trade against the `add-circle` it replaced: the tab is now
         recognisably the training tab at a glance, and gives up saying "start"
@@ -281,7 +281,7 @@ export default function TabLayout() {
         the instruction survives one level in, on the control that performs it.
 
         Once a session is open the tab means "go back to it", so the glyph
-        becomes `play-circle` — which is both the clearer verb and the same
+        becomes `play-circle`, which is both the clearer verb and the same
         `play` the screen's button switches to, so the two still agree there.
 
         The two are set at different sizes on purpose. `play-circle` is a
@@ -299,7 +299,7 @@ export default function TabLayout() {
         What this is not: a static state, changed at most a few times per
         session. No elapsed clock lives here. A counter in the tab bar would
         re-render the bar every second on top of whichever screen the user is
-        actually working on — the mistake `ElapsedStat` on the active screen is
+        actually working on: the mistake `ElapsedStat` on the active screen is
         written to avoid.
       */}
       <Tabs.Screen
@@ -310,15 +310,15 @@ export default function TabLayout() {
            * Resume, for as long as there is something to resume.
            *
            * The screen already opens with a card that does this, and the card
-           * scrolls away — under a routine list of any length, the one thing
+           * scrolls away: under a routine list of any length, the one thing
            * you are mid-way through is the first thing to leave the screen.
            * The header does not scroll.
            *
            * `filled` is spent here rather than saved: it is reserved for the
            * one action a screen exists to complete, and while a session is open
            * this tab exists to get you back into it. It is also the only header
-           * in the app whose action appears and disappears, which is the point
-           * — a pill that is only ever there when it means something.
+           * in the app whose action appears and disappears, which is the point.
+           * A pill that is only ever there when it means something.
            */
           headerRight: sessionOpen
             ? () => (
@@ -351,7 +351,7 @@ export default function TabLayout() {
         every one of them narrows the middle target that starts a workout. The
         library is a reference book, opened to check one lift, and the place
         people actually reach for an exercise is the picker inside a session.
-        History is read after training, not during — and Home already carries
+        History is read after training, not during, and Home already carries
         the last few sessions, which is the part of it anyone checks daily.
 
         Both now hang off Profile, which is what that tab is for: everything
@@ -365,8 +365,8 @@ export default function TabLayout() {
           /*
            * Settings, from the top of the screen instead of the bottom.
            *
-           * Profile is five cards deep — Insights, Account, Library, Tracking,
-           * App — and Settings is a row inside the last of them, which puts the
+           * Profile is five cards deep: Insights, Account, Library, Tracking,
+           * App, and Settings is a row inside the last of them, which puts the
            * most-visited destination on this tab below everything the tab is
            * sorted into. The row stays: the App card is an index of a section
            * and a hole in it would be worse than a second path. The desktop

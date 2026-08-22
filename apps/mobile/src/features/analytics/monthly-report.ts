@@ -1,7 +1,7 @@
 /**
  * The monthly recap.
  *
- * One month, read against the eleven before it — a bar chart for the shape of
+ * One month, read against the eleven before it: a bar chart for the shape of
  * the year, four figures for the month itself, and the handful of sessions and
  * lifts that made it what it was.
  */
@@ -60,7 +60,7 @@ export interface MonthlyReport {
   /** Trailing `REPORT_MONTHS`, oldest first, ending on the reported month. */
   series: MonthBucket[];
   totals: MonthTotals;
-  /** Null when the month before predates the log — nothing to compare against. */
+  /** Null when the month before predates the log: nothing to compare against. */
   previous: MonthTotals | null;
   /** Calendar days with a finished workout. */
   activeDays: number;
@@ -73,7 +73,7 @@ export interface MonthlyReport {
   topMuscles: MuscleTally[];
   longestSession: SessionHighlight | null;
   biggestSession: SessionHighlight | null;
-  /** Month of the first finished workout — the floor for the back arrow. */
+  /** Month of the first finished workout: the floor for the back arrow. */
   earliestMonth: number | null;
 }
 
@@ -94,7 +94,7 @@ export const REPORT_METRIC_VALUE: Record<ReportMetric, (totals: MonthTotals) => 
  * Everything the report screen shows, for the month containing `month`.
  *
  * The whole twelve-month series is fetched rather than just the month itself:
- * it is one query either way — sessions carry their own totals — and it means
+ * it is one query either way (sessions carry their own totals) and it means
  * the metric toggle above the chart is instant and the previous month's figures
  * are already in hand for the comparisons.
  */
@@ -184,7 +184,7 @@ export async function getMonthlyReport(
     title: monthStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
     series,
     totals,
-    // A zero previous month is a real comparison — a month off is information.
+    // A zero previous month is a real comparison. A month off is information.
     // A month that predates the log entirely is not, and "↑ 12 workouts" from
     // before the user owned the app is a number they never earned.
     previous:
@@ -212,7 +212,7 @@ export async function getMonthlyReport(
  */
 export function monthlyReportShareText(report: MonthlyReport, weightUnit: WeightUnit): string {
   const lines = [
-    `${report.title} — Lift`,
+    `${report.title}: Lift`,
     '',
     `Workouts: ${report.totals.workouts} across ${report.activeDays} of ${report.daysInMonth} days`,
     `Time: ${formatDurationShort(report.totals.durationSeconds)}`,
@@ -232,7 +232,7 @@ export function monthlyReportShareText(report: MonthlyReport, weightUnit: Weight
   const exercise = report.topExercises[0];
   if (exercise) {
     lines.push(
-      `Top lift: ${exercise.name} — ${exercise.times === 1 ? '1 session' : `${exercise.times} sessions`}`,
+      `Top lift: ${exercise.name}: ${exercise.times === 1 ? '1 session' : `${exercise.times} sessions`}`,
     );
   }
 

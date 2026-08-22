@@ -23,7 +23,7 @@ export interface PromptModalProps {
 /**
  * Text-input dialog.
  *
- * React Native's `Alert.prompt` is iOS-only — on Android it silently does
+ * React Native's `Alert.prompt` is iOS-only: on Android it silently does
  * nothing, which would make "rename routine" a dead button for most users. This
  * is the cross-platform replacement.
  */
@@ -44,7 +44,7 @@ export function PromptModal({
 
   // Re-seeds each time the dialog opens, so a cancelled edit doesn't persist
   // into the next one. Adjusted during render against the props the value was
-  // last seeded from, the way RestDurationSheet does it — an effect would do
+  // last seeded from, the way RestDurationSheet does it. An effect would do
   // the same job a commit later, painting the previous edit's text for a frame
   // before correcting it.
   const [seed, setSeed] = useState({ visible, initialValue });
@@ -66,7 +66,7 @@ export function PromptModal({
           `accessible={false}` on both Pressables, deliberately.
 
           Pressable defaults to `accessible`, which collapses everything under
-          it into one element — so the backdrop announced the whole dialog as a
+          it into one element, so the backdrop announced the whole dialog as a
           single button reading "Bodyweight Entered in kg Cancel Save", and
           neither the field nor either button could be reached. Tap-outside-to-
           dismiss has no screen reader equivalent here on purpose: Cancel is one

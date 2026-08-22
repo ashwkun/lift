@@ -1,5 +1,5 @@
 /**
- * Sync wire protocol — the contract between the on-device SQLite database and
+ * Sync wire protocol: the contract between the on-device SQLite database and
  * the API.
  *
  * Design notes that matter:
@@ -7,7 +7,7 @@
  * 1. **Client-generated UUIDv7 primary keys.** Creating a workout offline must
  *    never wait for a server round-trip to learn its own ID.
  *
- * 2. **Soft deletes only.** A hard DELETE is invisible to other devices — they
+ * 2. **Soft deletes only.** A hard DELETE is invisible to other devices. They
  *    have no way to learn the row is gone. Every delete sets `deletedAt` and the
  *    tombstone replicates like any other change.
  *
@@ -23,7 +23,7 @@
 
 import { z } from 'zod';
 
-/** Tables that participate in sync, in dependency order — parents before children. */
+/** Tables that participate in sync, in dependency order: parents before children. */
 export const SYNCABLE_TABLES = [
   'exercises',
   'routine_folders',
@@ -51,7 +51,7 @@ export const mutationSchema = z.object({
   table: syncableTableSchema,
   rowId: z.string().uuid(),
   op: z.enum(['upsert', 'delete']),
-  /** Full row for upserts (not a patch — simpler, and rows are tiny). */
+  /** Full row for upserts (not a patch. Simpler, and rows are tiny). */
   payload: z.record(z.string(), z.unknown()).nullable(),
   /** Client's updatedAt for the row, epoch ms. Used for LWW comparison. */
   updatedAt: z.number().int(),
@@ -103,7 +103,7 @@ export const syncPullResponseSchema = z.object({
   /** Changed rows keyed by table, already ordered parents-before-children. */
   changes: z.record(syncableTableSchema, z.array(z.record(z.string(), z.unknown()))),
   cursor: z.string(),
-  /** True when more pages remain — the client should immediately pull again. */
+  /** True when more pages remain. The client should immediately pull again. */
   hasMore: z.boolean(),
   serverTime: z.number().int(),
 });
@@ -119,7 +119,7 @@ export type SyncPullResponse = z.infer<typeof syncPullResponseSchema>;
  *
  * Ties go to the **existing** row. Equal timestamps mean we genuinely cannot
  * order the two writes, and preferring the incumbent makes the operation
- * idempotent — replaying the same mutation twice can't flip state back and forth.
+ * idempotent: replaying the same mutation twice can't flip state back and forth.
  */
 export function shouldOverwrite(incomingUpdatedAt: number, existingUpdatedAt: number): boolean {
   return incomingUpdatedAt > existingUpdatedAt;

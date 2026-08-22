@@ -48,7 +48,7 @@ const MAX_RATIO = 2;
  * and wrong for everything else in it: a 1:1 clip arrived with plate down both
  * sides, and a wide one sat letterboxed with the figure shrunk to fit a box it
  * did not need. Both the still and the clip report their natural size once
- * loaded — `onLoad` for the image, `sourceLoad` for the player — and the frame
+ * loaded (`onLoad` for the image, `sourceLoad` for the player) and the frame
  * adopts it, clamped to the range above.
  */
 export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaProps) {
@@ -59,7 +59,7 @@ export function ExerciseMedia({ name, thumbnailUrl, videoUrl }: ExerciseMediaPro
   // Hooks cannot be conditional, so the player is always created and simply
   // holds a null source until the user asks for the clip.
   const player = useVideoPlayer(playing && videoUrl ? videoUrl : null, (instance) => {
-    // Short silent demo loops — looping is the expected behaviour, and there is
+    // Short silent demo loops. Looping is the expected behaviour, and there is
     // no audio track to interrupt whatever the user is listening to.
     instance.loop = true;
     instance.muted = true;

@@ -53,7 +53,7 @@ const ROW_HEIGHT = MIN_TOUCH_SIZE;
  * layout: the screen that mounts it has to reserve this much at the bottom of
  * its scroll or the last set row spends the whole rest period underneath the
  * countdown. The row's height is fixed rather than intrinsic for exactly this
- * reason — a promise the caller reserves against cannot be "however tall the
+ * reason: a promise the caller reserves against cannot be "however tall the
  * readout came out this time".
  */
 export const REST_BAR_HEIGHT = stroke.rule + TRACK_HEIGHT + spacing.sm + ROW_HEIGHT + spacing.sm;
@@ -61,7 +61,7 @@ export const REST_BAR_HEIGHT = stroke.rule + TRACK_HEIGHT + spacing.sm + ROW_HEI
 export interface RestTimerBarProps {
   /**
    * Opens the expanded timer. The caller owns the sheet's visibility, because
-   * the sheet is also reachable from the header while nothing is resting — a
+   * the sheet is also reachable from the header while nothing is resting: a
    * bar that owned it would have to be mounted, and visible, to be asked.
    *
    * Nothing else is passed in. The rest-duration chip and the exercise name
@@ -77,13 +77,13 @@ export interface RestTimerBarProps {
  *
  * It is deliberately one row and nothing more. The previous version was a card
  * in the flow of the workout that grew and collapsed the layout under a thumb
- * already travelling towards the next checkbox — ninety points of movement that
+ * already travelling towards the next checkbox: ninety points of movement that
  * is how a mis-tap completes the wrong set. Pinning it to the bottom edge takes
  * it out of layout entirely: the list above never moves, and the bar arrives and
  * leaves by sliding past the edge of the screen rather than by pushing anything.
  *
- * Everything the compact row has no space for — the exercise it belongs to, the
- * rest-duration chip, pause, start — lives in the sheet behind `onExpand`.
+ * Everything the compact row has no space for. The exercise it belongs to, the
+ * rest-duration chip, pause, start: lives in the sheet behind `onExpand`.
  */
 export function RestTimerBar({ onExpand }: RestTimerBarProps) {
   const colors = useColors();
@@ -105,7 +105,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
    * The store's rest fields, mirrored, and *not* cleared when the store clears.
    *
    * The bar is still on screen for the length of its slide-out, so it needs
-   * something to draw during it — reading the store directly would blank the
+   * something to draw during it. Reading the store directly would blank the
    * row on the frame the timer stops and leave an empty bar sliding away. This
    * mirror keeps the final reading, and the slide is driven off `resting`
    * instead. The re-seed happens during render against the values it was last
@@ -143,7 +143,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
   /*
    * 0 docked, 1 parked below the screen. A shared value rather than a mounted or
    * unmounted subtree, so the bar can finish its exit with its last reading
-   * still drawn — and on the UI thread, because the JS thread is busy with a
+   * still drawn, and on the UI thread, because the JS thread is busy with a
    * controlled text input every time the user types a weight while resting.
    */
   const parked = useSharedValue(1);
@@ -177,7 +177,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
         },
       ]}
       onLayout={(event: LayoutChangeEvent) => setTrackWidth(event.nativeEvent.layout.width)}
-      // Idle, the bar is still mounted and still drawn — it is simply below the
+      // Idle, the bar is still mounted and still drawn. It is simply below the
       // fold. None of it may be touched or reached by a swipe of the screen
       // reader while it is down there.
       pointerEvents={resting ? 'auto' : 'none'}
@@ -213,7 +213,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
             sheets for what that looks like), which leaves the expand gesture
             with no accessible element of its own. This way it has a label and a
             hint, and it still spans the full height of the row and everything
-            between the two adjusters — most of the bar, without claiming the
+            between the two adjusters: most of the bar, without claiming the
             edges around the controls.
           */}
           <PressableScale
@@ -236,7 +236,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
               One of the two figures in the app that stays big, and it asks
               explicitly rather than inheriting it. `numericLarge` came down to
               20px when the stat surfaces stopped announcing themselves, and this
-              is not a stat — it is a countdown read from wherever the phone was
+              is not a stat. It is a countdown read from wherever the phone was
               put down between sets, which is usually the floor. The other
               exception is the plate calculator, for the same reason and with the
               same explicitness. Tabular figures matter at this size too: a colon
@@ -248,7 +248,7 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
               // 32px of tabular figures, two controls and a Skip button all fit
               // across a 390pt phone with room to spare and do not across a
               // 320pt one. Shrinking the number is the only one of those four
-              // that degrades gracefully — the alternative is "02:…", which is
+              // that degrades gracefully. The alternative is "02:…", which is
               // the countdown failing at its one job.
               adjustsFontSizeToFit
               minimumFontScale={0.7}
@@ -301,13 +301,13 @@ export function RestTimerBar({ onExpand }: RestTimerBarProps) {
  * Android does not need this: `softwareKeyboardLayoutMode: "resize"` in app.json
  * shrinks the window when the keyboard opens, so anything pinned to the bottom
  * of it comes along for free. iOS does not resize, and the bar would sit behind
- * the keyboard at exactly the moment the countdown matters most — the user is
+ * the keyboard at exactly the moment the countdown matters most. The user is
  * typing the next set's weight while resting.
  *
  * Reanimated ships `useAnimatedKeyboard`, which reads the keyboard on the UI
  * thread and would be the obvious answer, but on Android it calls
  * `setDecorFitsSystemWindows(false)` and takes over the window's insets for as
- * long as it is subscribed — which is precisely the resize behaviour this app
+ * long as it is subscribed, which is precisely the resize behaviour this app
  * relies on, switched off app-wide by a hook mounted for the benefit of the
  * other platform. Two `Keyboard` listeners that are only ever registered on iOS
  * cannot do that. They cost one JS event per keyboard transition, at a moment
@@ -323,7 +323,7 @@ function useKeyboardLift(bottomInset: number) {
 
     const settle = (overlap: number, eventDuration: number) => {
       // The keyboard covers the home-indicator inset, so the bar's own bottom
-      // padding is already accounted for in the overlap — lifting by the full
+      // padding is already accounted for in the overlap: lifting by the full
       // keyboard height would leave a gap the width of that inset above it.
       lift.value = withTiming(Math.max(0, overlap - bottomInset), {
         // UIKit hands us the duration of its own animation, so the bar travels

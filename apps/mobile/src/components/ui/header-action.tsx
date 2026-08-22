@@ -26,7 +26,7 @@ export type HeaderActionTone = 'accent' | 'danger' | 'success';
 /**
  * How a header action is drawn.
  *
- * `plain` is a word or a glyph in the role colour — the right weight for
+ * `plain` is a word or a glyph in the role colour: the right weight for
  * anything the user might do, and for everything destructive. `filled` is a
  * pill in the role colour, and it is reserved for the one action a screen
  * exists to complete: Finish on the logging screen, Save on the one in front of
@@ -48,7 +48,7 @@ export interface HeaderActionProps
   /**
    * What a screen reader announces. Required rather than optional because six
    * of the eight header buttons this replaces have no label at all and are read
-   * as their visible word — two bare "Save"s, a "New", a "Finish" — which names
+   * as their visible word (two bare "Save"s, a "New", a "Finish") which names
    * the verb and never its object. Name both: "Delete routine", not "Delete".
    */
   label: string;
@@ -74,12 +74,12 @@ export interface HeaderActionProps
  * accessibility label, and all of them reached for `hitSlop={8}` to make up the
  * difference. Slop is the wrong tool here: the header is a native subview whose
  * bounds react-native-screens owns, and a touch landing outside the JS view's
- * frame is not reliably delivered to it — which is why the app's header buttons
+ * frame is not reliably delivered to it, which is why the app's header buttons
  * are the hardest things in it to hit despite every one of them declaring slop.
  * So the 44pt comes from real padding on a real frame instead.
  *
  * The padding is asymmetric: it extends inwards, towards the title, into space
- * that is empty anyway. Outwards there is nothing to take — the native stack
+ * that is empty anyway. Outwards there is nothing to take: the native stack
  * sets the label's own margin from the screen edge, so padding that side moves
  * the label instead of growing the target. The width floor works the same way:
  * the content stays pinned to its outward edge and the frame reaches inwards to
@@ -102,7 +102,7 @@ export function HeaderAction({
   const filled = variant === 'filled';
 
   // Only a plain action, only where there is a cursor, and never while
-  // disabled — a dead control that lights up on approach is worse than one that
+  // disabled: a dead control that lights up on approach is worse than one that
   // stays dark, because it invites the click it is about to ignore.
   const revealsFrame = canHover && !filled && !disabled;
 
@@ -142,7 +142,7 @@ export function HeaderAction({
        * Under a cursor, a plain action reveals the frame it already occupies.
        *
        * The whole point of this component is that the target is 44pt of real
-       * padding rather than slop — and on a phone that is invisible and fine,
+       * padding rather than slop, and on a phone that is invisible and fine,
        * because a thumb aims at the word. A cursor aims at whatever looks
        * clickable, which for a bare "Save" is the five characters and not the
        * box around them. Tinting the frame on hover shows where the button
@@ -168,7 +168,7 @@ export function HeaderAction({
         /*
          * The pill is an inner view rather than the pressable's own frame.
          * The frame is 44pt so a thumb can find it, and a 44pt pill in a 44pt
-         * header touches both edges — so the target keeps its height and the
+         * header touches both edges, so the target keeps its height and the
          * shape sits inside it at 32.
          */
         <View
@@ -187,14 +187,14 @@ export function HeaderAction({
 }
 
 export interface HeaderHeadingProps {
-  /** The page's name — the same word the tab or the route is called by. */
+  /** The page's name: the same word the tab or the route is called by. */
   title: string;
   /**
    * One line under it, naming what the screen is currently showing: the week a
    * dashboard's figures cover, the range a chart is drawn over.
    *
    * Context, not a tagline. A screen with nothing to add here leaves it out and
-   * renders as a plain title — filling it with a restatement of the title, or
+   * renders as a plain title: filling it with a restatement of the title, or
    * with a sentence about what the tab is for, buys a second line of chrome on
    * every frame and answers nothing.
    */
@@ -205,15 +205,15 @@ export interface HeaderHeadingProps {
  * A header title with a second line under it.
  *
  * The three tabs are where this earns its place. Their headers were a single
- * word — "Home", "Workout", "Profile" — repeating the label of the tab already
+ * word ("Home", "Workout", "Profile") repeating the label of the tab already
  * highlighted at the bottom of the same screen, which made the app's most-seen
  * piece of chrome the one that said the least. The second line is the part that
  * is not knowable from anywhere else: Home states a volume "this week" in type
  * an inch high and never once says which seven days that is.
  *
  * Rendered through `headerTitle` rather than `headerTitleStyle`, so the type
- * here has to match `headerOptions` by hand: `heading` *is* that variant — 24 in
- * the display cut at -0.3 — and the two are only the same because they are both
+ * here has to match `headerOptions` by hand: `heading` *is* that variant: 24 in
+ * the display cut at -0.3, and the two are only the same because they are both
  * written down. Change one and change the other.
  *
  * The subtitle sits at `textSecondary` where a `ListRow`'s sits at
@@ -245,26 +245,26 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
  * Both navigators used to set these separately and disagreed: the stack titled
  * its screens at 17/semibold and the tab bar titled its own at 20/bold, so
  * pushing from Home visibly shrank the title. Alignment disagreed too, because
- * the two platforms disagree — a native-stack title is centred on iOS and
- * left-aligned on Android — which meant the same screen looked like two
+ * the two platforms disagree. A native-stack title is centred on iOS and
+ * left-aligned on Android, which meant the same screen looked like two
  * different apps depending on the phone.
  *
  * One title style, left-aligned on both platforms, and the back control reduced
  * to its chevron: iOS otherwise labels it with the previous screen's title, so
  * "Personal records" turned into a back button wider than the title it sat next
- * to. Stack-only options (`contentStyle`, gestures) stay at the call site — this
+ * to. Stack-only options (`contentStyle`, gestures) stay at the call site. This
  * is the set both navigators can take.
  *
  * Left rather than centred, which is the iOS default and was the first thing
  * this function did. A centred title is sized by whatever is left after both
  * ends have taken their share, so it truncates soonest on the screens with the
- * longest names — a workout called "Upper Body — Heavy" beside a Finish pill —
+ * longest names (a workout called "Upper Body) Heavy" beside a Finish pill,
  * and it moves when an action appears or disappears. Against the margin it
  * starts where every other first line on the screen starts, and it has the
  * whole width up to the actions.
  *
  * The size is the `heading` variant's: 24 in the display cut, which is what the
- * app sets a page title at everywhere else. That is the point — left-aligned at
+ * app sets a page title at everywhere else. That is the point: left-aligned at
  * the margin, this *is* the page's title, not a label on a bar above it, and at
  * 17 it read as chrome with the content's own headings shouting past it. The
  * two sizes below it (17, 20) both left the header quieter than the first
@@ -295,7 +295,7 @@ export function headerOptions(colors: Palette) {
  * 64 is what React Navigation already gives every header on Android, so this
  * changes nothing there; on iOS it is 20pt more than the 44 a compact header
  * gets, which is the room a subtitle needs. The tab headers are the ones that
- * can spend it — they sit at the root of the app rather than on top of a screen
+ * can spend it. They sit at the root of the app rather than on top of a screen
  * you are on your way back from, and iOS itself makes the same distinction with
  * its large titles.
  *
@@ -309,7 +309,7 @@ const TAB_HEADER_HEIGHT = 64;
  * How far the header is allowed to grow with the system text size.
  *
  * A JS header takes a fixed number, so a box measured against the default text
- * size clips the moment someone turns theirs up — and a two-line title clips
+ * size clips the moment someone turns theirs up, and a two-line title clips
  * twice as fast as a one-line one. Growing with the scale keeps both lines,
  * which is what the setting was turned up to achieve.
  *
@@ -330,7 +330,7 @@ const TAB_HEADER_MAX_SCALE = 1.6;
  * part of the number.
  *
  * The right margin is the other, and it is the one that bites. A native-stack
- * header gives its buttons their own margin from the screen edge — which is why
+ * header gives its buttons their own margin from the screen edge, which is why
  * `HeaderAction` pads inwards only, and would otherwise sit flush against the
  * glass here. The padding goes on the container rather than on the action, so
  * the action keeps a touch target that reaches in from an edge it is no longer
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     // is a hard-edged rectangle in a header full of rounded shapes.
     borderRadius: radius.md,
     // The native header container is 44pt, so a taller frame overflows it
-    // rather than growing it — `iconSize={24}` alone would ask for 48.
+    // rather than growing it. `iconSize={24}` alone would ask for 48.
     maxHeight: controlHeight.md,
   },
   // A filled action carries its own 32pt shape, so the frame's padding drops to

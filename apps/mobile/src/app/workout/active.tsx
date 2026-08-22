@@ -93,7 +93,7 @@ export default function ActiveWorkoutScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   // Only ever one live session, so this screen is a singleton and needs no id
-  // in its address — unlike the routine editor, which has one instance per
+  // in its address. Unlike the routine editor, which has one instance per
   // routine and has to say which one it is.
   const pendingExerciseIds = usePickedExercises(PICKER_ADDRESS);
   const clearPendingExercises = useExercisePicker((state) => state.clear);
@@ -113,7 +113,7 @@ export default function ActiveWorkoutScreen() {
    *
    * Deactivation is caught because releasing a tag that is not held rejects on
    * native, and the settings store mounts with defaults before it hydrates from
-   * SQLite — so a user who has this off still runs one activate/deactivate pair
+   * SQLite, so a user who has this off still runs one activate/deactivate pair
    * on the way in.
    */
   useEffect(() => {
@@ -166,7 +166,7 @@ export default function ActiveWorkoutScreen() {
   /*
    * Only the exercises this workout uses.
    *
-   * This was an unfiltered `select().from(exercisesTable)` — all ~6,800 catalog
+   * This was an unfiltered `select().from(exercisesTable)`: all ~6,800 catalog
    * rows marshalled out of SQLite to look up the six the session contains, and
    * `details` below rebuilt a 6,800-entry Map from them on every set edit
    * (measured at 0.87ms on desktop V8, several times that on device). The
@@ -239,7 +239,7 @@ export default function ActiveWorkoutScreen() {
    * happens to read that way. The prescription wins where there is one.
    *
    * Live rather than fetched once, only because every other read on this screen
-   * is — the routine tables are not written during a session, so this emits
+   * is. The routine tables are not written during a session, so this emits
    * once and then sits still.
    */
   const routineId = workout?.routineId ?? '';
@@ -270,7 +270,7 @@ export default function ActiveWorkoutScreen() {
    * Everything the progression engine is allowed to see, per exercise.
    *
    * Assembled here rather than in the block so the block is handed a value and
-   * not a query, and so the session editor — which shares that block — can
+   * not a query, and so the session editor (which shares that block) can
    * simply not pass one. Keyed off the loaded history: an exercise whose
    * sessions have not arrived yet has no entry, and no line renders.
    */
@@ -335,8 +335,8 @@ export default function ActiveWorkoutScreen() {
     );
   }, [pendingExerciseIds, workoutId, clearPendingExercises, guard]);
 
-  // Ask once when the logging screen first opens, rather than at app launch —
-  // the permission prompt makes far more sense in context. The stale-bell sweep
+  // Ask once when the logging screen first opens, rather than at app launch.
+  // The permission prompt makes far more sense in context. The stale-bell sweep
   // rides along for the same reason: it needs the same "we are in a session"
   // moment, and moving it to bootstrap would drag notification setup back to
   // app start, which is what asking in context was avoiding.
@@ -357,7 +357,7 @@ export default function ActiveWorkoutScreen() {
    * different consequence. That one is "may we ring a bell", and refusing it
    * silences the rest timer. This one is ACTIVITY_RECOGNITION, the runtime half
    * of Android's `health` foreground-service type, and refusing it costs only
-   * the session notification's protection from being killed in the background —
+   * the session notification's protection from being killed in the background:
    * the notification, its live countdown and its buttons all still work. So it
    * is not gated on a setting: there is no feature to turn off behind it.
    *
@@ -372,7 +372,7 @@ export default function ActiveWorkoutScreen() {
    * How much of the session is done, in one pass.
    *
    * Both figures rather than only the completed count, because the masthead now
-   * states progress as a fraction and draws it as a line — and "12" on its own
+   * states progress as a fraction and draws it as a line, and "12" on its own
    * answers a question nobody has mid-workout. Warm-ups are counted: they are
    * sets you have to get through before the working ones, and leaving them out
    * makes the line lurch when a block's first two rows check off in ten seconds.
@@ -463,7 +463,7 @@ export default function ActiveWorkoutScreen() {
       haptics.logged();
 
       // The live query has not refreshed yet, so "is the exercise finished?" is
-      // answered from the rows already in hand plus the write just made — every
+      // answered from the rows already in hand plus the write just made: every
       // other set complete means this check was the last one.
       const finishesExercise =
         detail.sets.length > 0 &&
@@ -471,7 +471,7 @@ export default function ActiveWorkoutScreen() {
 
       // Closing out an exercise used to raise a stats card over the screen. It
       // was information nobody had asked for, at the one moment the user is
-      // mid-flow and reaching for the next set — the summary screen already
+      // mid-flow and reaching for the next set: the summary screen already
       // says all of it, afterwards, when there is time to read it. What is left
       // is a heavier tap than a set gets, and the block marking itself done in
       // place: the milestone is still acknowledged, it just no longer interrupts.
@@ -513,7 +513,7 @@ export default function ActiveWorkoutScreen() {
   /*
    * "Complete set", pressed on the ongoing notification.
    *
-   * The notification cannot do this itself — see `store/notice-request` — so it
+   * The notification cannot do this itself (see `store/notice-request`) so it
    * raises a flag and this screen, which owns `handleToggleSet` and everything
    * that hangs off it, answers with the identical path a tap on the row takes.
    * The set chosen is the first unchecked one in exercise order, which is the
@@ -549,7 +549,7 @@ export default function ActiveWorkoutScreen() {
 
   // Names and set counts only. The sheet reorders a list of labels, and what
   // makes a block recognisable there is what it is called and how much of it
-  // there is — not the weights, which is what the screen behind it is for.
+  // there is: not the weights, which is what the screen behind it is for.
   const reorderItems = useMemo<ReorderItem[]>(
     () =>
       details.map((detail) => ({
@@ -618,8 +618,8 @@ export default function ActiveWorkoutScreen() {
    * Whether the docked bar is occupying the bottom of the screen.
    *
    * A boolean selector rather than the clock itself: this re-renders the whole
-   * logging screen, so it has to change twice a rest period — when the
-   * countdown starts and when it clears — and never once a second. It exists
+   * logging screen, so it has to change twice a rest period. When the
+   * countdown starts and when it clears, and never once a second. It exists
    * only to reserve scroll room, because the bar floats over the list rather
    * than sitting in it, and the last thing in that list is Discard workout.
    */
@@ -660,8 +660,8 @@ export default function ActiveWorkoutScreen() {
   /*
    * Finishing and discarding both leave the screen, so both are latched.
    *
-   * The ref is what actually closes the door — a second tap arrives before any
-   * state has re-rendered — and the state exists so the header can dim and say
+   * The ref is what actually closes the door. A second tap arrives before any
+   * state has re-rendered, and the state exists so the header can dim and say
    * the session is on its way out rather than looking untouched.
    */
   const closingRef = useRef(false);
@@ -670,7 +670,7 @@ export default function ActiveWorkoutScreen() {
   /*
    * Finish now *goes* somewhere rather than doing something.
    *
-   * It used to raise a confirmation dialog and write the session on its OK —
+   * It used to raise a confirmation dialog and write the session on its OK,
    * which is a modal asking "are you sure?" about the one thing the user came
    * here to do, and it was also the only place the app admitted that unchecked
    * sets get dropped. Both belong on a screen with room for them, so the review
@@ -787,7 +787,7 @@ export default function ActiveWorkoutScreen() {
         /*
          * The one place the screen admits it is not writing. A full disk is the
          * realistic cause, and SQLITE_FULL blocks writes without blocking
-         * reads — so the useful thing to offer is not a retry but the export,
+         * reads, so the useful thing to offer is not a retry but the export,
          * which can still get the session off the phone intact.
          */
         <Pressable
@@ -800,7 +800,7 @@ export default function ActiveWorkoutScreen() {
           style={({ pressed }) => [styles.writeFailure, pressed && styles.pressed]}
         >
           <Text variant="label" color="danger">
-            {`Not saving — ${lostWrites} ${lostWrites === 1 ? 'change' : 'changes'} lost`}
+            {`Not saving: ${lostWrites} ${lostWrites === 1 ? 'change' : 'changes'} lost`}
           </Text>
           <Ionicons name="chevron-forward" size={14} color={colors.danger} />
         </Pressable>
@@ -812,8 +812,8 @@ export default function ActiveWorkoutScreen() {
         // navigation inset is added to the content rather than the container.
         // The docked rest bar is added on top of it while one is running: it
         // floats over this list, and reserving its height only while it is
-        // there costs a scroll that grows at the bottom — where nothing is
-        // being read — instead of a permanent strip of dead space.
+        // there costs a scroll that grows at the bottom. Where nothing is
+        // being read: instead of a permanent strip of dead space.
         contentContainerStyle={[
           styles.scroll,
           { paddingBottom: spacing.huge + insets.bottom + (resting ? REST_BAR_HEIGHT : 0) },
@@ -842,7 +842,7 @@ export default function ActiveWorkoutScreen() {
                 previousNote={previousByExercise[detail.exercise.id]?.note ?? null}
                 progression={progressionByExercise[detail.exercise.id]}
                 onAddSet={() => {
-                  // Carry the last set's load forward — the usual case is
+                  // Carry the last set's load forward. The usual case is
                   // repeating the same weight for another set.
                   const last = detail.sets[detail.sets.length - 1];
                   haptics.added();
@@ -915,7 +915,7 @@ export default function ActiveWorkoutScreen() {
               // adding one. Opening the picker plainly cancels it.
               replacingLinkId.current = null;
               // What is already on the list travels with the request, so the
-              // picker can offer what usually goes with it — and leave out what
+              // picker can offer what usually goes with it, and leave out what
               // is already there.
               openPicker(
                 PICKER_ADDRESS,
@@ -959,7 +959,7 @@ export default function ActiveWorkoutScreen() {
           restingDetail
             ? () => {
                 // The duration editor is itself a `Modal`, and Android does not
-                // stack two of those reliably — the same reason the measurement
+                // stack two of those reliably: the same reason the measurement
                 // screen drops its sheet before confirming a delete. So this one
                 // goes down first and the editor comes up in its place.
                 setTimerSheetOpen(false);
@@ -996,7 +996,7 @@ export default function ActiveWorkoutScreen() {
  * The session masthead: how far through it you are, how long it has taken, and
  * how many sets are down.
  *
- * This was a `StatBand` — the app's generic row of figures — and a band is the
+ * This was a `StatBand` (the app's generic row of figures) and a band is the
  * right component for a screen that is *reporting* on a session. This screen is
  * the session. The one question a lifter actually asks mid-workout is "how much
  * is left", and nothing in the app answered it: the band said "Duration 42:18,
@@ -1004,13 +1004,13 @@ export default function ActiveWorkoutScreen() {
  *
  * So the fraction is stated and then drawn. The line is full-bleed, flush under
  * the header, and it is the only element on this screen that spans the whole
- * width — which is what lets a 3pt rule read as the session's own progress
+ * width, which is what lets a 3pt rule read as the session's own progress
  * rather than as a divider that happens to be lime.
  *
  * That is the second lime element this screen can show: the docked rest bar
  * draws its countdown in the accent too (`describeRest`), which puts the budget
  * in `theme/tokens.ts` at two while a rest is running. They are allowed to
- * coexist because they are never the same reading — this one is at the top edge
+ * coexist because they are never the same reading. This one is at the top edge
  * and only ever grows, that one is at the bottom edge and only ever drains, and
  * the rest bar is gone the moment the countdown ends.
  *
@@ -1092,15 +1092,15 @@ function Elapsed({ startedAt }: { startedAt: Date }) {
 /**
  * Sets completed, drawn as a line.
  *
- * Slid rather than scaled or widened, which is the same technique — and the
- * same reasoning — as the rest timer's track: `scaleX` grows from the centre
+ * Slid rather than scaled or widened, which is the same technique, and the
+ * same reasoning: as the rest timer's track: `scaleX` grows from the centre
  * and needs a `transformOrigin` not every surface honours, and animating
  * `width` puts a layout pass on the UI thread's critical path once a set. A
  * full-width layer translated out to the left is the same picture with neither
  * problem, and the left edge stays put while the right edge does the moving.
  *
- * It moves twice a set at most, so unlike the rest bar there is no ticker here
- * — the value changes only when a check plate does.
+ * It moves twice a set at most, so unlike the rest bar there is no ticker here:
+ * the value changes only when a check plate does.
  */
 function SessionProgress({ completed, total }: { completed: number; total: number }) {
   const colors = useColors();
@@ -1142,7 +1142,7 @@ const styles = StyleSheet.create({
    * Both for the same reason the rest timer's track is: this line is read at a
    * glance from wherever the phone is sitting, and a hairline of lime against
    * the canvas is not something anyone is going to notice moving. The width is
-   * what makes it the session's line rather than a divider — every other
+   * what makes it the session's line rather than a divider: every other
    * element on this screen sits inside the 16pt margin.
    */
   progressTrack: {

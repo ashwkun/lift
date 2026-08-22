@@ -31,7 +31,7 @@ export default function PlateCalculatorScreen() {
   const scrollEdge = useScrollEdge();
 
   const weightUnit = useSettings((state) => state.weightUnit);
-  // The configured bar *is* the state — there is no local copy to drift from
+  // The configured bar *is* the state. There is no local copy to drift from
   // it. Zustand reads synchronously, so tapping a chip repaints this frame and
   // the choice is still there the next time the screen opens, and for the plate
   // line printed under every barbell block during a session.
@@ -116,7 +116,7 @@ export default function PlateCalculatorScreen() {
               </Text>
             ) : result.plates.length === 0 ? (
               <Text variant="body" color="textSecondary">
-                Empty bar — no plates needed.
+                Empty bar: no plates needed.
               </Text>
             ) : (
               <View>
@@ -152,7 +152,7 @@ export default function PlateCalculatorScreen() {
             <SummaryRow label="Loaded" value={formatWeight(result.achievedKg, weightUnit)} />
             <SummaryRow label="Bar" value={formatWeight(barKg, weightUnit)} />
             {/* Only appears when the target cannot be made, which is the whole
-                announcement — a line reading "loadable" under every exact
+                announcement: a line reading "loadable" under every exact
                 answer would be the screen talking for the sake of it. */}
             {!result.exact && !result.belowBar && (
               <SummaryRow
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   // The denominations are the answer, and the question gets asked with the
-  // phone on the floor and chalk on both hands, so they stay large — larger
+  // phone on the floor and chalk on both hands, so they stay large: larger
   // than anything else on this screen, including the field they were derived
   // from. Ruled rather than boxed: elsewhere in the app a box means the thing
   // inside it can be pressed, and these are read, not touched. `numericLarge`

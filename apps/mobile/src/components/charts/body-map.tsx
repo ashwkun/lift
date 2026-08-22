@@ -41,7 +41,7 @@ const REGION_ALIASES: Partial<Record<MuscleGroup, MuscleGroup>> = {
  * Every muscle a drawn region stands for, the alias table read backwards.
  *
  * Selecting a region has to select everything it covers, or tapping the upper
- * back would filter to lats and quietly drop every row press — the exact
+ * back would filter to lats and quietly drop every row press: the exact
  * exercises the tap was reaching for.
  */
 export const REGION_MUSCLES: Partial<Record<MuscleGroup, MuscleGroup[]>> = (() => {
@@ -57,7 +57,7 @@ export function musclesInRegion(region: MuscleGroup): MuscleGroup[] {
   return REGION_MUSCLES[region] ?? [region];
 }
 
-/** Muscles with no place on either figure — they still appear in the list. */
+/** Muscles with no place on either figure: they still appear in the list. */
 export const UNMAPPED_MUSCLES: readonly MuscleGroup[] = ['cardio', 'full_body', 'other'];
 
 export interface BodyMapProps {
@@ -108,8 +108,8 @@ export function BodyMap({
     <Figures
       width={width}
       maxHeight={maxHeight}
-      // A selected muscle keeps its heat colour and gains an outline —
-      // repainting it would hide the one value the tap was asking about.
+      // A selected muscle keeps its heat colour and gains an outline.
+      // Repainting it would hide the one value the tap was asking about.
       fillFor={(muscle) =>
         volumeColor(regionSets[muscle] ?? 0, colors, regionLandmarks(muscle, level))
       }
@@ -163,7 +163,7 @@ export function MuscleSelectMap({
       fillFor={(region) => (isSelected(region) ? colors.accent : colors.surfaceMuted)}
       isSelected={isSelected}
       // Selection is spelled into the label because a `Path` takes only
-      // `accessible` and `accessibilityLabel` — there is no `accessibilityState`
+      // `accessible` and `accessibilityLabel`. There is no `accessibilityState`
       // on an SVG node to carry it.
       label={(region) =>
         [
@@ -234,7 +234,7 @@ interface FiguresProps {
  * The pair of figures, with everything the caller decides passed in.
  *
  * Shared rather than duplicated because the two callers differ only in what a
- * region's colour *means* — a second copy of this would be a second place for
+ * region's colour *means*. A second copy of this would be a second place for
  * the alias table and the aspect-ratio maths to drift.
  */
 function Figures({ width, maxHeight, ...figure }: FiguresProps) {

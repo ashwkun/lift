@@ -2,15 +2,15 @@
  * Keeps the rest period on disk so it outlives the process.
  *
  * A scheduled notification survives the app being killed; the countdown behind
- * it did not. Coming back to a bell for a timer the app has forgotten — with no
- * bar, no remaining time and no way to skip it — is the worst version of that
+ * it did not. Coming back to a bell for a timer the app has forgotten: with no
+ * bar, no remaining time and no way to skip it. Is the worst version of that
  * moment. Because the period is stored as an absolute deadline (see the
  * docstring in `./timer`), all it takes is writing the numbers down.
  *
  * It goes into the existing `settings` key/value table under its own key rather
  * than through Zustand's `persist` middleware. That middleware rehydrates
  * asynchronously, which means the first frame paints with an idle timer and the
- * bar drops in a moment later — the same ~90pt jump under a moving thumb the
+ * bar drops in a moment later: the same ~90pt jump under a moving thumb the
  * rest of this work is trying to remove. Reading it in `Bootstrap` behind the
  * splash costs one query and lands the bar in the first frame it belongs in.
  */
@@ -32,8 +32,8 @@ let lastWritten: string | null = null;
  *
  * Contract for the caller: `await` this inside `Bootstrap` before the splash
  * lifts, after migrations have run (it queries a table) and alongside the
- * settings hydrate. It never throws and never rejects — an unreadable row means
- * no rest timer, which is the same state a fresh install is in — so it needs no
+ * settings hydrate. It never throws and never rejects. An unreadable row means
+ * no rest timer, which is the same state a fresh install is in, so it needs no
  * try/catch of its own at the call site. It also attaches the writer, so
  * calling it is enough on its own; `subscribeRestPersistence` is only needed if
  * the writer should outlive a caller that wants to detach it.
@@ -62,7 +62,7 @@ export async function loadPersistedRest(): Promise<void> {
  * Idempotent, and returns the unsubscribe. `loadPersistedRest` already calls
  * it; this export exists for the case where the writer has to be torn down.
  * The store only ever changes when the user starts, adjusts, pauses, resumes or
- * ends a rest — the 1Hz countdown is derived at read time and writes nothing —
+ * ends a rest. The 1Hz countdown is derived at read time and writes nothing,
  * so this is a handful of rows per session, not one a second.
  */
 export function subscribeRestPersistence(): () => void {

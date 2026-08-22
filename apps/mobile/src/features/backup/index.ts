@@ -37,7 +37,7 @@ const BACKUP_FORMAT = 'lift-backup';
  *
  * `ironlog-backup` is what the app stamped before it was renamed. The file shape
  * never changed, so refusing those would strand real backups over a cosmetic
- * difference — they stay readable indefinitely.
+ * difference. They stay readable indefinitely.
  */
 const ACCEPTED_FORMATS = [BACKUP_FORMAT, 'ironlog-backup'];
 
@@ -52,7 +52,7 @@ export interface BackupFile {
 /**
  * Serialises every user table.
  *
- * Built-in exercises are excluded — they ship with the app and re-seed on
+ * Built-in exercises are excluded: they ship with the app and re-seed on
  * launch, so including 230 static rows would bloat every backup for nothing.
  * Custom exercises are kept, since routines and history reference them.
  */
@@ -192,7 +192,7 @@ export interface ImportResult {
   imported: Record<string, number>;
   skipped: number;
   /**
-   * Restored rows the sync engine will push. Zero while signed out — the oplog
+   * Restored rows the sync engine will push. Zero while signed out. The oplog
    * entries are still written, but there is no account to promise them to.
    */
   queued: number;
@@ -209,7 +209,7 @@ const CHUNK_SIZE = 50;
  * Restores a backup.
  *
  * Rows are inserted with `onConflictDoNothing`, making the import additive and
- * idempotent — re-importing the same file changes nothing, and importing onto a
+ * idempotent: re-importing the same file changes nothing, and importing onto a
  * device that already has data merges rather than destroys. Because IDs are
  * UUIDv7, collisions between genuinely different rows are not a concern.
  *
@@ -223,7 +223,7 @@ const CHUNK_SIZE = 50;
  *
  * Split out so the import screen can show what a file holds before the user
  * commits to it, and so the two paths can never disagree about whether a file
- * is acceptable — the confirmation and the restore run the same checks.
+ * is acceptable. The confirmation and the restore run the same checks.
  */
 export function inspectBackup(json: string): BackupFile {
   let parsed: BackupFile;

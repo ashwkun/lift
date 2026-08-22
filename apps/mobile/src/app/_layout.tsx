@@ -29,8 +29,8 @@ import { AppThemeProvider, spacing, useColors, useLayout, useTheme } from '@/the
 void SplashScreen.preventAutoHideAsync();
 
 /**
- * Gives every route pushed from outside the app — a rest notification tap, a
- * `lift://` link into `/workout/active` — a real back stack. Without an anchor
+ * Gives every route pushed from outside the app: a rest notification tap, a
+ * `lift://` link into `/workout/active`: a real back stack. Without an anchor
  * the deep-linked screen is the only entry on the stack, so its back button is
  * missing and the user is stranded on a detail screen with no way into the app.
  */
@@ -50,8 +50,8 @@ export default function RootLayout() {
           {/*
             Outside `Bootstrap`, not inside `AppNavigator`, and not keyed on
             `attempt`. `StartupError` is rendered *instead of* the navigator and
-            still raises dialogs — its export button reports where the file went
-            — so a host mounted under the navigator would not exist on the one
+            still raises dialogs: its export button reports where the file went,
+            so a host mounted under the navigator would not exist on the one
             screen with no other way to say anything. Sitting here it also
             survives the remount a retry performs, which is what stops a dialog
             raised by the failing attempt from being torn down mid-read.
@@ -67,7 +67,7 @@ export default function RootLayout() {
  * Waits for the database to exist, before anything is allowed to read it.
  *
  * On native this is already true on the first render and this component is a
- * pass-through — the handle is opened during `db/client`'s own evaluation.
+ * pass-through. The handle is opened during `db/client`'s own evaluation.
  *
  * On web it is not. There the database is a worker that has to instantiate
  * WebAssembly before it can answer, so `db` is assigned a moment after import
@@ -103,14 +103,14 @@ function Bootstrap({ onRetry }: { onRetry: () => void }) {
   }, [open]);
 
   // `Startup` hides the splash when it settles, and it is never mounted on this
-  // path — so without this the error screen renders underneath a splash that
+  // path, so without this the error screen renders underneath a splash that
   // stays up forever, which reads as a hang rather than as the failure it is.
   useEffect(() => {
     if (openError) void SplashScreen.hideAsync();
   }, [openError]);
 
   // A database that will not open is a startup failure of exactly the kind
-  // `StartupError` exists for, and the retry it offers is a remount — which
+  // `StartupError` exists for, and the retry it offers is a remount, which
   // re-reads `isDatabaseOpen` rather than re-opening, because the promise is
   // the module's and settles once.
   if (openError) return <StartupError error={openError} onRetry={onRetry} />;
@@ -124,7 +124,7 @@ function Bootstrap({ onRetry }: { onRetry: () => void }) {
  * library seed (which needs the tables), then preferences and the rest period
  * left behind by the last process.
  *
- * Fonts load alongside all of that rather than after it — they're bundled
+ * Fonts load alongside all of that rather than after it: they're bundled
  * assets, not a network fetch, and gating the splash on them too means the
  * first frame is already the bundled face instead of flashing a system one
  * and reflowing.
@@ -137,7 +137,7 @@ function Startup({ onRetry }: { onRetry: () => void }) {
   // The keys here are the names `fontFamily` in the tokens refers to: expo-font
   // registers each face under the key it is given, on both platforms, so these
   // two lists have to agree and nothing else in the app names a font. Four
-  // upright cuts, which is every weight the theme asks for — see `fontFamily`
+  // upright cuts, which is every weight the theme asks for: see `fontFamily`
   // for which role gets which, and why no italic is loaded.
   //
   // Required relatively rather than through the `@/assets` alias, matching the
@@ -178,7 +178,7 @@ function Startup({ onRetry }: { onRetry: () => void }) {
     };
   }, [migrated, hydrate]);
 
-  // A missing font is not worth blocking launch over — React Native falls back
+  // A missing font is not worth blocking launch over. React Native falls back
   // to the system face, so `fontError` counts as "done loading", not as a
   // startup failure the way a failed migration does.
   const ready = migrated && seeded && hydrated && (fontsLoaded || Boolean(fontError));
@@ -188,12 +188,12 @@ function Startup({ onRetry }: { onRetry: () => void }) {
   // unreadable face fails the whole `useFonts` call, every weight in the theme
   // resolves to the system font, and the app looks exactly like a build where
   // the type tokens were never applied. That is indistinguishable by eye from a
-  // stale Metro cache, and the two have completely different fixes — so the one
+  // stale Metro cache, and the two have completely different fixes, so the one
   // the app actually knows about says so rather than leaving it to be guessed.
   useEffect(() => {
     if (__DEV__ && fontError) {
       console.warn(
-        `[fonts] Falling back to the system face — the bundled family did not load. ${fontError.message}`,
+        `[fonts] Falling back to the system face. The bundled family did not load. ${fontError.message}`,
       );
     }
   }, [fontError]);
@@ -230,7 +230,7 @@ function AppNavigator() {
 
         This is the whole reason the rail is not a side-mounted tab bar. The tab
         navigator is one screen within this stack, so a rail it owned would be
-        covered by every screen pushed on top of it — which is most of the app.
+        covered by every screen pushed on top of it, which is most of the app.
         Here it is a sibling of the navigator, so it survives every push, and
         the stack's headers land in the pane beside it.
 
@@ -238,7 +238,7 @@ function AppNavigator() {
         holding a single `flex: 1` child lays out identically to that child on
         its own, and keeping the tree the same shape across the breakpoint means
         crossing 840 while dragging a window edge does not remount the
-        navigator — which would drop the entire back stack.
+        navigator, which would drop the entire back stack.
       */}
       <View style={styles.shell}>
         {isWide && <SideRail />}
@@ -246,7 +246,7 @@ function AppNavigator() {
           <Stack
             screenOptions={{
               // The shared set, spread rather than restated. This stack and the tab
-              // navigator each used to declare their own and drifted apart — see
+              // navigator each used to declare their own and drifted apart: see
               // `headerOptions` for what that cost and what it now fixes.
               ...headerOptions(colors),
               /*
@@ -256,8 +256,8 @@ function AppNavigator() {
                *
                * `minimal` keeps the chevron and drops the word beside it. iOS
                * otherwise labels the control with the previous screen's title,
-               * which on a stack whose titles are sentences — "Personal records",
-               * "Set count per muscle" — puts a back button wider than the title it
+               * which on a stack whose titles are sentences. "Personal records",
+               * "Set count per muscle". Puts a back button wider than the title it
                * sits next to, and pushes the title along to make room for itself.
                * `headerBackTitleVisible` is the older spelling of this and still
                * typechecks, but react-native-screens now drives the native
@@ -273,7 +273,7 @@ function AppNavigator() {
                * because these screens mount straight into a database query and the
                * two landed on top of each other. That was true, and it was never
                * about the animation: a native stack push runs on the OS side and
-               * cannot be slowed down by JS. What hitched was the *incoming mount* —
+               * cannot be slowed down by JS. What hitched was the *incoming mount*:
                * the query resolving mid-push and re-rendering a screenful of charts.
                * `useDeferredFocusEffect` moves that work behind the transition, and
                * with it gone there is nothing left here to compensate for.
@@ -287,8 +287,8 @@ function AppNavigator() {
               /*
                * No `freezeOnBlur` here, unlike the tab navigator.
                *
-               * It would be a real saving — a covered screen's live queries re-run
-               * on every write the user cannot see — but the stack is the one place
+               * It would be a real saving: a covered screen's live queries re-run
+               * on every write the user cannot see, but the stack is the one place
                * a blurred screen gets *looked at* before it is focused again: an
                * iOS back-swipe reveals the screen underneath progressively, under
                * the user's thumb, for as long as the gesture lasts. Unfreezing is
@@ -321,13 +321,13 @@ function StartupSpinner() {
 /**
  * The last screen before a dead app, so it has to offer more than the message.
  *
- * Retry remounts `Bootstrap` and re-runs the whole sequence — worth a tap,
+ * Retry remounts `Bootstrap` and re-runs the whole sequence: worth a tap,
  * because a locked database or a busy file system recovers on its own. Export
  * is the escape hatch that matters: the training log only exists on this phone,
  * and a failed migration is exactly when someone reaches for a reinstall.
  *
  * Export runs inline rather than pushing `/export`. When this renders there is
- * no navigator mounted — `Bootstrap` returned this instead of the `Stack` — so
+ * no navigator mounted (`Bootstrap` returned this instead of the `Stack`) so
  * a route push here would go nowhere. Writing the file needs reads only, which
  * a database that opened can still serve even when migrating it failed.
  */

@@ -63,7 +63,7 @@ interface SuggestionsProps {
  * actually holds everything.
  *
  * The subtitle exists because a ranked list that doesn't say what it ranked on
- * reads as an arbitrary one — and this one is worth trusting.
+ * reads as an arbitrary one, and this one is worth trusting.
  */
 function Suggestions({ exercises, fromContext, selected, onPress }: SuggestionsProps) {
   return (
@@ -94,7 +94,7 @@ function Suggestions({ exercises, fromContext, selected, onPress }: SuggestionsP
  * Multi-select exercise picker.
  *
  * Publishes the chosen ids to `useExercisePicker` rather than writing to the
- * database itself — the caller knows whether they're building a routine or
+ * database itself: the caller knows whether they're building a routine or
  * adding to a live workout, and this screen shouldn't. It doesn't address the
  * delivery either: the opener stamps the channel with its own name before
  * navigating here, so this screen still needs to know nothing about it.
@@ -109,7 +109,7 @@ export default function ExercisePickerScreen() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   // A Set, not an array: `selected.includes(id)` ran once per rendered row on
   // every keystroke and every toggle. This screen opens mid-set, with the
-  // keyboard already up — it is the most latency-sensitive list in the app.
+  // keyboard already up. It is the most latency-sensitive list in the app.
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
 
   const { rows: allExercises, loaded } = useRows(
@@ -199,7 +199,7 @@ export default function ExercisePickerScreen() {
   );
 
   // Both queries have to have answered before anything renders. Not for the
-  // catalog's sake — it is empty either way — but so the suggestion block can't
+  // catalog's sake (it is empty either way) but so the suggestion block can't
   // appear a frame late and shove the first rows of the list down under a
   // thumb already on its way to one of them.
   const ready = loaded && historyLoaded;
@@ -211,7 +211,7 @@ export default function ExercisePickerScreen() {
   const confirm = () => {
     if (selected.size === 0) return;
     // Publish before dismissing. Order matters: exercises are added in the
-    // order the user picked them, which a Set preserves — re-selecting after a
+    // order the user picked them, which a Set preserves: re-selecting after a
     // deselect moves the id to the end, exactly as the array version did.
     submit([...selected]);
     router.back();
@@ -223,8 +223,8 @@ export default function ExercisePickerScreen() {
         options={{
           title: 'Add exercise',
           // Both stay plain, and the pair is the reason why. The action this
-          // screen exists to complete is the confirm bar at its foot — it is
-          // the one that carries the count of what you picked — so filling
+          // screen exists to complete is the confirm bar at its foot. It is
+          // the one that carries the count of what you picked, so filling
           // either of these would put the emphasis on leaving or on a detour.
           headerLeft: () => (
             <HeaderAction

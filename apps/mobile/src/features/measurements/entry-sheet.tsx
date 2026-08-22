@@ -37,7 +37,7 @@ const STEPPER_ACTIONS = [{ name: 'increment' }, { name: 'decrement' }] as const;
 const MAX_BACKDATE_DAYS = 365;
 
 export interface MeasurementEntryInput {
-  /** Storage units — kg, percent or cm. */
+  /** Storage units: kg, percent or cm. */
   value: number;
   measuredAt: Date;
   notes: string | null;
@@ -67,7 +67,7 @@ export interface MeasurementEntrySheetProps {
  *
  * This replaces a bare text prompt, which could do exactly one thing: attach a
  * number to the instant the dialog was open. Everything it could not do was
- * something people actually need — weighing in at 7am and logging it at 9pm,
+ * something people actually need: weighing in at 7am and logging it at 9pm,
  * fixing a tape read wrong, noting that this one was taken after a heavy meal,
  * or nudging a figure by a tenth without retyping it. It also accepted any
  * number at all, so a waist of 850 cm went into the log and flattened every
@@ -88,7 +88,7 @@ export function MeasurementEntrySheet({
 
   // Two primitive selectors rather than one returning an object: Zustand hands
   // the selector's result to `useSyncExternalStore`, which re-renders whenever
-  // the snapshot's identity changes — a fresh object every render is an
+  // the snapshot's identity changes. A fresh object every render is an
   // infinite loop.
   const weightUnit = useSettings((state) => state.weightUnit);
   const measurementUnit = useSettings((state) => state.measurementUnit);
@@ -99,7 +99,7 @@ export function MeasurementEntrySheet({
   const [notes, setNotes] = useState('');
 
   // Re-seeded whenever the sheet opens on a different subject, adjusted during
-  // render against what it was last seeded from — the pattern the other sheets
+  // render against what it was last seeded from: the pattern the other sheets
   // in this app use. An effect would do the same job one commit later, painting
   // the previous body part's number for a frame first.
   const [seed, setSeed] = useState({ visible, kind, entryId: entry?.id ?? null });
@@ -124,7 +124,7 @@ export function MeasurementEntrySheet({
 
   // The parent drops `kind` at the same moment it hides the sheet, and a
   // component that returns null is torn out of the tree rather than animated
-  // out of it — so the fade never played. Holding the last subject lets the
+  // out of it, so the fade never played. Holding the last subject lets the
   // dismissal finish on the content it was already showing.
   const [lastKind, setLastKind] = useState(kind);
   if (kind && kind !== lastKind) setLastKind(kind);
@@ -204,7 +204,7 @@ export function MeasurementEntrySheet({
         {/*
           `accessible={false}` on both Pressables. Pressable defaults to
           accessible, which would collapse the whole sheet into one element and
-          leave the field, the stepper and both buttons unreachable — the same
+          leave the field, the stepper and both buttons unreachable: the same
           trap the rest-duration sheet documents. Tap-outside-to-dismiss has no
           screen reader equivalent on purpose: Cancel is a swipe away, and
           Android's back gesture already routes to `onRequestClose`.
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     // A step above the figures this sheet writes, and a step below what it was.
     //
     // This is the one number on screen being *typed*, between two stepper
-    // buttons, so it keeps more size than a stat that is only read — you are
+    // buttons, so it keeps more size than a stat that is only read. You are
     // checking a digit you just entered against a scale you are standing on.
     // 32 was matching `numericLarge` back when that meant display type; it is
     // not a dashboard figure and does not follow it all the way down.

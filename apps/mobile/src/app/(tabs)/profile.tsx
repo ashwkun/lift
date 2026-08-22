@@ -63,8 +63,8 @@ export default function ProfileScreen() {
   );
 
   // The figures wait; the screen does not. Holding the whole tab the way Home
-  // does would put the settings menu behind an analytics scan — and behind a
-  // failed one for good, since the loader above has no retry — so only what is
+  // does would put the settings menu behind an analytics scan, and behind a
+  // failed one for good, since the loader above has no retry, so only what is
   // genuinely unknown is held back. The unit is held with it: "— kg" would
   // attach a unit to a number nobody has yet.
   const [volume, volumeUnit] = stats
@@ -77,7 +77,7 @@ export default function ProfileScreen() {
         {/*
          * A masthead rather than a dashboard.
          *
-         * Everything under it is navigation — settings, exports, measurements —
+         * Everything under it is navigation: settings, exports, measurements,
          * so the top of this screen is the only place it says anything, and
          * what it has to say is one number: everything this person has ever
          * lifted. Keeping it a step above the ruled band beneath states the
@@ -92,7 +92,7 @@ export default function ProfileScreen() {
          * palette the accent is a dark olive chosen to be legible as text, so
          * accenting the number made the loudest thing on the screen quieter
          * than the label above it. Colouring the small word instead holds in
-         * both schemes with no branching on the colour scheme — do not swap
+         * both schemes with no branching on the colour scheme. Do not swap
          * these back.
          */}
         <View style={styles.masthead}>
@@ -122,7 +122,7 @@ export default function ProfileScreen() {
          * Everything that looks backwards, directly under the band and above
          * everything else on this screen.
          *
-         * The masthead states one number — everything ever lifted — and these
+         * The masthead states one number (everything ever lifted) and these
          * are the three rows that take it apart: as a list, as a grid of days,
          * and as a set of charts. Anywhere further down and they read as
          * settings, which is what the rest of this screen is.
@@ -217,8 +217,8 @@ export default function ProfileScreen() {
           <Divider inset={spacing.lg} />
           {/*
            * Its own row for the same reason Import has one: nobody looking for
-           * it is looking for the word "export". It is an export — the same
-           * read, written for a different reader — but what someone wants is
+           * it is looking for the word "export". It is an export. The same
+           * read, written for a different reader, but what someone wants is
            * an opinion on their training, and that is what the row has to say.
            */}
           <ListRow

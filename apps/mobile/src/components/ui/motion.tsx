@@ -2,8 +2,8 @@
  * The two motion primitives the rest of the UI is built from.
  *
  * `PressableScale` is what a tap feels like; `Reveal` is what arriving content
- * looks like. Both run entirely on the UI thread, which is the whole point —
- * this app's screens are usually busy resolving a SQLite aggregate at exactly
+ * looks like. Both run entirely on the UI thread, which is the whole point.
+ * This app's screens are usually busy resolving a SQLite aggregate at exactly
  * the moment they are being touched or transitioned into, and any feedback
  * driven from JS would queue behind that work and arrive late. Late feedback is
  * worse than none: it reads as the app having missed the tap.
@@ -40,7 +40,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   /**
-   * Plain styles only — no `({ pressed }) => …` function.
+   * Plain styles only: no `({ pressed }) => …` function.
    *
    * That is the point of this component rather than an oversight. The function
    * form is React Native asking JS for a new stylesheet on press-in and again
@@ -57,8 +57,8 @@ export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   /**
    * Resting outline, for a control whose border has to travel with its fill.
    *
-   * Only for shapes that keep their border the same colour as what it encloses —
-   * the chip, whose outline is its own fill so that a rounded 1pt stroke has no
+   * Only for shapes that keep their border the same colour as what it encloses.
+   * The chip, whose outline is its own fill so that a rounded 1pt stroke has no
    * seam to show (see `stroke` in the tokens). Leaving it out while the fill
    * crossfades would leave a ring of the resting colour around a pressed centre,
    * which is the exact artefact the chip's border rule exists to prevent.
@@ -73,22 +73,22 @@ export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
    * answer that a finger does not. A finger arrives already touching, so
    * press-in *is* the first contact and the pressed fill is the whole response.
    * A cursor hovers first, and a row that does not acknowledge it reads as
-   * decoration rather than as something you can click — the single most common
+   * decoration rather than as something you can click: the single most common
    * way a phone layout feels wrong in a browser.
    *
    * Ignored where the pointer cannot hover, so a touchscreen never lights a
    * state it has no way to leave. See `canHover`.
    *
-   * Applied on the frame the cursor arrives rather than faded in — see the note
+   * Applied on the frame the cursor arrives rather than faded in: see the note
    * on `hovered` in the implementation for why this one channel is React state
    * while the other four are worklets.
    */
   hoverFill?: string;
-  /** Scale at full press. Pass `1` for full-bleed rows — see `PRESS_SCALE`. */
+  /** Scale at full press. Pass `1` for full-bleed rows: see `PRESS_SCALE`. */
   scaleTo?: number;
   /**
-   * Opacity at full press. For controls with no fill of their own to darken —
-   * a bare glyph, an outlined button on the canvas — where a colour step has
+   * Opacity at full press. For controls with no fill of their own to darken:
+   * a bare glyph, an outlined button on the canvas. Where a colour step has
    * nothing to step from.
    */
   dimTo?: number;
@@ -98,7 +98,7 @@ export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
  * A `Pressable` that responds to the touch itself rather than only to what the
  * touch does.
  *
- * The four channels — scale, fill, outline, opacity — are all driven off one
+ * The four channels (scale, fill, outline, opacity) are all driven off one
  * shared value, so a control can combine them without four animations racing.
  * Press-in is a timing because the response has to be immediate and linear to
  * the gesture; press-out is a spring because release is the half that gets to
@@ -128,7 +128,7 @@ export function PressableScale({
    *
    * Press is on the UI thread because it has to be: it fires under a finger, on
    * a set row inside a list of set rows, at the exact moment the screen is
-   * usually resolving a SQLite aggregate — the whole reason this component
+   * usually resolving a SQLite aggregate: the whole reason this component
    * exists (see the note at the top of the file). Hover fires twice per pointer
    * pass, on a desktop, from a mouse. Two renders of one pressable is not a
    * budget worth a second worklet.
@@ -136,7 +136,7 @@ export function PressableScale({
    * It is also the only formulation the React Compiler accepts. A second shared
    * value feeding `interpolateColor` makes its immutability analysis reclassify
    * *both* shared values as frozen, and `react-hooks/immutability` then rejects
-   * every `.value` write in the component — including the two press writes that
+   * every `.value` write in the component. Including the two press writes that
    * predate any of this. Reading a shared value into arithmetic is fine; routing
    * one into a colour interpolation is not.
    *
@@ -148,7 +148,7 @@ export function PressableScale({
   const [hovered, setHovered] = useState(false);
 
   // Which of the four channels are live is decided here, once, from props that
-  // do not change under a finger — and a channel that is off is left out of the
+  // do not change under a finger, and a channel that is off is left out of the
   // animated style entirely rather than returned at its resting value.
   //
   // That is not an optimisation, it is correctness. The animated style is
@@ -158,9 +158,9 @@ export function PressableScale({
   // disabled. Emitting only what is actually being driven leaves everything
   // else to the stylesheet, where it belongs.
   //
-  // The key set still has to hold steady for the life of an animation —
-  // swapping it mid-flight is what leaves a Reanimated style stuck on its last
-  // value — and it does: a theme change re-runs this with new colours, not new
+  // The key set still has to hold steady for the life of an animation.
+  // Swapping it mid-flight is what leaves a Reanimated style stuck on its last
+  // value, and it does: a theme change re-runs this with new colours, not new
   // keys, and `disabled` flipping mid-press cancels the gesture anyway.
   const scaled = scaleTo !== 1;
   const dimmed = dimTo !== 1;
@@ -177,8 +177,8 @@ export function PressableScale({
    * This is the whole of the hover channel: the endpoint moves, and the
    * existing single-shared-value interpolation carries it. The worklet is
    * therefore byte-identical in shape to what it was before hover existed,
-   * which is what keeps the phone path — where `hovers` is always false and
-   * `resting` is always `fill` — exactly as it was.
+   * which is what keeps the phone path. Where `hovers` is always false and
+   * `resting` is always `fill`. Exactly as it was.
    */
   const resting = hovers && hovered ? hoverFill : fill;
 
@@ -212,7 +212,7 @@ export function PressableScale({
       /*
        * Gated on `hovers` so a pressable with no hover fill never re-renders
        * for a cursor passing over it. The caller's own handlers are forwarded
-       * either way — that is their business, not this component's.
+       * either way. That is their business, not this component's.
        */
       onHoverIn={(event) => {
         if (hovers) setHovered(true);
@@ -235,7 +235,7 @@ export function PressableScale({
  * How far revealed content travels.
  *
  * Deliberately tiny. Reanimated's own `FadeInDown` starts 25pt below, which on
- * a stat band or a chart is enough to read as the element sliding into place —
+ * a stat band or a chart is enough to read as the element sliding into place:
  * a second, competing transition on top of the one the navigator just ran.
  * 10pt is under the threshold where the eye tracks the movement, so what
  * registers is that the content *settled* rather than that it moved.
@@ -266,7 +266,7 @@ export interface RevealProps {
  * allowed to do.
  *
  * Mount is the trigger, so put it around the subtree that is conditional on the
- * data — a `Reveal` that mounts with the screen and never unmounts animates
+ * data: a `Reveal` that mounts with the screen and never unmounts animates
  * once, on arrival, and stays still through every later update.
  */
 export function Reveal({ children, index = 0, delay = 0, style }: RevealProps) {

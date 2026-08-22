@@ -21,8 +21,8 @@ import { exercises, workoutExercises, workouts, type Exercise } from '@/db/schem
  * The subset of an exercise a list screen renders and filters on.
  *
  * `Exercise` has seventeen columns; a row in the library list shows five of
- * them. Selecting the difference costs nothing to write and everything to read
- * — at ~6,800 rows it is the bulk of what crosses the SQLite boundary when the
+ * them. Selecting the difference costs nothing to write and everything to read:
+ * at ~6,800 rows it is the bulk of what crosses the SQLite boundary when the
  * Exercises tab or the mid-workout picker opens.
  */
 export type ExerciseListItem = Pick<
@@ -70,15 +70,15 @@ export async function listExercises(filters: ExerciseFilters = {}): Promise<Exer
  * Two columns and a date, unaggregated on purpose: usage counts and
  * co-occurrence are two different rollups of the same rows, and pulling them
  * as separate `GROUP BY` queries would read the table twice to answer one
- * question. A heavy log is a few thousand rows here — three years of six-lift
- * sessions is ~3,000 — which is an order of magnitude less than the catalog
+ * question. A heavy log is a few thousand rows here: three years of six-lift
+ * sessions is ~3,000, which is an order of magnitude less than the catalog
  * these screens already hold in memory.
  *
  * Returned as an unawaited builder because its callers feed it to `useRows`:
  * the picker opens mid-set and this must not cost a render pass of its own.
  *
  * Finished sessions only. The open session is the caller's own context, passed
- * in separately — counting it here would let a lift you just added outrank the
+ * in separately. Counting it here would let a lift you just added outrank the
  * ones you have trained for months.
  */
 export function trainingHistoryQuery() {
@@ -136,7 +136,7 @@ export async function createCustomExercise(input: CreateExerciseInput): Promise<
     isCustom: true as const,
     notes: input.notes ?? null,
     imageUrl: null,
-    // Catalog media only — a user-created exercise has no upstream artwork, so
+    // Catalog media only. A user-created exercise has no upstream artwork, so
     // its rows fall back to the initials tile.
     thumbnailUrl: null,
     videoUrl: null,
@@ -194,7 +194,7 @@ export async function updateExercise(
  *
  * `null` for either clears that override and returns the exercise to the
  * app-wide setting. Omitting a key leaves it alone, so the weight heading and
- * the distance heading can be set independently — a rowing machine reasonably
+ * the distance heading can be set independently: a rowing machine reasonably
  * reports metres while its resistance means nothing in either unit.
  */
 export async function setExerciseUnits(
@@ -215,7 +215,7 @@ export async function setExerciseUnits(
   const updated = await getExercise(exerciseId);
 
   // Built-ins exist identically on every device and never cross the wire, so
-  // only a user-created exercise is worth replicating — the same rule
+  // only a user-created exercise is worth replicating: the same rule
   // `setExerciseRest` follows, and with the same consequence: a unit set on a
   // catalog movement is local to this phone. Coalesced because the heading is a
   // toggle, and settling on pounds after two taps should leave one row to push.
@@ -225,7 +225,7 @@ export async function setExerciseUnits(
 /**
  * Removes a custom exercise.
  *
- * Built-ins are archived instead of deleted — they're part of the shipped
+ * Built-ins are archived instead of deleted: they're part of the shipped
  * library and would simply reappear on the next launch's seed.
  */
 export async function deleteExercise(id: string): Promise<void> {

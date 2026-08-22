@@ -3,8 +3,8 @@
  *
  * This is where an import quietly succeeds or quietly ruins itself. A name that
  * fails to find its catalog entry creates a second exercise with the same
- * meaning, and from then on the user's bench press history is split in two —
- * across the progress chart, the records list and every muscle rollup — with
+ * meaning, and from then on the user's bench press history is split in two:
+ * across the progress chart, the records list and every muscle rollup: with
  * nothing on screen to explain why. So the matching runs in one pass over the
  * whole file rather than per row, and it is exact-then-normalised rather than
  * fuzzy: a near miss the user can see and merge beats a confident wrong answer.
@@ -32,8 +32,8 @@ export interface ExercisePlan {
    * Tracking type per resolved id.
    *
    * Carried out of here rather than re-read later because the importer needs it
-   * for every set it values — it decides whether a rep counts as `weight ×
-   * reps` or as bodyweight — and the read that produced the id already had it.
+   * for every set it values. It decides whether a rep counts as `weight ×
+   * reps` or as bodyweight, and the read that produced the id already had it.
    */
   trackingTypeById: Map<string, TrackingType>;
   /** Names that found an existing library entry. */
@@ -84,8 +84,8 @@ export async function planExercises(
     trackingTypeById.set(row.id, row.trackingType);
     created.push(name);
 
-    // A file can spell the same exercise two ways — "Ab Wheel" and "Ab Wheels"
-    // — and both miss the catalog. Registering the new row against its own
+    // A file can spell the same exercise two ways: "Ab Wheel" and "Ab Wheels",
+    // and both miss the catalog. Registering the new row against its own
     // normalised key means the second spelling finds the first rather than
     // creating a twin.
     loose.set(exerciseMatchKey(name), row.id);
@@ -167,7 +167,7 @@ async function loadLibraryIndex(): Promise<{
     const lower = row.name.toLowerCase();
     if (!exact.has(lower)) exact.set(lower, row.id);
 
-    // Normalised keys collide by design — "Row (Cable)" and "Cable Row" reduce
+    // Normalised keys collide by design: "Row (Cable)" and "Cable Row" reduce
     // to the same thing, which is the point. First writer wins, and the read
     // above is ordered by nothing in particular, so this is settled by the id:
     // stable across imports, which is what stops the same file resolving to

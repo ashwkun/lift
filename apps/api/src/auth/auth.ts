@@ -36,13 +36,13 @@ const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? 'lift://')
  *
  * better-auth turns rate limiting on by itself in production and keys it on
  * `x-forwarded-for`. Left unconfigured it only trusts that header when it holds
- * exactly one address — behind Traefik, anyone who sends an `x-forwarded-for`
+ * exactly one address. Behind Traefik, anyone who sends an `x-forwarded-for`
  * of their own makes it two, at which point better-auth can no longer identify
  * the caller and drops every request into a single shared bucket. Sign-in
  * allows three attempts per ten seconds, so one client could lock out the rest.
  *
  * Naming the proxies instead walks the chain from the right, skips the hops we
- * put there, and takes the first address we did not add — the real caller, with
+ * put there, and takes the first address we did not add: the real caller, with
  * any spoofed prefix rendered irrelevant. The default covers Docker's private
  * ranges, which behind Dokploy is exactly the proxy and nothing else. Set
  * TRUSTED_PROXIES to pin the subnet, or to extend the chain if a CDN is ever

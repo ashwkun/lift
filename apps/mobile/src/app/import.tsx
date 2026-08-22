@@ -41,13 +41,13 @@ import { spacing, useColors } from '@/theme';
  *
  * The screen is one scroll with four states, in the order the task actually
  * happens: pick the app you're leaving, get the file out of it, see what the
- * file holds, then decide how much of it to keep. The order matters — the
+ * file holds, then decide how much of it to keep. The order matters. The
  * export instructions sit above the file picker because that is where someone
  * is stuck, and the counts sit above the import button because agreeing to
  * "import 240 workouts" is the one moment they can still change their mind.
  *
- * Nothing is written until the last tap. Everything above it — the parse, the
- * duplicate check, the list of exercises that would be created — is a read.
+ * Nothing is written until the last tap. Everything above it. The parse, the
+ * duplicate check, the list of exercises that would be created. Is a read.
  */
 export default function ImportScreen() {
   const scrollEdge = useScrollEdge();
@@ -71,8 +71,8 @@ export default function ImportScreen() {
   /**
    * Discards the answer to a read that has since been superseded.
    *
-   * Two reads can be in flight at once — pick a file, then change the unit
-   * before the first parse returns — and they finish in whatever order they
+   * Two reads can be in flight at once. Pick a file, then change the unit
+   * before the first parse returns, and they finish in whatever order they
    * finish in. Without this the slower one wins and the screen shows a preview
    * of the unit the user just moved away from.
    */
@@ -82,8 +82,8 @@ export default function ImportScreen() {
    * Reads a file into a preview.
    *
    * Driven from the taps that cause it rather than from an effect on `unit`:
-   * the unit is an *input to the parse*, not a display setting — weights are
-   * stored in kilograms, so choosing pounds has to go back through the file —
+   * the unit is an *input to the parse*, not a display setting. Weights are
+   * stored in kilograms, so choosing pounds has to go back through the file,
    * and an effect would make that a synchronisation of state with itself.
    */
   const loadPreview = useCallback(async (text: string, assumedUnit: WeightUnit) => {
@@ -524,7 +524,7 @@ function WorkoutsStep({
             style={styles.unit}
           />
           <Text variant="caption" color="textTertiary" style={styles.hint}>
-            Getting this wrong is not subtle — the heaviest set in the file would come in as{' '}
+            Getting this wrong is not subtle. The heaviest set in the file would come in as{' '}
             {formatWeight(heaviestKg, unit)}.
           </Text>
         </>
@@ -654,7 +654,7 @@ function ImportResult({
         <Text variant="body" color="danger" style={styles.hint}>
           {summary.failed.toLocaleString()}{' '}
           {summary.failed === 1 ? 'session' : 'sessions'} could not be written and were rolled
-          back. Everything else landed — importing the same file again will pick up only what is
+          back. Everything else landed. Importing the same file again will pick up only what is
           missing. If the phone is out of storage, freeing some space first is the fix.
         </Text>
       )}
@@ -762,8 +762,8 @@ function list(items: readonly string[], limit = 6): string {
 /**
  * The one line of a failure worth putting in front of someone.
  *
- * `ImportFormatError` arrives already written for the user — it names the
- * column that is missing — and the file-system and SQLite errors behind
+ * `ImportFormatError` arrives already written for the user. It names the
+ * column that is missing, and the file-system and SQLite errors behind
  * everything else carry a real sentence of their own ("ENOSPC: no space left on
  * device"), which is the only thing separating a full disk from a permission
  * problem. Anything with no message says so rather than rendering

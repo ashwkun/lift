@@ -18,7 +18,7 @@ import path from 'node:path';
 import { db } from './client.js';
 
 /**
- * Two levels up from the compiled `dist/db/` — the migrations sit beside `dist`
+ * Two levels up from the compiled `dist/db/`. The migrations sit beside `dist`
  * rather than inside it, because they are data the build copies rather than
  * something it compiles. The relative position holds both in the image and in
  * a local `apps/api/dist` build.

@@ -18,7 +18,7 @@ const GRAPH_DAYS = 7;
  * The screens this one leads to.
  *
  * Held as data rather than written out as seven `ListRow`s so the order, the
- * icons and the one-line descriptions live in one place — this list is the only
+ * icons and the one-line descriptions live in one place. This list is the only
  * explanation most of these screens will ever get, and a description that
  * drifts from what the screen does is worse than none.
  */
@@ -64,7 +64,7 @@ const ADVANCED = [
 export default function StatisticsScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const [board, setBoard] = useState<MuscleBoard | null>(null);
 

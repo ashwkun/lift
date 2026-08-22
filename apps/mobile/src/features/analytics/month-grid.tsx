@@ -20,7 +20,7 @@ import { monthCells, weekdayHeadings, type CalendarDay } from './calendar';
  * accent.
  *
  * Four steps rather than a continuous gradient. A day's volume is a coarse
- * signal — the difference between 8,000 kg and 8,400 kg is noise, and rendering
+ * signal: the difference between 8,000 kg and 8,400 kg is noise, and rendering
  * it as a visible shade difference invites the reader to compare two squares
  * that are not meaningfully different. Steps also make the legend honest: four
  * swatches can be shown, a gradient can only be gestured at.
@@ -28,7 +28,7 @@ import { monthCells, weekdayHeadings, type CalendarDay } from './calendar';
  * The floor sits at 0.38 rather than just off the surface it starts from,
  * because the lightest trained day still has to read as *trained*: there it
  * measures 3.57:1 against the dark card and 1.93:1 against the light one. The
- * light palette cannot reach 3:1 at the bottom of the ramp — its card is white
+ * light palette cannot reach 3:1 at the bottom of the ramp. Its card is white
  * and its accent a mid olive, so a first step that contrasted that strongly
  * would have to start two thirds of the way up and the three above it would
  * have nowhere left to go. What backs it up there is the day number, which
@@ -36,7 +36,7 @@ import { monthCells, weekdayHeadings, type CalendarDay } from './calendar';
  *
  * The top stops just short of the raw accent so the busiest day of a month
  * reads as the end of a scale rather than as a button. Every step's number
- * clears 5:1 against its own fill in both palettes — see `readableOn`.
+ * clears 5:1 against its own fill in both palettes: see `readableOn`.
  */
 const RAMP = [0.38, 0.58, 0.77, 0.96];
 
@@ -48,7 +48,7 @@ const GAP = spacing.xs;
  *
  * Absolute, not relative to the month on screen: see `typicalVolumeKg` in
  * `calendar.ts` for why. A day at the median sits on step 1, half again on
- * step 2, and 1.5× the median or more tops the scale — most training days land
+ * step 2, and 1.5× the median or more tops the scale. Most training days land
  * on the middle two steps, which is what leaves the outliers visible.
  */
 export function intensityStep(volumeKg: number, typicalVolumeKg: number): number {
@@ -98,8 +98,8 @@ export interface MonthGridProps {
  * A month of training, one square per day, shaded by how much was lifted.
  *
  * The colour encodes exactly one thing. Volume is what separates a heavy day
- * from a light one at a glance, and it is the only quantity spent on the fill —
- * personal records, duration and set counts are all in the panel below, where
+ * from a light one at a glance, and it is the only quantity spent on the fill.
+ * Personal records, duration and set counts are all in the panel below, where
  * they can be read as words rather than guessed from a tint. A gold dot for a
  * PR day was the obvious addition and is deliberately absent: gold on the top
  * of a lime ramp is the one pairing this palette cannot make legible, and a
@@ -211,7 +211,7 @@ function DayCell({
 
   const fill = day ? dayFill(intensityStep(day.volumeKg, typicalVolumeKg), colors) : null;
 
-  // A trained square picks the foreground its own fill can carry — the ramp
+  // A trained square picks the foreground its own fill can carry: the ramp
   // crosses the point where light text stops working, in both palettes. An
   // untrained one is quieter the further it is from being useful: a future date
   // is not a rest day, it simply hasn't happened.
@@ -228,7 +228,7 @@ function DayCell({
   // second meaning on any one of them would make all of it guesswork.
   //
   // The ring is drawn in every state, so selecting a day cannot change the
-  // cell's inner width — see `stroke` in the tokens. At rest it is whatever is
+  // cell's inner width: see `stroke` in the tokens. At rest it is whatever is
   // behind it: the fill on a trained day, the card on an empty one. And it
   // can't be a fixed colour when it is on: over the top of the ramp `text` is
   // all but invisible, while the fill's own foreground reads over it by

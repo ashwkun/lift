@@ -52,7 +52,7 @@ const APP_VERSION = Constants.expoConfig?.version;
 /**
  * Rest presets, in seconds.
  *
- * Labelled with `formatDuration` — "1:30" — rather than `formatDurationShort`,
+ * Labelled with `formatDuration` ("1:30") rather than `formatDurationShort`,
  * which writes whole minutes and rendered 60 and 90 as the same "1m" and 120
  * and 150 as the same "2m". Four presets, two labels, and no way to tell from
  * the screen which of each pair was selected. Every other rest control in the
@@ -64,14 +64,14 @@ const REST_PRESETS = [60, 90, 120, 150, 180, 240];
  * The set the formula picker compares its options on.
  *
  * A one-rep max estimate is a ratio applied to the weight, so eight reps at 100
- * of *anything* returns the same figure in that same unit — which is why the
+ * of *anything* returns the same figure in that same unit, which is why the
  * preview carries no unit and needs no conversion when someone switches to
  * pounds.
  *
  * Eight reps rather than five, and that is measured rather than chosen: at five,
  * Brzycki and O'Conner return exactly 112.5 and the preview would print two of
  * the six options as identical, which is the opposite of what it is there to
- * show. Eight is an ordinary working set and separates all six — 120.0 through
+ * show. Eight is an ordinary working set and separates all six: 120.0 through
  * 127.7, which is the honest size of the decision being made.
  */
 const FORMULA_REFERENCE = { weight: 100, reps: 8 } as const;
@@ -81,8 +81,8 @@ const FORMULA_REFERENCE = { weight: 100, reps: 8 } as const;
  *
  * These are the two the world actually splits on, and `firstDayOfWeek` is typed
  * to match. A Saturday start exists in parts of the Middle East and North
- * Africa; it is not offered here because nothing else in the app — the weekly
- * streak, the history buckets — would honour it, and a preference that only
+ * Africa; it is not offered here because nothing else in the app: the weekly
+ * streak, the history buckets. Would honour it, and a preference that only
  * half the screens obey is worse than one that isn't offered.
  *
  * Held as strings because that is what a picker's options are keyed by, and
@@ -163,8 +163,8 @@ export default function SettingsScreen() {
          *
          * It repeats three rows from further down, deliberately. This screen is
          * seven sections and several phone-heights long, and the question
-         * that brings most people to it — am I in kilos, how long is my rest,
-         * why is the app light — is answerable in three words that would
+         * that brings most people to it: am I in kilos, how long is my rest,
+         * why is the app light. Is answerable in three words that would
          * otherwise be spread across a thousand points of scroll. The same
          * masthead-then-band rhythm as the profile screen it is opened from, so
          * arriving here reads as going deeper rather than as landing somewhere
@@ -230,7 +230,7 @@ export default function SettingsScreen() {
           <Footnote>
             Changing units only affects display. Everything is stored in kilograms, kilometres and
             centimetres, so your history stays consistent. An exercise can override this from its
-            column heading in a workout — the dumbbell rack in pounds, the plates in kilos.
+            column heading in a workout: the dumbbell rack in pounds, the plates in kilos.
           </Footnote>
         </Reveal>
 
@@ -345,7 +345,7 @@ export default function SettingsScreen() {
               label="Haptic feedback"
               // Deliberately general. `features/feedback/haptics.ts` fires on
               // sets, timers, deletions, reorders and refusals, across the whole
-              // app rather than only inside a workout — a description naming
+              // app rather than only inside a workout: a description naming
               // any one of those would be describing a fraction of the switch.
               description="Short taps confirming what you just did."
               value={settings.hapticsEnabled}
@@ -434,7 +434,7 @@ export default function SettingsScreen() {
             />
           </Card>
           <Footnote>
-            Estimates diverge past about 12 reps — all of these are population regressions, not
+            Estimates diverge past about 12 reps: all of these are population regressions, not
             measurements. The bar weight is what the plate line under each barbell exercise counts up
             from.
           </Footnote>
@@ -443,7 +443,7 @@ export default function SettingsScreen() {
         {/*
          * Reset, last and on its own.
          *
-         * This replaces a footer that read "Defaults: KG · 2m" — a statement of
+         * This replaces a footer that read "Defaults: KG · 2m": a statement of
          * what the defaults were, on a screen with no way to return to them. The
          * store has had a `reset` since it was written and nothing had ever
          * called it. The subtitle quotes `DEFAULT_SETTINGS` rather than naming
@@ -462,7 +462,7 @@ export default function SettingsScreen() {
             />
           </Card>
 
-          {/* The build number, which is what people quote in a bug report — and
+          {/* The build number, which is what people quote in a bug report, and
               the same footer the profile screen ends on. */}
           <Text variant="caption" color="textTertiary" align="center" style={styles.footer}>
             {APP_VERSION ? `Lift ${APP_VERSION}` : 'Lift'}
@@ -528,7 +528,7 @@ function formulaPreview(formula: OneRepMaxFormula): string {
  * A note under a card, in the tertiary tier.
  *
  * Inset past the card's own edge rather than aligned to it, which is where the
- * eye expects a caption about the thing above it — flush left, it reads as
+ * eye expects a caption about the thing above it. Flush left, it reads as
  * another row that lost its background.
  */
 function Footnote({ children }: { children: ReactNode }) {

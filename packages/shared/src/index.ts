@@ -15,4 +15,4 @@ export * from './sync.ts';
 // rows of generated data, and a barrel export pulled it into the module graph
 // of every screen that wanted a unit conversion or a colour token. It has its
 // own entry point instead: `@lift/shared/exercises`, declared in this package's
-// exports map. Two files need it — the seeder and the exercise repository.
+// exports map. Two files need it: the seeder and the exercise repository.

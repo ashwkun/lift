@@ -8,7 +8,7 @@ class HealthController {
   /**
    * Liveness + readiness in one.
    *
-   * Actually round-trips to Postgres rather than returning a bare 200 — a
+   * Actually round-trips to Postgres rather than returning a bare 200: a
    * process that's up but can't reach its database is not healthy, and Dokploy
    * should restart it.
    */

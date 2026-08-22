@@ -4,7 +4,7 @@
  * `position` is a REAL rather than an INTEGER precisely so a move can usually
  * be one write: dropping a row between 1.0 and 2.0 writes 1.5 and leaves every
  * other row alone (see the schema notes in `apps/mobile/src/db/schema.ts`). That
- * matters more here than it would in a local-only app — each rewritten row is
+ * matters more here than it would in a local-only app: each rewritten row is
  * also an oplog entry and a row on the wire, so renumbering a ten-exercise
  * workout to move one block would sync ten changes to say one thing.
  *
@@ -12,7 +12,7 @@
  * doubles run out of room after about fifty consecutive midpoints, and a
  * position that collides with its neighbour silently stops being an order at
  * all. So the midpoint is taken while there is room, and the list renumbers when
- * there is not — which is rare, and correct when it happens.
+ * there is not, which is rare, and correct when it happens.
  */
 
 export interface PositionedRow {
@@ -36,7 +36,7 @@ export const POSITION_STEP = 1;
 
 /**
  * Moves the row at `from` to index `to`, and returns **only the rows whose
- * position changed** — usually one, occasionally all of them.
+ * position changed**: usually one, occasionally all of them.
  *
  * The caller writes exactly what comes back. An empty array means the move was
  * a no-op and nothing should be written, which is the common case for a drag

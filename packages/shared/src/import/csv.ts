@@ -3,9 +3,9 @@
  *
  * Hand-rolled rather than pulled from npm because this package carries one
  * dependency and the mobile bundle is the reason. The parts that actually
- * matter for workout exports are the quoting rules — an exercise called
+ * matter for workout exports are the quoting rules: an exercise called
  * `Seated Row - "V" Grip` and a workout note containing a newline both appear
- * in real files — and the delimiter, which is not always a comma.
+ * in real files, and the delimiter, which is not always a comma.
  */
 
 /** A parsed file: the header row, and every data row padded to match it. */
@@ -93,8 +93,8 @@ function tokenizeFirstLine(text: string): string {
 /**
  * Splits the whole file into rows of fields.
  *
- * A single state machine over the characters, because the alternative —
- * splitting on newlines first — breaks on any field containing one, and workout
+ * A single state machine over the characters, because the alternative.
+ * Splitting on newlines first. Breaks on any field containing one, and workout
  * descriptions contain them.
  */
 function tokenize(text: string, delimiter: string): string[][] {
@@ -177,7 +177,7 @@ function resize(row: string[], width: number): string[] {
  * Strips the UTF-8 byte-order mark.
  *
  * Excel writes one on every CSV it saves. Left in place it becomes part of the
- * first header cell, so `title` arrives as `﻿title` and matches nothing —
+ * first header cell, so `title` arrives as `﻿title` and matches nothing,
  * which reads to the user as "your file has no workout column".
  */
 function stripBom(text: string): string {

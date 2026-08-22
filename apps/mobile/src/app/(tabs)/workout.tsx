@@ -74,8 +74,8 @@ export default function WorkoutScreen() {
     try {
       const outcome = await startSession({
         create: () => startWorkout(routineId ? { routineId } : {}),
-        // An open session started from the same routine — or an open ad-hoc
-        // session when the tap was "start empty" — is the thing being asked
+        // An open session started from the same routine, or an open ad-hoc
+        // session when the tap was "start empty". Is the thing being asked
         // for. Going through is a resume, not a second session.
         resumes: (open) => open.routineId === (routineId ?? null),
         openExisting: openActive,
@@ -91,7 +91,7 @@ export default function WorkoutScreen() {
   /*
    * Both queries seed `[]` and answer a tick later, and this tab is where a
    * cold start lands. Without the gate the routine list opens on "No routines
-   * yet" for a user who has routines, and `active` is briefly undefined — so
+   * yet" for a user who has routines, and `active` is briefly undefined, so
    * the resume card is missing, the button offers to start a second session,
    * and a tap inside that window reaches `begin` with `resumes` false, which
    * silently discards the open workout.

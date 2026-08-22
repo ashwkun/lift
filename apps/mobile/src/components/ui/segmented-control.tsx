@@ -34,7 +34,7 @@ export interface SegmentedControlProps<T extends string> {
 /**
  * A row of mutually exclusive options in a single track.
  *
- * Used where the choice reshapes the view rather than filtering it — the chart's
+ * Used where the choice reshapes the view rather than filtering it: the chart's
  * metric and time range. `FilterSelect` is the counterpart for dimensions with
  * many values: this one shows every option at once, so it stops being usable
  * past four or five.
@@ -48,7 +48,7 @@ export interface SegmentedControlProps<T extends string> {
  *
  * The thumb is positioned from a measured track width rather than from flex,
  * because a `left` that flex has not resolved yet cannot be animated. Until the
- * first layout lands the width is 0 and the thumb is simply not drawn — one
+ * first layout lands the width is 0 and the thumb is simply not drawn: one
  * frame, and one where the labels are already in place.
  */
 export function SegmentedControl<T extends string>({
@@ -143,8 +143,8 @@ export function SegmentedControl<T extends string>({
             accessibilityState={{ selected }}
             accessibilityLabel={label ? `${label}: ${option.label}` : option.label}
             onPress={() => onChange(option.value)}
-            // The segment has no fill of its own to darken — the thumb owns the
-            // only surface in this control — and it must not scale, because a
+            // The segment has no fill of its own to darken. The thumb owns the
+            // only surface in this control, and it must not scale, because a
             // shrinking segment under a stationary thumb would look like the
             // two had come apart. Fading the label is what is left, and it is
             // enough: it is the only thing in the segment.
@@ -152,7 +152,7 @@ export function SegmentedControl<T extends string>({
             dimTo={SEGMENT_PRESSED_OPACITY}
             style={[styles.segment, { height }]}
           >
-            {/* Only the label changes colour per segment now — the surface
+            {/* Only the label changes colour per segment now: the surface
                 underneath it belongs to the thumb. The colour still steps
                 rather than crossfading, which is right: it has to be legible
                 the instant the thumb starts moving, not once it arrives. */}

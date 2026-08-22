@@ -96,8 +96,8 @@ function formatPrevious(
  *
  * Two decimals and trimmed zeros, for the same reason `formatWeight` uses them
  * on the weight field: the value now makes a unit round trip on every keystroke,
- * and that leaves float noise — a mile-entered 3 comes back as 2.999999999999
- * — while an untrimmed "3.00" would reappear in the field as characters the
+ * and that leaves float noise. A mile-entered 3 comes back as 2.999999999999,
+ * while an untrimmed "3.00" would reappear in the field as characters the
  * user has to delete before typing.
  */
 function asDistanceField(km: number, unit: DistanceUnit): string {
@@ -107,8 +107,8 @@ function asDistanceField(km: number, unit: DistanceUnit): string {
 /**
  * How a typed time comes back out of storage, for the duration field's own
  * echo check. Nothing else in a set row needs one: a weight, a rep count and a
- * distance render back as they were typed — the two that convert do so through
- * a formatter that absorbs the round trip — but seconds are always re-spelled
+ * distance render back as they were typed. The two that convert do so through
+ * a formatter that absorbs the round trip, but seconds are always re-spelled
  * as M:SS, so "4" returns as "0:04". Module scope so every row shares the one
  * function and the field is not handed a new prop on each render.
  *
@@ -125,7 +125,7 @@ const normalizeDuration = (text: string) => {
  *
  * Everything here is driven by shared values rather than React state, so the
  * animation runs on the UI thread and never contends with the set row's
- * controlled text inputs — the row can be mid-transition while a weight is
+ * controlled text inputs. The row can be mid-transition while a weight is
  * being typed and neither notices the other. `ReduceMotion.System` is passed on
  * each config rather than checked once in JS, so the OS setting is honoured
  * without a re-render to observe it.
@@ -155,7 +155,7 @@ const RELEASE = {
  * Rows are 44 tall with 4pt of vertical padding, so the 30pt check plates of
  * two stacked rows sit 14pt apart: a symmetric 8pt slop overlaps by 2pt, and
  * iOS hit-tests siblings in reverse order, which hands that overlap to the
- * *lower* row — a near-miss would complete the wrong set and start its rest
+ * *lower* row. A near-miss would complete the wrong set and start its rest
  * timer. 7 tiles the gap exactly and still reaches the 44pt minimum. The left
  * edge stays inside the row's 8pt column gap because this Pressable is the last
  * child and would win any overlap against the reps field beside it. Only the
@@ -166,8 +166,8 @@ const CHECK_HIT_SLOP = { top: 7, bottom: 7, left: 6, right: spacing.lg };
 /**
  * Mirrors CHECK_HIT_SLOP at the other end of the row.
  *
- * `alignSelf: 'stretch'` only reaches 36pt — `minHeight: 44` is border-box and
- * the row carries 4pt of vertical padding — so 4pt of slop tiles the remainder
+ * `alignSelf: 'stretch'` only reaches 36pt. `minHeight: 44` is border-box and
+ * the row carries 4pt of vertical padding, so 4pt of slop tiles the remainder
  * exactly: 44pt of target inside a 44pt row, with no overlap for the row below
  * to steal. The left edge faces the row's 16pt margin, which holds nothing
  * pressable, so it can be generous. The right edge stays at 0, because the
@@ -218,7 +218,7 @@ export const SetRow = memo(function SetRow({
     done.value = withTiming(set.isCompleted ? 1 : 0, TINT);
 
     // The squash-and-release belongs to the tap, so it is skipped on the first
-    // pass — otherwise every already-completed row bounces when the screen opens.
+    // pass: otherwise every already-completed row bounces when the screen opens.
     if (!settled.current) {
       settled.current = true;
       return;
@@ -299,7 +299,7 @@ export const SetRow = memo(function SetRow({
       // Same rule as the weight field, and it was missing here: the field is in
       // the user's display unit and storage is always kilometres. Without the
       // conversion a user set to miles typed "3", stored 3 *kilometres*, and
-      // then read it back as 1.86 mi on the records screen — which does convert.
+      // then read it back as 1.86 mi on the records screen, which does convert.
       // The set row was the only place in the app that treated the two as the
       // same number.
       onChange({
@@ -314,7 +314,7 @@ export const SetRow = memo(function SetRow({
 
     // Only fields this exercise tracks, and only the ones last session actually
     // holds a number for. A blanket copy writes the previous row's nulls over
-    // whatever is already typed here — so tapping this cell for the reps would
+    // whatever is already typed here, so tapping this cell for the reps would
     // silently erase the weight you had just entered.
     const patch: Partial<WorkoutSet> = {};
     if (fields.weight && previous.weightKg != null) patch.weightKg = previous.weightKg;
@@ -432,7 +432,7 @@ export const SetRow = memo(function SetRow({
           <Pressable
             style={({ pressed }) => [
               styles.previousCell,
-              // `surfacePressed`, not `accentSurface` — the accent tint already
+              // `surfacePressed`, not `accentSurface`: the accent tint already
               // means "checked off" one row width away.
               pressed && { backgroundColor: colors.surfacePressed },
             ]}
@@ -527,7 +527,7 @@ export const SetRow = memo(function SetRow({
               style={[styles.checkCell, { backgroundColor: colors.surfaceMuted }, checkStyle]}
             >
               {/* The green fills in over the resting grey, and the two glyphs
-                  cross-fade above it — a single glyph would have to swap colour
+                  cross-fade above it. A single glyph would have to swap colour
                   on one frame while the plate underneath was still arriving. */}
               <Animated.View
                 style={[StyleSheet.absoluteFill, fillStyle, { backgroundColor: colors.success }]}

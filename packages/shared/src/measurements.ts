@@ -2,15 +2,15 @@
  * Body measurements: what each one is, and the arithmetic that turns a column
  * of numbers into something worth opening.
  *
- * Storage units are the ones `units.ts` describes — kilograms for bodyweight,
- * percent for body fat, centimetres for every circumference — and everything
+ * Storage units are the ones `units.ts` describes: kilograms for bodyweight,
+ * percent for body fat, centimetres for every circumference, and everything
  * here takes and returns those. Display conversion happens at the edge, in the
  * three `…Display…` helpers at the bottom of the metadata section.
  *
  * The maths splits in two. The *series* half answers "is this moving, and how
  * fast", which is the only question a log of numbers is kept to answer; the
  * *composition* half derives the figures a tape measure implies but does not
- * state — BMI, body fat, lean mass, symmetry. Both are pure, so the app and the
+ * state: BMI, body fat, lean mass, symmetry. Both are pure, so the app and the
  * server compute them identically.
  */
 
@@ -62,7 +62,7 @@ export interface MeasurementMeta {
   counterpart?: MeasurementKind;
   /**
    * The range a real human body occupies, in storage units, generous at both
-   * ends. This is a typo filter and nothing more — it exists so a waist entered
+   * ends. This is a typo filter and nothing more. It exists so a waist entered
    * as 850 instead of 85 is caught at the keyboard rather than rescaling every
    * chart that includes it for the rest of the log. It is deliberately not a
    * judgement about any particular body.
@@ -141,7 +141,7 @@ export const MEASUREMENT_PAIRS: MeasurementPair[] = [
 /**
  * What a first measuring session should cover.
  *
- * Fifteen fields is a form, not a habit — someone opening this for the first
+ * Fifteen fields is a form, not a habit: someone opening this for the first
  * time gets the eight that a training log actually reads back later, and the
  * rest stay one tap away.
  */
@@ -217,7 +217,7 @@ export function fromDisplayMeasurementValue(
  * How much one press of a stepper moves the value, in display units.
  *
  * Tied to the unit rather than the kind: a tape reads to the half-centimetre
- * and a quarter-inch, and a scale to a tenth of a kilogram — which is two
+ * and a quarter-inch, and a scale to a tenth of a kilogram, which is two
  * tenths of a pound, near enough that rounding it to 0.2 keeps the figure short
  * without the stepper ever landing somewhere the scale could not have shown.
  */
@@ -279,7 +279,7 @@ export function formatMeasurementDelta(
  *
  * Without this a delta that rounds to "0.0" still gets a sign printed on it,
  * and the row claims a direction it cannot evidence. Compared in display units
- * because that is where the rounding happens — 0.05 kg is invisible, and so is
+ * because that is where the rounding happens. 0.05 kg is invisible, and so is
  * the 0.11 lb it converts to.
  */
 export function isNegligibleChange(
@@ -342,7 +342,7 @@ export interface MeasurementStats {
    */
   changePerWeek: number | null;
   /**
-   * The smoothed value at `latest.at` — what the series says, as opposed to
+   * The smoothed value at `latest.at`. What the series says, as opposed to
    * what the last reading said. See `smoothMeasurements`.
    */
   trend: number;
@@ -357,7 +357,7 @@ export function sortMeasurements(points: readonly MeasurementPoint[]): Measureme
  * Exponentially weighted trend, spaced by real time.
  *
  * Bodyweight swings a kilogram or two on water, salt and time of day, so the
- * newest reading is a poor estimate of where someone actually is — the classic
+ * newest reading is a poor estimate of where someone actually is: the classic
  * failure of a scale is that it makes a normal Tuesday look like a lost week.
  * A moving average over the last N *entries* is the usual fix and it is wrong
  * here, because entries are not evenly spaced: someone who weighs in daily and
@@ -468,7 +468,7 @@ export function selectWindow(
 }
 
 /**
- * The reading that was standing at a given instant — the newest one at or
+ * The reading that was standing at a given instant: the newest one at or
  * before it.
  *
  * This is what "change over the last 30 days" has to compare against, and it is
@@ -536,7 +536,7 @@ export function daysSince(at: number, now: number): number {
 /**
  * Used only by the US Navy body-fat estimate, which fits separate curves for
  * each and needs the hip measurement for one of them. Nothing else in the app
- * reads it, and it is optional — leaving it unset costs that one estimate.
+ * reads it, and it is optional. Leaving it unset costs that one estimate.
  */
 export const SEXES = ['male', 'female'] as const;
 export type Sex = (typeof SEXES)[number];
@@ -576,7 +576,7 @@ export function bmiBand(bmi: number): BmiBand {
  * the caveat attached rather than leaving the screen to remember it.
  */
 export const BMI_CAVEAT =
-  'BMI is weight against height alone — it counts muscle and fat the same. Waist-to-height and the body-fat estimate are the more useful pair here.';
+  'BMI is weight against height alone. It counts muscle and fat the same. Waist-to-height and the body-fat estimate are the more useful pair here.';
 
 export interface NavyBodyFatInput {
   sex: Sex;
@@ -591,13 +591,13 @@ export interface NavyBodyFatInput {
  * Body fat percentage by the US Navy circumference method.
  *
  * A regression on tape measurements, accurate to roughly ±3–4 points against a
- * DEXA scan — worse than a lab and far better than nothing, and unlike a lab it
+ * DEXA scan: worse than a lab and far better than nothing, and unlike a lab it
  * can be repeated every fortnight. What it is genuinely good at is *direction*:
  * the error is largely a constant offset for any one body, so the change over
  * months is more trustworthy than the absolute number.
  *
  * Returns null rather than a number whenever an input is missing or the
- * logarithms are undefined — a waist smaller than the neck, say, which is a
+ * logarithms are undefined: a waist smaller than the neck, say, which is a
  * mis-entry rather than a body.
  */
 export function navyBodyFatPercent(input: NavyBodyFatInput): number | null {
@@ -642,8 +642,8 @@ export function leanMassKg(weightKg: number, bodyFatPercent: number): number {
  * The single most useful number a tape measure produces, and the reason the
  * waist row is worth filling in: it tracks central fat, which is the part that
  * carries the health risk, and unlike BMI it does not mistake a squat session
- * for a problem. The guidance it comes from is the same in every population —
- * keep your waist under half your height.
+ * for a problem. The guidance it comes from is the same in every population.
+ * Keep your waist under half your height.
  */
 export function waistToHeightRatio(waistCm: number, heightCm: number | null): number | null {
   if (heightCm == null || heightCm <= 0 || waistCm <= 0) return null;
@@ -683,7 +683,7 @@ export interface Symmetry {
  * Left against right.
  *
  * Worth surfacing because the app already asks for both sides and then never
- * compared them — and because an arm that has been a centimetre behind for six
+ * compared them, and because an arm that has been a centimetre behind for six
  * months is the kind of thing a unilateral accessory fixes, if you know. A
  * couple of points is ordinary human asymmetry, not an imbalance; the caller
  * decides where to draw that line, this only reports the gap.

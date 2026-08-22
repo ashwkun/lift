@@ -8,8 +8,8 @@
  * workouts yet" on mount and swaps it for real content a frame later. Empty and
  * not-yet-loaded are different facts and the app should stop conflating them.
  *
- * **Gate every empty state on `loaded`.** `if (!loaded) return null` — or return
- * the surrounding chrome with nothing in the list — before any "nothing here"
+ * **Gate every empty state on `loaded`.** `if (!loaded) return null`, or return
+ * the surrounding chrome with nothing in the list: before any "nothing here"
  * copy, count, or zeroed figure renders. The correct rendering of an unloaded
  * list is nothing at all: a shimmer that appears and vanishes inside 250ms is
  * its own flicker, and skeletons are deliberately not used anywhere in this app.
@@ -26,7 +26,7 @@ type LiveQuery = Parameters<typeof useLiveQuery>[0];
 export interface RowsResult<T> {
   /** Exactly what `useLiveQuery` returns as `data`, with inference intact. */
   rows: T;
-  /** True once the query has reported — with rows, with none, or with an error. */
+  /** True once the query has reported: with rows, with none, or with an error. */
   loaded: boolean;
 }
 
@@ -36,7 +36,7 @@ export interface RowsResult<T> {
  *
  * An error counts as loaded on purpose. A query that fails never stamps
  * `updatedAt`, so gating on it alone would leave that screen blank behind a
- * spinner that never stops — strictly worse than the empty state this wrapper
+ * spinner that never stops: strictly worse than the empty state this wrapper
  * exists to suppress. A failed query renders as "nothing there", which is at
  * least true of what the app can show.
  *

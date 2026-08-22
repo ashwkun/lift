@@ -18,21 +18,21 @@
 /** The clock, in the device's own convention: "6:30 pm" here, "18:30" elsewhere. */
 const TIME_OF_DAY: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
 
-/** "Sat, 12 Apr" — a row under a heading that already names the month. */
+/** "Sat, 12 Apr": a row under a heading that already names the month. */
 export const DATE_SHORT: Intl.DateTimeFormatOptions = {
   weekday: 'short',
   day: 'numeric',
   month: 'short',
 };
 
-/** "12 Apr 2026" — a date that has to stand on its own, outside any grouping. */
+/** "12 Apr 2026". A date that has to stand on its own, outside any grouping. */
 export const DATE_MEDIUM: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
 };
 
-/** "Saturday, 12 April 2026" — the heading of a screen about one session. */
+/** "Saturday, 12 April 2026": the heading of a screen about one session. */
 export const DATE_LONG: Intl.DateTimeFormatOptions = {
   weekday: 'long',
   day: 'numeric',

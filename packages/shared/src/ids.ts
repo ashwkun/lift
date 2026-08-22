@@ -1,5 +1,5 @@
 /**
- * UUIDv7 (RFC 9562) — time-ordered identifiers.
+ * UUIDv7 (RFC 9562): time-ordered identifiers.
  *
  * Why v7 and not v4: every row in this app is created on-device, often offline.
  * Client-generated IDs mean a workout can be saved with no network round-trip,
@@ -26,7 +26,7 @@ function randomBytes(length: number): Uint8Array {
   }
 
   // Last-resort fallback. Only reachable if the crypto global is missing, which
-  // would indicate a misconfigured runtime — IDs stay unique enough to not
+  // would indicate a misconfigured runtime. IDs stay unique enough to not
   // collide in practice, but this should never run in production.
   for (let i = 0; i < length; i++) out[i] = Math.floor(Math.random() * 256);
   return out;

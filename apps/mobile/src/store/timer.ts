@@ -4,7 +4,7 @@
  * Both are stored as **absolute epoch deadlines**, never as a decrementing
  * counter. A counter driven by setInterval drifts, stops while the app is
  * backgrounded, and would show the wrong time the moment the user locks their
- * phone between sets — which is exactly when a rest timer matters.
+ * phone between sets, which is exactly when a rest timer matters.
  *
  * Pausing is the one exception: there is no deadline to point at while the
  * clock is stopped, so the remaining time is frozen as a duration and turned
@@ -14,7 +14,7 @@
  * notification outlives the process, so a countdown that died with it would
  * leave the bell ringing for a timer the app no longer believes in. Because the
  * state is an epoch and not a tick count, restoring it is just reading the
- * number back — nothing has to be replayed or caught up. `restoreRest` below is
+ * number back. Nothing has to be replayed or caught up. `restoreRest` below is
  * the only entry point for that; `store/timer-persistence.ts` owns the disk.
  */
 
@@ -128,7 +128,7 @@ export const useTimer = create<TimerState>((set, get) => ({
     const overtime = state.restEndsAt <= now;
 
     // Past zero the deadline is already behind us, so "+15" has to mean fifteen
-    // seconds from *now* — adding to a stale deadline would move a number the
+    // seconds from *now*. Adding to a stale deadline would move a number the
     // user cannot see and appear to do nothing.
     const next = (overtime ? now : state.restEndsAt) + deltaSeconds * 1000;
 
@@ -169,7 +169,7 @@ export const useTimer = create<TimerState>((set, get) => ({
     // A paused period is a duration, so however long the app was gone it comes
     // back exactly as it was left. A running one is a deadline, and one that
     // expired while the process was dead belongs to a set the user finished
-    // resting for long ago — restoring it would open the bar on several minutes
+    // resting for long ago. Restoring it would open the bar on several minutes
     // of overtime for a rest nobody is taking. The scheduled notification has
     // already said what there was to say, so that case comes back idle.
     if (fields.restPausedSeconds !== null && fields.restPausedSeconds > 0) {

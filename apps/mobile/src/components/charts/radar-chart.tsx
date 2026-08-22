@@ -35,7 +35,7 @@ export interface RadarChartProps {
  * Room the captions need around the plot.
  *
  * The labels sit outside the outer ring, and the longest body-part name at
- * caption size is ~56pt — so the polygon has to stop well short of the SVG's
+ * caption size is ~56pt, so the polygon has to stop well short of the SVG's
  * edge or the captions either side are clipped by the card. These three are
  * solved together: at a 320pt plot the widest caption box lands within a point
  * of the right edge, which is the tightest the geometry goes.
@@ -60,7 +60,7 @@ const PLOT_RADIUS_RATIO = 0.4;
  *
  * The library's `opacity` applies to the whole polygon, outline included, so a
  * translucent fill under a solid stroke cannot be expressed as an opacity at
- * all — the alpha has to travel in the fill colour itself.
+ * all. The alpha has to travel in the fill colour itself.
  */
 function translucent(hex: string, alpha: number) {
   const [r, g, b] = hexToRgb(hex);
@@ -70,8 +70,8 @@ function translucent(hex: string, alpha: number) {
 /**
  * Radar plot of one measure across a small fixed set of axes.
  *
- * Radar is a poor chart for most things — it makes magnitudes hard to compare
- * and its area grows as the square of its values — but the question here is
+ * Radar is a poor chart for most things. It makes magnitudes hard to compare
+ * and its area grows as the square of its values, but the question here is
  * only ever *shape*: whether a training block leans forward or back, and how
  * this month's lean differs from last month's. Six axes, in a fixed order, is
  * the case it is actually good at.
@@ -105,7 +105,7 @@ export function RadarChart({
     // reads as a rendering failure, where an empty frame reads as no data.
     const scale = peak > 0 ? plotRadius / peak : 0;
 
-    // First axis at the top, then clockwise — the order the caller passed.
+    // First axis at the top, then clockwise: the order the caller passed.
     const angleFor = (index: number) => (index / axes.length) * 2 * Math.PI - Math.PI / 2;
 
     const spokes = axes.map((axis, index) => {
@@ -117,7 +117,7 @@ export function RadarChart({
         axis,
         vertex: { x: centre + cos * axis.value * scale, y: centre + sin * axis.value * scale },
         // Captions are placed from the spoke's direction rather than by index,
-        // so the same code handles all six however many there are — and each
+        // so the same code handles all six however many there are, and each
         // one is anchored on the edge that faces the plot: a right-hand caption
         // grows rightwards from its spoke, a left-hand one leftwards. Centring
         // every box on its anchor would push the side captions back over the
@@ -187,7 +187,7 @@ export function RadarChart({
         chartContainerProps={{ width: size, height: size, shiftX: shift, shiftY: shift }}
         // A window with no sets at all would divide through by zero here. Its
         // data is all zeroes either way, so which value the outer ring stands
-        // for is arbitrary — it only has to be a number.
+        // for is arbitrary. It only has to be a number.
         maxValue={peak > 0 ? peak : 1}
         noOfSections={rings}
         // The library measures anticlockwise from due east, so putting the
@@ -208,7 +208,7 @@ export function RadarChart({
             strokeWidth: index === 0 ? stroke.outline : stroke.rule * 2,
           })),
         }}
-        // Solid, against the library's dashed default — a dashed spoke under a
+        // Solid, against the library's dashed default: a dashed spoke under a
         // translucent fill reads as a texture in the shape rather than an axis.
         asterLinesConfig={{
           stroke: colors.border,
@@ -217,7 +217,7 @@ export function RadarChart({
         }}
       />
 
-      {/* The library marks no vertices, so these stay hand-placed — and as
+      {/* The library marks no vertices, so these stay hand-placed, and as
           views rather than SVG circles, alongside the captions below. */}
       {peak > 0 &&
         spokes.map((spoke) => (
@@ -235,8 +235,8 @@ export function RadarChart({
           />
         ))}
 
-      {/* Captions live outside the chart so they inherit the app's font stack —
-          the library draws its own as SVG text, which inherits none of it. */}
+      {/* Captions live outside the chart so they inherit the app's font stack.
+          The library draws its own as SVG text, which inherits none of it. */}
       {spokes.map((spoke) => {
         const side = spoke.label.cos > 0.3 ? 'left' : spoke.label.cos < -0.3 ? 'right' : 'center';
 

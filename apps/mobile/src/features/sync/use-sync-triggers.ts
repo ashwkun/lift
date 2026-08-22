@@ -12,7 +12,7 @@ const MIN_INTERVAL_MS = 30_000;
  * Kicks off background syncs at the moments that matter: app start, and
  * returning to the foreground.
  *
- * Every run is silent — a failed sync must never interrupt someone mid-workout,
+ * Every run is silent. A failed sync must never interrupt someone mid-workout,
  * because the local database is the source of truth and nothing is lost.
  * Explicit "Sync Now" is the only path that surfaces errors directly.
  */

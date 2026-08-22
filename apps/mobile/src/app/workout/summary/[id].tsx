@@ -42,7 +42,7 @@ interface PrSummary {
   exerciseName: string;
   /**
    * The exercise's own unit, if it has one. A record is a fact about a single
-   * movement, so it is printed in that movement's unit — while the volume total
+   * movement, so it is printed in that movement's unit, while the volume total
    * three rows below stays in the app's, because it is a sum across exercises
    * that may not agree on one.
    */
@@ -117,7 +117,7 @@ export default function WorkoutSummaryScreen() {
         // second copy of it up here. The consistency pass that filled Save,
         // Done and Log elsewhere deliberately left this header empty: a summary
         // is read top to bottom and ends on its own exit, so a header action
-        // would be the same destination offered twice on one screen — and the
+        // would be the same destination offered twice on one screen, and the
         // one in the content is the larger, more obvious target of the two.
         headerBackVisible: false,
       }}
@@ -136,7 +136,7 @@ export default function WorkoutSummaryScreen() {
       {header}
 
       {/* Records only. Firing on every finished session made the burst mean
-          "you stopped logging", which is not an achievement — and it left the
+          "you stopped logging", which is not an achievement, and it left the
           app with nothing louder to say on the day someone actually beat a
           number. It mounts when the record query resolves, so the burst lands
           with the numbers rather than over an empty screen. */}
@@ -252,7 +252,7 @@ function formatPrValue(kind: PrKind, value: number, unit: 'kg' | 'lb'): string {
   }
 }
 
-/** Label above figure, on a hairline-ruled band — the same grid as `StatBand`. */
+/** Label above figure, on a hairline-ruled band: the same grid as `StatBand`. */
 function Stat({ label, value }: { label: string; value: string }) {
   const colors = useColors();
   const [figure, unit] = splitMeasure(value);
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.lg },
   hero: { gap: spacing.xs, paddingTop: spacing.xl, paddingBottom: spacing.sm },
   // Two columns rather than four across. A four-up row leaves each figure a
-  // quarter of the width, which `adjustsFontSizeToFit` then resolves per tile —
+  // quarter of the width, which `adjustsFontSizeToFit` then resolves per tile,
   // and four numbers at four different sizes is not a table. The rules meet in
   // the middle and read as one.
   stats: { flexDirection: 'row', flexWrap: 'wrap' },

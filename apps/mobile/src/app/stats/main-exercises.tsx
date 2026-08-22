@@ -82,7 +82,7 @@ export default function MainExercisesScreen() {
             </Card>
 
             <Text variant="caption" color="textTertiary" style={styles.footnote}>
-              Ordered by how many sessions each lift appeared in, not by set count — five sets of
+              Ordered by how many sessions each lift appeared in, not by set count. Five sets of
               curls in one session should not outrank three separate squat days. Warm-ups are not
               counted.
             </Text>
@@ -142,7 +142,7 @@ function ExerciseStatRow({
 
       {/*
         A rank marker on the top three only.
-        Numbering all forty rows turns a ranked list into a numbered one — the
+        Numbering all forty rows turns a ranked list into a numbered one: the
         badge stops meaning "this is what you train" and starts meaning "this is
         row 27". Three is what a person remembers about their own programme.
       */}

@@ -18,7 +18,7 @@ import type { ImportedSet } from './parse.ts';
  * ("Barbell Bench Press" against "Bench Press (Barbell)"), punctuation
  * ("Bent-Over Row", "Seated Row - V Grip") and plurals ("Push Ups"). Sorting
  * the tokens handles the first, stripping non-letters the second, and a
- * conservative singular the third — conservative because it only has to be
+ * conservative singular the third. Conservative because it only has to be
  * *consistent*, not correct: both sides run through the same function, so
  * "triceps" collapsing to "tricep" matches as long as it always does.
  *
@@ -57,7 +57,7 @@ function singular(token: string): string {
  * Equipment names as they appear in exercise titles, longest first.
  *
  * Longest first is what makes "Smith Machine Row" a smith machine rather than a
- * machine — a plain `Object.entries` walk would hit whichever key came first.
+ * machine. A plain `Object.entries` walk would hit whichever key came first.
  */
 const EQUIPMENT_WORDS: [string, Equipment][] = [
   ['smith machine', 'smith_machine'],
@@ -83,7 +83,7 @@ const EQUIPMENT_WORDS: [string, Equipment][] = [
  * The equipment an exercise title admits to, or `other`.
  *
  * Hevy and Lyfta both suffix the equipment in parentheses, so this is right far
- * more often than it looks — and when it is wrong the cost is one field on a
+ * more often than it looks, and when it is wrong the cost is one field on a
  * custom exercise the user can edit, not a mis-filed set.
  */
 export function inferEquipment(name: string): Equipment {
@@ -104,8 +104,8 @@ export function inferEquipment(name: string): Equipment {
  * wrong means the logger asks for a weight on a plank forever after.
  *
  * The rule that earns its keep is the last one about weights. A weight column
- * full of zeroes is an exporter saying "this is a bodyweight movement" —
- * Hevy writes exactly that for push-ups — whereas *no* weight column at all
+ * full of zeroes is an exporter saying "this is a bodyweight movement".
+ * Hevy writes exactly that for push-ups, whereas *no* weight column at all
  * says nothing, and guessing bodyweight there would value every set at the
  * lifter's weight on no evidence. That case gets `reps_only`, which counts the
  * reps and claims no volume.

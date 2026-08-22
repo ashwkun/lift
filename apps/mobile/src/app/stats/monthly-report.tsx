@@ -82,7 +82,7 @@ const METRICS: Record<
 export default function MonthlyReportScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
@@ -189,7 +189,7 @@ export default function MonthlyReportScreen() {
             data={columns}
             width={chartWidth}
             // Selection is deliberately off. The bars are months and the one
-            // being reported is the last of them — everything a tap would say
+            // being reported is the last of them. Everything a tap would say
             // is already on this screen, in words, below the chart.
             selectedKey={current ? current.monthStart : null}
             formatValue={(value) => METRICS[metric].axis(value, weightUnit)}
@@ -286,7 +286,7 @@ function summaryFigures(report: MonthlyReport | null, weightUnit: WeightUnit): S
  * The month in sentences rather than figures.
  *
  * Four tiles say how much was done; this says what it was. Everything here
- * links somewhere — a session, an exercise — because a highlight the reader
+ * links somewhere (a session, an exercise) because a highlight the reader
  * cannot open is a fact they have to go and look up.
  */
 function Highlights({ report, weightUnit }: { report: MonthlyReport; weightUnit: WeightUnit }) {

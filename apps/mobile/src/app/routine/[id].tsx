@@ -50,7 +50,7 @@ import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
 
 /**
  * Matches the identical control in `exercise-block.tsx`: 34pt of row plus 8pt
- * above and below is 50pt of target. No horizontal slop — the row is full
+ * above and below is 50pt of target. No horizontal slop. The row is full
  * width, so there is nothing either side of it to reach into or steal from.
  */
 const ADD_SET_SLOP = { top: 8, bottom: 8 };
@@ -111,7 +111,7 @@ export default function RoutineEditorScreen() {
   const [reordering, setReordering] = useState(false);
 
   // Names and set counts. A routine's blocks are told apart by what they are
-  // and how much of them there is — the target weights are the screen behind
+  // and how much of them there is. The target weights are the screen behind
   // the sheet, not the thing being ordered.
   const reorderItems = useMemo<ReorderItem[]>(
     () =>
@@ -257,7 +257,7 @@ export default function RoutineEditorScreen() {
               {/* Only once there is an order to change. A reorder control above
                   a one-exercise routine is a button that cannot do anything,
                   and this is the screen where a routine is built up from
-                  nothing — so it would spend its first minutes dead. */}
+                  nothing, so it would spend its first minutes dead. */}
               {detail.exercises.length > 1 && (
                 <HeaderAction
                   label="Reorder exercises"
@@ -321,7 +321,7 @@ export default function RoutineEditorScreen() {
                     (`theme/tokens.ts`) and this list was spending it once per
                     exercise; at body size the name then reads lighter than the
                     numbers stacked under it, which is what left the column
-                    undifferentiated. No chevron either — unlike the workout
+                    undifferentiated. No chevron either: unlike the workout
                     screens this name is not a link, and a chevron would promise
                     navigation that never happens. */}
                 <Text variant="subheading" color="text" numberOfLines={1} style={styles.flex}>

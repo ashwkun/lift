@@ -59,13 +59,13 @@ interface SessionEntry {
  * Finishing used to happen straight from the logging screen's header, behind a
  * confirmation dialog: one tap, a modal listing the sets about to be dropped,
  * and the workout was in the log. That put the two things people actually want
- * to change about a session — what it is called, and a line about how it went —
+ * to change about a session. What it is called, and a line about how it went:
  * behind a rename on a screen they had to find afterwards, and it spent the
  * dialog on a number nobody could act on from inside a modal.
  *
  * So the dialog is gone and this screen has its job. It is the confirmation:
  * arriving here is the pause, Save is the affirmative act, and the back chevron
- * is the way out — it returns to a session that is still open and still
+ * is the way out. It returns to a session that is still open and still
  * running, because nothing on this screen writes until Save does.
  */
 export default function SaveWorkoutScreen() {
@@ -79,7 +79,7 @@ export default function SaveWorkoutScreen() {
 
   // The same query the logging screen runs, for the same reason: there is only
   // ever one open session, so this screen is a singleton and takes no id in its
-  // route. Passing one would also let the two screens disagree — a session
+  // route. Passing one would also let the two screens disagree: a session
   // finished in another tab would leave this one holding an id it could still
   // name but no longer save.
   const { data: activeRows = [], updatedAt } = useLiveQuery(
@@ -118,8 +118,8 @@ export default function SaveWorkoutScreen() {
     [linkKey],
   );
 
-  // Only the tracking type is wanted from the exercise itself — it decides how a
-  // set is valued — so this asks for the handful of rows the session uses rather
+  // Only the tracking type is wanted from the exercise itself: it decides how a
+  // set is valued, so this asks for the handful of rows the session uses rather
   // than the ~6,800-row catalog. See the note on the same query in `active.tsx`.
   const exerciseIds = links.map((link) => link.exerciseId);
   const exerciseIdsKey = exerciseIds.join(',');
@@ -142,8 +142,8 @@ export default function SaveWorkoutScreen() {
       else setsByParent.set(set.workoutExerciseId, [set]);
     }
 
-    // A link whose exercise row has gone is skipped, matching `getWorkoutDetail`
-    // — which is what `finishWorkout` reads through, so an orphan is absent from
+    // A link whose exercise row has gone is skipped, matching `getWorkoutDetail`,
+    // which is what `finishWorkout` reads through, so an orphan is absent from
     // the totals it stores too. The figures here have to be the ones about to be
     // written, not a second opinion on them.
     return links.flatMap((link) => {
@@ -160,14 +160,14 @@ export default function SaveWorkoutScreen() {
    * screen that computed "volume" its own way would be a second definition of
    * the word, and the two would drift the first time either changed.
    *
-   * `Sets` is therefore `workingSets` — completed working sets, warm-ups
-   * excluded — which is what lands in the row and what the summary screen shows
+   * `Sets` is therefore `workingSets`. Completed working sets, warm-ups
+   * excluded, which is what lands in the row and what the summary screen shows
    * a tap later. The logging screen counts every checked box including warm-ups,
    * and that is the right number *while lifting*: it answers "how much have I
    * done", not "what is going into the log".
    *
    * `completed` is the whole count, warm-ups included, because it answers a
-   * different question — whether anything was logged at all — and a session of
+   * different question (whether anything was logged at all) and a session of
    * nothing but warm-ups is still a session with sets in it.
    */
   const totals = useMemo(() => {
@@ -203,7 +203,7 @@ export default function SaveWorkoutScreen() {
    * The fields are seeded once per session, not kept in step with the row.
    *
    * The live query re-emits on every write to `workouts`, and each emission is a
-   * fresh object — so an effect that followed the row would put the stored name
+   * fresh object, so an effect that followed the row would put the stored name
    * back into the field between two keystrokes. Once seeded the text belongs to
    * the user until Save; the id guard is what makes "the same row again" and "a
    * different session" distinguishable.
@@ -218,7 +218,7 @@ export default function SaveWorkoutScreen() {
   }, [workout]);
 
   /*
-   * Saving and discarding both leave the screen, so both are latched — the same
+   * Saving and discarding both leave the screen, so both are latched: the same
    * pair the logging screen uses. The ref closes the door, because a second tap
    * arrives before any state has re-rendered; the state exists so the header can
    * dim and say the session is on its way out rather than looking untouched.
@@ -247,7 +247,7 @@ export default function SaveWorkoutScreen() {
     void (async () => {
       try {
         // The name goes through untrimmed. `finishWorkout` decides what an empty
-        // one means — it keeps the existing name — and stating that rule twice is
+        // one means (it keeps the existing name) and stating that rule twice is
         // how the two copies of it start to disagree.
         const result = await finishWorkout(workout.id, {
           bodyweightKg: bodyweightKg ?? undefined,
@@ -270,7 +270,7 @@ export default function SaveWorkoutScreen() {
         haptics.rejected();
         void showAlert(
           'Could not save',
-          'The session stayed open. Your sets are still here — try again in a moment.',
+          'The session stayed open. Your sets are still here: try again in a moment.',
         );
       }
     })();
@@ -322,7 +322,7 @@ export default function SaveWorkoutScreen() {
         headerRight: workout
           ? () => (
               // Filled, which `HeaderActionVariant` reserves for the one action a
-              // screen exists to complete — this is that screen. The label names
+              // screen exists to complete. This is that screen. The label names
               // the object as well as the verb, because "Save" alone could be the
               // name, the note, or the session.
               <HeaderAction
@@ -343,7 +343,7 @@ export default function SaveWorkoutScreen() {
      * Two ways to have no session, and only one of them is worth saying.
      *
      * `updatedAt` is undefined until the first read lands, so the mount frame
-     * has no row yet — announcing "no active workout" there would flash the
+     * has no row yet. Announcing "no active workout" there would flash the
      * failure state over a session that is right behind this screen. And a save
      * or a discard drops the row from this query before the navigation runs, so
      * `closing` covers the frames between the write and the new screen.
@@ -357,7 +357,7 @@ export default function SaveWorkoutScreen() {
           <EmptyState
             icon="barbell-outline"
             title="No active workout"
-            description="Nothing to save — this session was finished or discarded somewhere else."
+            description="Nothing to save. This session was finished or discarded somewhere else."
             action={
               <Button title="Go to Workout" onPress={() => router.replace('/(tabs)/workout')} />
             }
@@ -390,7 +390,7 @@ export default function SaveWorkoutScreen() {
           /* The one sentence the confirmation dialog contributed, kept because
              it is the only thing Save does that the user cannot see. It sits at
              the top of the body because Save is in the header, and this is the
-             closest the scroll gets to it — and because it is read before the
+             closest the scroll gets to it, and because it is read before the
              fields rather than after them, while there is still time to go back
              and check a box. `dropped`, not `discarded`: the repository's own
              word, and "discard" stays reserved for the whole session. */
@@ -435,7 +435,7 @@ export default function SaveWorkoutScreen() {
          * date-picker dependency, and a row that wears a chevron and opens
          * nothing is worse than a row with no chevron: it is a promise the
          * screen cannot keep, found by the one user who needed it. Backdating a
-         * session is also not what this screen is for — it reports when the
+         * session is also not what this screen is for: it reports when the
          * session started, which is a fact the app recorded rather than a field.
          * If editing the start time is ever wanted, it wants a picker and a rule
          * for what happens to the duration, not a tap target added here.
@@ -475,7 +475,7 @@ export default function SaveWorkoutScreen() {
  * fight a weight field used to put up mid-set. Confined here, the 1Hz update
  * costs one band.
  *
- * Duration leads because it is the figure still moving — the other two are
+ * Duration leads because it is the figure still moving. The other two are
  * settled the moment the last set was checked off, and only the clock is a
  * reason to look at this band twice.
  */

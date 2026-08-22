@@ -42,7 +42,7 @@ export interface DashboardStats {
   /**
    * Every kilogram ever moved. Included here rather than left to the one screen
    * that shows it, because the query below already reads the volume of every
-   * completed workout — Profile was running the identical full-table scan a
+   * completed workout. Profile was running the identical full-table scan a
    * second time to sum the same column.
    */
   lifetimeVolumeKg: number;
@@ -84,7 +84,7 @@ export interface WeeklyVolumePoint {
 /**
  * Volume per week over the trailing `weeks` window.
  *
- * Empty weeks are included with zero rather than skipped — a gap in training
+ * Empty weeks are included with zero rather than skipped: a gap in training
  * should read as a dip in the chart, not get quietly compressed away.
  */
 export async function getWeeklyVolume(weeks = 12): Promise<WeeklyVolumePoint[]> {
@@ -314,7 +314,7 @@ export interface HistoryAnalytics {
   /** Per muscle, busiest first. Drives the body map and its detail list. */
   muscles: MuscleBreakdownEntry[];
   bodyParts: MuscleDistributionEntry[];
-  /** Highest set count of any single muscle — the heatmap's upper bound. */
+  /** Highest set count of any single muscle: the heatmap's upper bound. */
   peakMuscleSets: number;
   /** Weeks the window actually spans, floored at 1. Divisor for `setsPerWeek`. */
   weeks: number;
@@ -400,7 +400,7 @@ export async function getHistoryAnalytics(range: HistoryRange): Promise<HistoryA
   for (const row of sessions) {
     const bucket = buckets.get(bucketStart(row.startedAt, granularity).getTime());
     // A workout older than the first bucket can only happen on a fixed window,
-    // where the query already excluded it — but a clock change could produce one.
+    // where the query already excluded it, but a clock change could produce one.
     if (!bucket) continue;
 
     bucket.volumeKg += row.totalVolumeKg;
@@ -479,7 +479,7 @@ async function getMuscleBreakdown(since: Date | null): Promise<{
 
   // The exercise columns come from a second, small query keyed by the ids the
   // sets actually reference. `secondaryMuscles` is a JSON column, so joining it
-  // in above meant drizzle parsing the same handful of arrays once per set —
+  // in above meant drizzle parsing the same handful of arrays once per set:
   // roughly fifteen thousand parses to learn about a hundred exercises.
   const exerciseIds = [...new Set(rows.map((row) => row.exerciseId))];
   const catalogue = exerciseIds.length
@@ -543,7 +543,7 @@ async function getMuscleBreakdown(since: Date | null): Promise<{
     seenExercises.get(muscle)!.add(row.exerciseId);
 
     // Seeded exercises always carry an array, but a row written by an older
-    // build — or by a sync peer — may not.
+    // build (or by a sync peer) may not.
     const secondary = Array.isArray(exercise.secondaryMuscles) ? exercise.secondaryMuscles : [];
     for (const other of secondary) {
       if (other === muscle) continue;

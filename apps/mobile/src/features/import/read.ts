@@ -3,7 +3,7 @@
  * is written.
  *
  * The screen asks which app the file came from, but the answer is a hint, not a
- * contract — people pick "Hevy" and hand over a Lift backup, or pick "Something
+ * contract. People pick "Hevy" and hand over a Lift backup, or pick "Something
  * else" and hand over a Hevy CSV. Sniffing the contents rather than trusting the
  * choice is what keeps that from being an error message.
  */
@@ -46,7 +46,7 @@ export interface WorkoutsPreview {
    * Names with no library entry, across the whole file.
    *
    * The whole file rather than the chosen range, because the range moves and
-   * this read is the expensive one — the caller narrows it with
+   * this read is the expensive one: the caller narrows it with
    * `newExercisesIn`, which needs no database at all.
    */
   newExercises: string[];

@@ -12,7 +12,7 @@ import { isWorkingSet, type PrKind, type SetType, type TrackingType } from './ty
 // Inputs
 // ---------------------------------------------------------------------------
 
-/** The minimum shape the analytics need — satisfied by DB rows and draft sets alike. */
+/** The minimum shape the analytics need: satisfied by DB rows and draft sets alike. */
 export interface SetLike {
   weightKg: number | null;
   reps: number | null;
@@ -57,7 +57,7 @@ export const ONE_REP_MAX_FORMULA_LABELS: Record<OneRepMaxFormula, string> = {
  * Estimates a one-rep max from a submaximal set.
  *
  * All of these are regressions fitted to population data and they diverge badly
- * past ~12 reps — a 20-rep set says more about work capacity than maximal
+ * past ~12 reps. A 20-rep set says more about work capacity than maximal
  * strength. We still return a number (users expect the chart to keep moving)
  * but Brzycki and Lander are clamped because their linear denominators go to
  * zero and then negative, which would otherwise produce absurd or negative 1RMs.
@@ -353,7 +353,7 @@ function weekKey(date: Date): string {
  * Consecutive weeks containing at least one workout, counting back from the
  * current week.
  *
- * Weeks rather than days because almost nobody trains daily — a day-based
+ * Weeks rather than days because almost nobody trains daily. A day-based
  * streak would read "0" for a perfectly consistent 4-day-a-week lifter. The
  * current week is only required to break the streak once it has passed, so
  * training Monday and checking on Wednesday still shows the streak intact.

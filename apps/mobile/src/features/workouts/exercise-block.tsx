@@ -44,7 +44,7 @@ export interface ExerciseBlockProps {
    * plus the routine's prescription if the session came from one.
    *
    * Optional, and that is the whole opt-in. A session being planned is offered
-   * a target; a session being *corrected* — the editor, months later — is not,
+   * a target; a session being *corrected* (the editor, months later) is not,
    * because it is a record of what happened rather than a plan, and there is
    * nothing left to progress into. That screen passes nothing and no line
    * renders. See `suggestion.ts`.
@@ -56,7 +56,7 @@ export interface ExerciseBlockProps {
   onDeleteSet: (setId: string) => void;
   onChangeSetType: (setId: string, setType: SetType) => void;
   onRemoveExercise: () => void;
-  /** Swaps this slot for another exercise — the bench is taken, the pin is missing. */
+  /** Swaps this slot for another exercise. The bench is taken, the pin is missing. */
   onReplaceExercise: () => void;
   /**
    * Opens the reorder sheet for the whole session.
@@ -70,13 +70,13 @@ export interface ExerciseBlockProps {
   onEditNotes: (seed?: string) => void;
   onEditRest: () => void;
   /**
-   * Changes the units this exercise is read in — see `setExerciseUnits`. It
+   * Changes the units this exercise is read in: see `setExerciseUnits`. It
    * goes out through the screen rather than being written from here, so the
    * write joins every other one on the logging screen in the guard that
    * notices when the disk stops accepting them.
    */
   onChangeUnits: (units: { weightUnit?: WeightUnit; distanceUnit?: DistanceUnit }) => void;
-  /** Opens the exercise's own page — history, records and charts. */
+  /** Opens the exercise's own page: history, records and charts. */
   onOpenExercise: () => void;
 }
 
@@ -136,7 +136,7 @@ export function ExerciseBlock({
    * What to lift next, from the sessions behind this one.
    *
    * `suggestForExercise` resolves the load step, the rep range and the tracking
-   * type, calls the engine, and swallows anything the engine throws — so this
+   * type, calls the engine, and swallows anything the engine throws, so this
    * is a suggestion or it is nothing, and the logging screen cannot be taken
    * down by an opinion about a set. The guard and its reasoning live there,
    * next to the call it protects.
@@ -152,7 +152,7 @@ export function ExerciseBlock({
    *
    * Open working sets only, and only the ordinals the engine spoke about: a set
    * already checked off is a record and is never rewritten, and a fifth set the
-   * engine said nothing about has no target — inventing one is the mistake
+   * engine said nothing about has no target. Inventing one is the mistake
    * `pairWithPrevious` refuses to make one column over.
    *
    * In render rather than memoised, because it also decides whether the line
@@ -171,7 +171,7 @@ export function ExerciseBlock({
       if (!entry) continue;
 
       // Only the fields this exercise tracks, and only the ones the engine put
-      // a number in — the same rule `handleCopyPrevious` follows, for the same
+      // a number in: the same rule `handleCopyPrevious` follows, for the same
       // reason: a blanket patch writes nulls over what is already typed.
       const patch: Partial<WorkoutSet> = {};
       if (fields.weight && entry.weightKg != null) patch.weightKg = entry.weightKg;
@@ -192,7 +192,7 @@ export function ExerciseBlock({
    *
    * Nothing is pre-filled and no placeholder changes. The Previous column and
    * the field placeholders still say what was lifted last time, and a bare
-   * check-off still commits exactly that — see `ghostFill`. A heavier weight
+   * check-off still commits exactly that: see `ghostFill`. A heavier weight
    * sitting in a placeholder would be committed by that same tap, and the log
    * would then hold a lift nobody performed.
    */
@@ -231,8 +231,8 @@ export function ExerciseBlock({
   // Replace joined them when substitution stopped meaning "delete and re-add".
   //
   // All four now reach the screen. Under `Alert.alert` only the first three did
-  // on Android — `Alert.js` slices the array before mapping it onto the
-  // neutral/negative/positive slots — so Cancel, last here, was the button that
+  // on Android: `Alert.js` slices the array before mapping it onto the
+  // neutral/negative/positive slots, so Cancel, last here, was the button that
   // silently went missing on the platform this app ships to, on a dialog whose
   // scrim was also not dismissible by default. The in-app dialog stacks however
   // many actions it is handed and floats Cancel to the bottom itself, which is
@@ -270,7 +270,7 @@ export function ExerciseBlock({
         >
           {/* Subheading, and no accent. This is the only heading on the screen
               that names what you are doing, and at body size it was lighter
-              than the numbers inside its own set rows — which is why six
+              than the numbers inside its own set rows, which is why six
               exercises scrolled as one undifferentiated column. The accent is
               budgeted at roughly one element per view (`theme/tokens.ts`) and
               this screen was spending it once per exercise. */}
@@ -344,7 +344,7 @@ export function ExerciseBlock({
           </Text>
         </Pressable>
       ) : previousNote ? (
-        /* A cue is sticky — "pin 4, not 5" stays true until it doesn't — so the
+        /* A cue is sticky ("pin 4, not 5" stays true until it doesn't) so the
            standing instruction is put back in front of the user instead of
            being retyped from memory. Dimmer than a note written today, and it
            stays a quotation until the user accepts it: tapping seeds the editor
@@ -359,12 +359,12 @@ export function ExerciseBlock({
           accessibilityHint="Opens the note editor with this text"
         >
           <Text variant="label" color="textTertiary" numberOfLines={2}>
-            Last time — {previousNote}
+            Last time: {previousNote}
           </Text>
         </Pressable>
       ) : null}
 
-      {/* What to lift, and why — under the notes and above the table, which is
+      {/* What to lift, and why: under the notes and above the table, which is
           the order the block is read in: what this exercise is, what you told
           yourself about it, what to aim for, then the numbers.
 
@@ -389,7 +389,7 @@ export function ExerciseBlock({
       )}
 
       {/* Column headings. `overline` uppercases and adds tracking, so these are
-          written in sentence case — the same rule every other heading follows.
+          written in sentence case: the same rule every other heading follows.
 
           The two that name a unit are also the control for it: see `UnitHeader`.
           Time and Reps are not units the user has an opinion about, so they stay
@@ -484,13 +484,13 @@ export function ExerciseBlock({
  * Changing units used to mean leaving the session for Settings, which is four
  * taps and a scroll at the moment you have a dumbbell in one hand and the rack
  * says 55 and your app says kilograms. The heading was already printing the
- * answer — `kg`, `km` — so it becomes the control rather than gaining one: no
+ * answer (`kg`, `km`) so it becomes the control rather than gaining one: no
  * new row, no sheet, and the affordance is discoverable because the current
  * state is what you tap.
  *
  * A tap cycles rather than opening a picker. Both dimensions have exactly two
  * options, so a picker would be a modal to choose between the thing you can see
- * and the only alternative. That also makes a mis-tap free — every number on
+ * and the only alternative. That also makes a mis-tap free: every number on
  * screen converts instantly, nothing is written to the sets themselves, and
  * tapping again puts it back.
  *
@@ -504,7 +504,7 @@ export function ExerciseBlock({
  *
  * The first half was never the user's problem. Switching the dumbbell press to
  * pounds re-labelled the squat, the leg press and every figure on the history
- * screen with it — a whole-app decision taken from a heading that sits above
+ * screen with it: a whole-app decision taken from a heading that sits above
  * one exercise's four rows. What was meant was "this rack is in pounds".
  */
 function UnitHeader<T extends string>({
@@ -530,7 +530,7 @@ function UnitHeader<T extends string>({
       }}
       accessibilityRole="button"
       // Names the dimension, because "kg" alone out of context is not a control
-      // anyone can act on — and the hint is what makes it one rather than a
+      // anyone can act on, and the hint is what makes it one rather than a
       // heading a screen reader user is left guessing about.
       accessibilityLabel={`${name} unit: ${value}`}
       accessibilityHint={`Switches to ${next}`}
@@ -551,9 +551,9 @@ function UnitHeader<T extends string>({
 /**
  * One line for a suggestion: the target, then the sentence that justifies it.
  *
- * `Target 82.5 kg × 8 — cleared 12 reps on every set`. The reason is the
+ * `Target 82.5 kg × 8: cleared 12 reps on every set`. The reason is the
  * engine's own words and arrives sentence case with no trailing period, so it
- * is printed as given rather than reworded here — one place decides how the app
+ * is printed as given rather than reworded here: one place decides how the app
  * explains itself.
  *
  * The weight is read in the exercise's unit, never in kilograms, because the
@@ -562,7 +562,7 @@ function UnitHeader<T extends string>({
  * it, for the reason `describePlates` gives: `×` is read out inconsistently, so
  * a screen reader hears "for 8 reps".
  *
- * Null when the target is empty — an engine that has a kind and a reason but no
+ * Null when the target is empty. An engine that has a kind and a reason but no
  * numbers has nothing to put in front of anyone.
  */
 function describeSuggestion(
@@ -590,7 +590,7 @@ function describeSuggestion(
   if (parts.length === 0) return null;
 
   return {
-    text: `Target ${parts.join(' ')} — ${suggestion.reason}`,
+    text: `Target ${parts.join(' ')}: ${suggestion.reason}`,
     label: `Suggested target, ${spoken.join(' ')}. ${suggestion.reason}`,
   };
 }
@@ -599,8 +599,8 @@ function describeSuggestion(
  * One line of plate maths: the bar, then what goes on each side.
  *
  * Two shapes, because the honest answer has two shapes. When the weight can be
- * made, it is the loading — `20 + 25 · 10 · 2.5 per side`. When it can't, it is
- * the two weights either side of it — `102.5 → 100 / 105` — which is the only
+ * made, it is the loading: `20 + 25 · 10 · 2.5 per side`. When it can't, it is
+ * the two weights either side of it (`102.5 → 100 / 105`) which is the only
  * question `nearestLoadable` was ever written to answer.
  *
  * The spoken label is built alongside the printed one rather than derived from
@@ -616,8 +616,8 @@ function describePlates(
   const show = (kg: number) => formatWeight(kg, unit, { withUnit: false });
   const result = calculatePlates(targetKg, barKg, inventory);
 
-  // Under the bar means the user is on a bar this app doesn't know about — a
-  // 15 kg women's bar, a fixed EZ curl bar — and every number that follows
+  // Under the bar means the user is on a bar this app doesn't know about: a
+  // 15 kg women's bar, a fixed EZ curl bar, and every number that follows
   // would be built on the wrong one. Same rule as the Smith machine: silence.
   if (result.belowBar) return null;
 
@@ -654,8 +654,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
     // Eight rather than twelve. The chip and the menu each reach 4pt toward the
-    // other, so this is the width that lets their slop meet without overlapping
-    // — and the title needs every point back now that it is set at subheading.
+    // other, so this is the width that lets their slop meet without overlapping,
+    // and the title needs every point back now that it is set at subheading.
     gap: spacing.sm,
   },
   titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2 },
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   // Shrinks before the chevron does, so a long exercise name truncates instead
   // of pushing the affordance off the row. At subheading size a 390pt screen
   // leaves about 230pt here, which takes "Barbell Bulgarian Split Squat" down
-  // to "Barbell Bulgarian Split…" — still enough to tell two variations of the
+  // to "Barbell Bulgarian Split…": still enough to tell two variations of the
   // same lift apart, which is the whole job of the name.
   title: { flexShrink: 1 },
   rest: {
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
    *
    * `StatBand` had its rules taken away on the argument that figures in columns
    * under uppercase labels already read as a table without being boxed in, and
-   * that is right — for two or three figures on one line. This is a real table:
+   * that is right: for two or three figures on one line. This is a real table:
    * five columns and up to a dozen rows, with editable fields in it. The
    * headings were floating a few points above the first row with nothing to
    * attach them to, so at a glance the top set row read as the heading's
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
    *
    * A rule under the headings is not the grid that was removed. There is
    * nothing between the columns, nothing under the rows and nothing around the
-   * outside — the one line says where the header stops, which is the single
+   * outside. The one line says where the header stops, which is the single
    * thing the eye was missing.
    */
   columnHeader: {
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   previousCell: { flex: 1, minWidth: 60 },
   unitCell: { width: 62, textAlign: 'center' },
   // The plain headings are `Text` and centre themselves; a `UnitHeader` is a row
-  // of two things, so it has to say so. 2pt rather than a spacing token — the
+  // of two things, so it has to say so. 2pt rather than a spacing token. The
   // glyph is an annotation on the word, not a second item beside it.
   unitHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
   checkSpacer: { width: 38 },

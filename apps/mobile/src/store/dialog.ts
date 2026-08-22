@@ -4,15 +4,15 @@
  * Four reasons the platform alert had to go, in the order they bite:
  *
  * It is the one surface in the app the theme cannot reach. Every other pixel
- * reads from `theme/tokens.ts` — the AMOLED canvas, the lime accent, the loaded
- * face — and then a delete confirmation opens in Material grey with Roboto on
+ * reads from `theme/tokens.ts`: the AMOLED canvas, the lime accent, the loaded
+ * face, and then a delete confirmation opens in Material grey with Roboto on
  * it. On a screen that is otherwise true black, a white alert card is also the
  * brightest thing the app ever shows, which is a poor way to ask "are you sure".
  *
  * Android silently drops everything past the third button. `Alert.js` slices
  * the array before mapping it onto the neutral/negative/positive slots, so the
  * exercise menu in `exercise-block.tsx` offered four actions and shipped three,
- * with Cancel — last in the array — as the one that went missing.
+ * with Cancel (last in the array) as the one that went missing.
  *
  * `Alert.prompt` is iOS-only, which is why `PromptModal` already exists. That
  * component is the precedent this one follows: same card, same backdrop, same
@@ -82,7 +82,7 @@ let nextId = 0;
  * Raises a dialog and resolves with the index of the action that was pressed,
  * or `-1` if it was dismissed without one.
  *
- * The index is into the `actions` array as passed, not as displayed — the host
+ * The index is into the `actions` array as passed, not as displayed: the host
  * reorders Cancel to the platform-conventional end of the row or the bottom of
  * the stack, and a caller should not have to know which layout it got.
  *
@@ -101,13 +101,13 @@ export function showDialog(request: DialogRequest): Promise<number> {
 
 /**
  * Closes a dialog and settles its promise. Called by the host, and by nothing
- * else — `index` is trusted to be a real position in `dialog.actions`, or the
+ * else. `index` is trusted to be a real position in `dialog.actions`, or the
  * `-1` that means the backdrop or the back gesture closed it.
  *
  * Exactly once per dialog, enforced by its presence in the queue rather than by
  * the caller. `Modal` keeps its children mounted and hit-testable for the
  * length of the fade-out, so a second tap lands on a button belonging to a
- * dialog that has already answered — and `onPress` running twice there is a set
+ * dialog that has already answered, and `onPress` running twice there is a set
  * deleted twice or a workout discarded after it was finished. `resolve` is
  * harmless to call again; `onPress` is not.
  *
@@ -135,7 +135,7 @@ export function showAlert(title: string, message?: string): Promise<void> {
 export interface ConfirmOptions {
   title: string;
   message?: string;
-  /** The action being confirmed. Name it — "Delete", not "OK". */
+  /** The action being confirmed. Name it: "Delete", not "OK". */
   confirmLabel: string;
   cancelLabel?: string;
   /** `destructive` unless the thing being confirmed builds rather than removes. */
@@ -144,7 +144,7 @@ export interface ConfirmOptions {
 
 /**
  * Two-button question. Resolves `true` only if the confirming action was
- * pressed — a dismissal, the back gesture and Cancel are all `false`.
+ * pressed: a dismissal, the back gesture and Cancel are all `false`.
  */
 export async function showConfirm({
   title,

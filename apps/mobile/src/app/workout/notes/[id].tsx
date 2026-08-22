@@ -34,8 +34,8 @@ export default function ExerciseNotesScreen() {
   // than against an empty field that has not loaded yet.
   const loadedRef = useRef(false);
   /**
-   * What the database is believed to hold. `null` means unknown — before the
-   * read lands, and after a write fails — and an unknown disk value can never
+   * What the database is believed to hold. `null` means unknown: before the
+   * read lands, and after a write fails, and an unknown disk value can never
    * match, so the next change retries rather than assuming it got through.
    */
   const savedRef = useRef<{ value: string | null } | null>(null);
@@ -136,7 +136,7 @@ export default function ExerciseNotesScreen() {
     };
   }, [id, seed, save]);
 
-  // Covers every way out that isn't the Done button — the back gesture, the
+  // Covers every way out that isn't the Done button: the back gesture, the
   // back arrow, and the screen being torn down when the workout ends.
   useEffect(() => () => save(valueRef.current), [save]);
 
@@ -165,7 +165,7 @@ export default function ExerciseNotesScreen() {
             //
             // Filled all the same. The screen is a single autofocused field with
             // the keyboard over the bottom half of it, so the header is the only
-            // chrome on it and Done is the only thing in the header — and it is
+            // chrome on it and Done is the only thing in the header, and it is
             // the act that adopts a recalled cue, which backing out does not do.
             <HeaderAction
               label="Done editing note"

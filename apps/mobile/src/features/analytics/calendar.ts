@@ -4,8 +4,8 @@
  *
  * Unlike the history screen's analytics this loads the *whole* log in one query
  * rather than a window per month. A finished workout is seven small columns and
- * even a decade of daily training is a few thousand rows — the same full scan
- * `getDashboardStats` already runs on the Profile tab — and holding it means
+ * even a decade of daily training is a few thousand rows: the same full scan
+ * `getDashboardStats` already runs on the Profile tab, and holding it means
  * paging between months costs nothing and can't land out of order. A per-month
  * query would also have to be re-run before it could answer the two questions
  * the screen needs about months it is *not* showing: how far back the log goes,
@@ -51,8 +51,8 @@ export interface WorkoutCalendar {
    * The middle of the shading ramp: the median volume of a trained day.
    *
    * Median rather than the busiest day of the month on screen. Shading against
-   * the visible month would make every month look alike — a deload and a peak
-   * block would each show one brightest square — and the whole point of the
+   * the visible month would make every month look alike: a deload and a peak
+   * block would each show one brightest square, and the whole point of the
    * grid is that a hard month is visibly hotter than an easy one. It is also
    * why this is measured over the whole log and not a trailing window: as
    * someone gets stronger their old months should cool off, because relative to
@@ -103,7 +103,7 @@ export async function getWorkoutCalendar(): Promise<WorkoutCalendar> {
   for (const row of rows) {
     // Filed under the day it *started*. A session that runs past midnight
     // belongs to the evening it began, which is also how the history list
-    // groups it — two screens disagreeing about which day a workout was on
+    // groups it: two screens disagreeing about which day a workout was on
     // would be worse than either rule.
     const key = dayKey(row.startedAt);
 
@@ -128,8 +128,8 @@ export async function getWorkoutCalendar(): Promise<WorkoutCalendar> {
     day.prCount += row.prCount;
   }
 
-  // Days that logged no volume at all — a bodyweight-only session before a
-  // bodyweight was set, a session of held planks — are trained days, but they
+  // Days that logged no volume at all: a bodyweight-only session before a
+  // bodyweight was set, a session of held planks. Are trained days, but they
   // are not evidence of what a typical *volume* is, and a run of zeros would
   // drag the median to nothing and light the whole grid at full brightness.
   const volumes = [...days.values()].map((day) => day.volumeKg).filter((volume) => volume > 0);
@@ -183,7 +183,7 @@ export function monthCells(monthStart: Date, firstDayOfWeek: 0 | 1): (Date | nul
  * Column headings, rotated to start on the configured day.
  *
  * Both forms come back because they are read by different audiences: the
- * narrow letter is drawn (and is ambiguous — two locales in three have a pair
+ * narrow letter is drawn (and is ambiguous: two locales in three have a pair
  * of days sharing a letter), while the long name is what each day cell
  * announces, which is why the drawn row is hidden from screen readers.
  *
@@ -205,7 +205,7 @@ export function weekdayHeadings(firstDayOfWeek: 0 | 1): { narrow: string; long: 
 // ---------------------------------------------------------------------------
 
 export interface MonthSummary {
-  /** Everything trained that month, newest first — the order History uses. */
+  /** Everything trained that month, newest first. The order History uses. */
   workouts: CalendarWorkout[];
   volumeKg: number;
   durationSeconds: number;

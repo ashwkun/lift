@@ -26,7 +26,7 @@ import { Text } from './text';
 export type ButtonVariant =
   /** The one action a screen most wants you to take. At most one per view. */
   | 'primary'
-  /** Filled but neutral — the companion action next to a primary. */
+  /** Filled but neutral: the companion action next to a primary. */
   | 'secondary'
   /** Outlined and transparent, for actions on top of a card or image. */
   | 'outline'
@@ -89,8 +89,8 @@ interface VariantSpec {
   fg: string;
   border?: string;
   /**
-   * Outline at full press. Only for a variant whose border carries the press —
-   * currently just `danger`. Omitting it leaves the border static, drawn from
+   * Outline at full press. Only for a variant whose border carries the press.
+   * Currently just `danger`. Omitting it leaves the border static, drawn from
    * the stylesheet, and keeps the extra colour interpolation off every other
    * button in the app.
    */
@@ -104,7 +104,7 @@ interface VariantSpec {
  * one, which is how ghost and outline ended up feeling dead to the touch while
  * primary felt fine. A colour per state makes all six respond identically.
  *
- * `bgHover` is the desktop addition, and it is derived rather than chosen — see
+ * `bgHover` is the desktop addition, and it is derived rather than chosen: see
  * `hoverFill` in the theme for the rule and why it stops halfway.
  *
  * The two transparent variants are the exception and take the pressed fill
@@ -142,7 +142,7 @@ function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
       fg: c.accent,
     },
     /*
-     * Tinted and outlined, not filled — the one variant that does not fill.
+     * Tinted and outlined, not filled. The one variant that does not fill.
      *
      * Two reasons, and the first is that the filled version was unreadable. Its
      * label was `textOnDanger`, which on the old red measured 3.06 against a
@@ -152,14 +152,14 @@ function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
      *
      * The second is that a solid red slab was the loudest object on the screen,
      * reserved for the action the user least wants to take. `Discard workout`
-     * sits at the bottom of a live session below a rule and a wide gap — it is
+     * sits at the bottom of a live session below a rule and a wide gap. It is
      * already hard to hit by accident, and it does not also need to shout. This
      * still reads unmistakably as destructive: it is the only red control in the
      * app, and the only one that is outlined in its own role colour.
      *
      * The press is carried by the outline rather than the fill, which is not a
      * stylistic choice. Deepening a tint that its own label is printed on closes
-     * the gap between them — at 1.5× the label goes under AA on a card — so the
+     * the gap between them (at 1.5× the label goes under AA on a card) so the
      * fill moves only 1.25× and the border, which is not text and has no ratio
      * to meet, travels the whole way to solid.
      */
@@ -224,8 +224,8 @@ export function Button({
       disabled={isDisabled}
       // The fill crossfade and the scale are one gesture read two ways: colour
       // says the control acknowledged the touch, size says it moved under it.
-      // Neither can fire while disabled — the press handlers are not wired at
-      // all then — so the 40% in `styles.disabled` is the whole story there.
+      // Neither can fire while disabled. The press handlers are not wired at
+      // all then, so the 40% in `styles.disabled` is the whole story there.
       fill={bg}
       fillPressed={bgPressed}
       hoverFill={bgHover}

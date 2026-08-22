@@ -16,8 +16,8 @@ export interface Delta {
  * The change from one window to the next, or null when there is nothing to
  * compare against.
  *
- * The magnitude is formatted unsigned and the sign is carried by the arrow —
- * "↓ 2.1k kg" rather than "-2.1k kg" — because the formatters in `@lift/shared`
+ * The magnitude is formatted unsigned and the sign is carried by the arrow:
+ * "↓ 2.1k kg" rather than "-2.1k kg", because the formatters in `@lift/shared`
  * put the unit on the end and a minus in front of a collapsed figure reads as
  * part of the number.
  */
@@ -38,7 +38,7 @@ export function deltaOf(
 export interface SummaryFigure {
   label: string;
   value: string;
-  /** Set apart from the figure — smaller, quieter, on the same baseline. */
+  /** Set apart from the figure: smaller, quieter, on the same baseline. */
   unit?: string;
   delta?: Delta | null;
 }
@@ -56,8 +56,8 @@ const ARROWS: Record<DeltaDirection, keyof typeof Ionicons.glyphMap> = {
 /**
  * Four figures for a window, each against the window before it.
  *
- * Only a rise is coloured. A drop in volume is not a failure — deloads are
- * planned, and so are weeks with a wedding in them — so painting every decrease
+ * Only a rise is coloured. A drop in volume is not a failure. Deloads are
+ * planned, and so are weeks with a wedding in them, so painting every decrease
  * in the danger colour would have the app scolding people for training as
  * written. The arrow carries the direction, which is the honest signal; the
  * colour is reserved for the case worth celebrating.

@@ -72,14 +72,14 @@ import { spacing, useColors } from '@/theme';
  * Correcting a session that is already in the log.
  *
  * The logging screen is the only place in the app that can change a set, and it
- * only ever opens on the session in progress — so a weight typed into the wrong
+ * only ever opens on the session in progress, so a weight typed into the wrong
  * row, a set that was logged twice, or an exercise recorded under the wrong
  * name was permanent the moment Save was pressed. The only remedy the app
  * offered was to delete the whole session and re-enter it from memory.
  *
  * This is that screen again, pointed at a finished workout. It is deliberately
- * the same components — `ExerciseBlock`, `SetRow`, the reorder sheet, the rest
- * editor — because the gesture for fixing a set has to be the gesture for
+ * the same components: `ExerciseBlock`, `SetRow`, the reorder sheet, the rest
+ * editor, because the gesture for fixing a set has to be the gesture for
  * logging one; a second, read-only-ish editor with its own affordances would be
  * a second thing to learn for the rarer of the two jobs.
  *
@@ -88,7 +88,7 @@ import { spacing, useColors } from '@/theme';
  *
  * The one thing it owes that the logging screen doesn't is arithmetic. A
  * finished session stores its own totals and its records, and every screen in
- * the app reads those stored figures rather than the sets — so an edit that
+ * the app reads those stored figures rather than the sets, so an edit that
  * only wrote rows would leave the history card, the muscle split and the
  * trophy in the state they were in before. `recalculateWorkout` is what puts
  * them back in agreement, and it runs on the way out.
@@ -149,7 +149,7 @@ export default function EditWorkoutScreen() {
     [linkKey],
   );
 
-  // Only the exercises this session uses — the catalog is ~6,800 rows and the
+  // Only the exercises this session uses. The catalog is ~6,800 rows and the
   // screen needs a handful. Same query, same reasoning, as `active.tsx`.
   const exerciseIds = links.map((link) => link.exerciseId);
   const exerciseIdsKey = exerciseIds.join(',');
@@ -185,7 +185,7 @@ export default function EditWorkoutScreen() {
    * Done is the intended way out and awaits it, but Android's back gesture and
    * iOS's edge swipe do not route through a button, so the flag also drives the
    * unmount fallback below. Refs rather than state: nothing on screen reads
-   * either of them, and `dirty` is set on every keystroke in a weight field —
+   * either of them, and `dirty` is set on every keystroke in a weight field:
    * as state that would be a full re-render per character typed.
    */
   const dirty = useRef(false);
@@ -221,7 +221,7 @@ export default function EditWorkoutScreen() {
    * Bounded by this workout's start rather than merely excluding it. Editing a
    * session from March, the most recent other session is a later one, and a
    * column headed Previous would be offering numbers from the future of the
-   * workout on screen — including as the placeholder a bare check-off commits.
+   * workout on screen: including as the placeholder a bare check-off commits.
    */
   const [previousByExercise, setPreviousByExercise] = useState<Record<string, PreviousPerformance>>(
     {},
@@ -287,7 +287,7 @@ export default function EditWorkoutScreen() {
   }, [pendingExerciseIds, id, pickerAddress, clearPendingExercises, write]);
 
   /**
-   * Set ids whose weight the user emptied by hand — see `ghostFill`. A cleared
+   * Set ids whose weight the user emptied by hand: see `ghostFill`. A cleared
    * field and one that was never touched are the same null in the row, and only
    * this handler can tell them apart.
    */
@@ -311,7 +311,7 @@ export default function EditWorkoutScreen() {
    * notification and fires a milestone haptic when a block closes out. None of
    * that belongs to a session that finished on Tuesday. What is left is the
    * acceptance rule and the ghost, and both are shared with that screen rather
-   * than restated: `canLogSet` decides whether the tap lands — the set row runs
+   * than restated: `canLogSet` decides whether the tap lands. The set row runs
    * the same call to decide whether to tint before the write returns, and the
    * two disagreeing is what leaves a green row over a set the database refused.
    */
@@ -443,7 +443,7 @@ export default function EditWorkoutScreen() {
     if (!workout || closingRef.current) return;
 
     /*
-     * A session with nothing checked off is not an edit, it is a deletion — and
+     * A session with nothing checked off is not an edit, it is a deletion, and
      * the recalculation would carry it out silently, because "an exercise with
      * nothing checked was never performed" is the rule that finishing has
      * always applied. Better to say so and leave the sets alone; Delete workout
@@ -481,7 +481,7 @@ export default function EditWorkoutScreen() {
         haptics.rejected();
         void showAlert(
           'Could not save the changes',
-          'Your sets are still here — try again in a moment.',
+          'Your sets are still here: try again in a moment.',
         );
       }
     })();
@@ -512,7 +512,7 @@ export default function EditWorkoutScreen() {
 
   if (!workout) {
     // `updatedAt` is undefined until the first read lands, so the mount frame
-    // has no row yet — announcing "not found" there would flash a failure over
+    // has no row yet. Announcing "not found" there would flash a failure over
     // a session that is right behind this screen.
     return (
       <Screen scrolled={scrollEdge.progress}>
@@ -531,7 +531,7 @@ export default function EditWorkoutScreen() {
 
   if (!workout.finishedAt) {
     // The session is still running, and the logging screen is the one that owns
-    // it — it has the clock, the rest timer and Finish. Editing it from here
+    // it. It has the clock, the rest timer and Finish. Editing it from here
     // would be two screens writing the same rows with different rules.
     return (
       <Screen scrolled={scrollEdge.progress}>
@@ -563,7 +563,7 @@ export default function EditWorkoutScreen() {
         {/* The three facts about the session that live on the row rather than
             on its sets. Started is stated and not editable: it is when the app
             recorded the session beginning, and moving it would move the
-            workout between days, months and every aggregate keyed on them —
+            workout between days, months and every aggregate keyed on them:
             a different feature, wanting a date picker and a rule of its own. */}
         <Card padded={false} style={styles.meta}>
           <ListRow
@@ -589,7 +589,7 @@ export default function EditWorkoutScreen() {
         </Card>
 
         {lostWrites > 0 && (
-          /* The one place the screen admits it is not writing — the same
+          /* The one place the screen admits it is not writing: the same
              banner, and the same reasoning, as the logging screen. */
           <Pressable
             onPress={() => router.push('/export')}
@@ -601,7 +601,7 @@ export default function EditWorkoutScreen() {
             style={({ pressed }) => [styles.writeFailure, pressed && styles.pressed]}
           >
             <Text variant="label" color="danger">
-              {`Not saving — ${lostWrites} ${lostWrites === 1 ? 'change' : 'changes'} lost`}
+              {`Not saving: ${lostWrites} ${lostWrites === 1 ? 'change' : 'changes'} lost`}
             </Text>
             <Ionicons name="chevron-forward" size={14} color={colors.danger} />
           </Pressable>

@@ -4,8 +4,8 @@
  * Every cue routes through here rather than calling `expo-haptics` directly,
  * for two reasons. The `hapticsEnabled` preference is checked once, in one
  * place, so a new call site cannot forget it and buzz a user who turned it
- * off. And naming the cues by *meaning* — `logged`, `finished`, `destructive`
- * — rather than by intensity keeps the scale coherent: the alternative is a
+ * off. And naming the cues by *meaning*: `logged`, `finished`, `destructive`.
+ * Rather than by intensity keeps the scale coherent: the alternative is a
  * dozen call sites each independently deciding whether deleting a set is
  * `Medium` or `Heavy`, which is how an app ends up buzzing identically for
  * everything and teaching the user to ignore it.
@@ -22,7 +22,7 @@ import { useSettings } from '@/store/settings';
  * Fire-and-forget.
  *
  * A haptic is decoration on an action that already happened, so a device that
- * refuses one — no motor, an OS that throttles them, a permission quirk — must
+ * refuses one (no motor, an OS that throttles them, a permission quirk) must
  * not surface an unhandled rejection for it.
  */
 function fire(run: () => Promise<void>): void {
@@ -33,8 +33,8 @@ function fire(run: () => Promise<void>): void {
 export const haptics = {
   /**
    * A set was checked off. The most frequent cue in the app by a wide margin,
-   * which is why it stays a notification-success rather than a heavy impact —
-   * fifty heavy buzzes a session is a numb thumb.
+   * which is why it stays a notification-success rather than a heavy impact.
+   * Fifty heavy buzzes a session is a numb thumb.
    */
   logged: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
 
@@ -44,16 +44,16 @@ export const haptics = {
   /** Something appeared or was added: a set, an exercise, a sheet opening. */
   added: () => fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
 
-  /** A value moved between discrete states — set type cycling, a segmented control. */
+  /** A value moved between discrete states. Set type cycling, a segmented control. */
   selection: () => fire(() => Haptics.selectionAsync()),
 
   /** Something was removed or thrown away. */
   destructive: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
 
-  /** An action was refused — nothing logged yet, validation failed. */
+  /** An action was refused: nothing logged yet, validation failed. */
   rejected: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
 
-  /** Rest hit zero. Shares `logged`'s weight — both mean "carry on". */
+  /** Rest hit zero. Shares `logged`'s weight: both mean "carry on". */
   restComplete: () =>
     fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
 

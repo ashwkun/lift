@@ -19,8 +19,8 @@ import { contentWidth, stroke, timing, useColors, useLayout, type ContentWidth }
 /**
  * How far the content has to travel before the header is given its edge.
  *
- * Not zero. A list resting at the top still reports fractional offsets — a
- * rubber-band settle on iOS, a stray pixel from a keyboard inset — and a line
+ * Not zero. A list resting at the top still reports fractional offsets: a
+ * rubber-band settle on iOS, a stray pixel from a keyboard inset, and a line
  * that flickers on at 0.4pt of travel reads as a rendering fault rather than as
  * a boundary. Two points is under the threshold where anyone would call the
  * page scrolled, and above the noise.
@@ -31,8 +31,8 @@ const EDGE_OFFSET = 2;
  * The scroll-edge wiring: what to spread onto the list, and what to hand to the
  * `Screen` so it can draw the line.
  *
- * Two halves because the two ends of it live in different places — the scroll
- * view is somewhere inside the screen's tree and the line is at the top of it —
+ * Two halves because the two ends of it live in different places. The scroll
+ * view is somewhere inside the screen's tree and the line is at the top of it,
  * and passing them explicitly is what keeps a screen's scroll connected to its
  * *own* header edge. Context cannot do this job: the hook has to be called in
  * the component that renders `<Screen>`, which is above the provider a `Screen`
@@ -59,7 +59,7 @@ export interface ScrollEdge {
  *
  * A plain JS handler rather than a Reanimated worklet, and the trade is worth
  * stating. A worklet would keep the whole thing off the JS thread, but it also
- * requires every list in the app to become an `Animated.ScrollView` — including
+ * requires every list in the app to become an `Animated.ScrollView`: including
  * two FlashLists, where that is a wrapper this app would then own. What this
  * costs instead is one comparison per scroll frame and a shared-value write on
  * the two frames per gesture where the answer changes. There is no `setState`
@@ -92,14 +92,14 @@ export interface ScreenProps {
   children: ReactNode;
   /**
    * Which edges get safe-area padding. Screens inside the tab navigator should
-   * usually omit 'bottom' — the tab bar already covers that inset, and padding
+   * usually omit 'bottom': the tab bar already covers that inset, and padding
    * it twice leaves a visible gap.
    */
   edges?: ('top' | 'bottom')[];
   /**
    * From `useScrollEdge`. Given one, the screen draws a hairline under the
    * header that fades in once the page is scrolled. Screens with nothing to
-   * scroll leave it out and get no line, which is the honest state — there is
+   * scroll leave it out and get no line, which is the honest state. There is
    * no content passing under the header to separate from it.
    */
   scrolled?: SharedValue<number>;
@@ -110,7 +110,7 @@ export interface ScreenProps {
    * How wide this screen's content may draw once there is more room than a
    * phone has. Ignored below `breakpoint.medium`, where the window is the cap.
    *
-   * `column` — the default — is right for anything that is a list or a detail
+   * `column` (the default) is right for anything that is a list or a detail
    * view. Choose `form` for a screen that is a single task, and `board` for one
    * that is several things at once. `full` opts out entirely and is for screens
    * that manage their own width; it is not a way to avoid deciding.
@@ -135,8 +135,8 @@ export function Screen({
   /*
    * The cap, applied to a wrapper that is always rendered.
    *
-   * Always, even on a phone where it does nothing, because the alternative —
-   * wrapping only when wide — swaps the children between two different parents
+   * Always, even on a phone where it does nothing, because the alternative:
+   * wrapping only when wide: swaps the children between two different parents
    * as the window crosses 840. React sees a different element type at that
    * position and unmounts the whole subtree: scroll position lost, every piece
    * of local state reset, every `Reveal` replayed. On a phone that never
@@ -164,7 +164,7 @@ export function Screen({
         It belongs to the header and cannot be drawn there: a native-stack
         header is a platform view react-native-screens owns, and it takes a
         background colour and a title style but not a border. What it does offer
-        is `headerShadowVisible`, which is a *shadow* — invisible against the
+        is `headerShadowVisible`, which is a *shadow*: invisible against the
         AMOLED canvas in dark mode, and on Android an elevation that is always
         on rather than one that answers the scroll.
 
@@ -177,7 +177,7 @@ export function Screen({
         The edge stays outside the column, spanning the full pane.
 
         It is the header's bottom border, and the header is drawn by the native
-        stack across the whole width of the content area — so a line inset to
+        stack across the whole width of the content area, so a line inset to
         720pt would stop short of the header it belongs to and read as a rule
         drawn around the content instead.
       */}
@@ -202,7 +202,7 @@ function ScrollEdgeLine({ progress }: { progress: SharedValue<number> }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   // `width: '100%'` alongside `alignSelf` because a centred child sizes to its
-  // content rather than to its parent — without it the column collapses to the
+  // content rather than to its parent: without it the column collapses to the
   // width of its widest row and the cap never applies.
   column: { flex: 1, width: '100%', alignSelf: 'center' },
   // One physical pixel: a straight line on the pixel grid, which is exactly the

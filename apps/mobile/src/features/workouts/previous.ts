@@ -2,7 +2,7 @@
  * Lining today's sets up with last session's, and committing what that pairing
  * promises.
  *
- * The pairing was written twice — once in the exercise block, to fill the
+ * The pairing was written twice: once in the exercise block, to fill the
  * Previous column, and once in the logging screen, to decide which numbers a
  * bare check-off commits. They have to be the same function or the app offers
  * one set as a placeholder and writes another, which is the worst failure this
@@ -30,7 +30,7 @@ export interface SetRowModel {
  *
  * Pairing by raw array position compares today's first working set against last
  * week's second warm-up the moment the two sessions disagree about how many
- * warm-ups they had — which is most of the time — and everything downstream of
+ * warm-ups they had (which is most of the time) and everything downstream of
  * the pairing goes quietly wrong with it: the Previous column, the placeholder
  * built from it, and any warm-up ramp that reads the same numbers later.
  *
@@ -64,7 +64,7 @@ export function pairWithPrevious(
 
 /**
  * Last session's counterpart to one set, paired exactly as the block displays
- * it — the same walk as `pairWithPrevious`, stopped at the row in question.
+ * it: the same walk as `pairWithPrevious`, stopped at the row in question.
  *
  * Undefined when today has more sets of a class than last time did. There is no
  * "repeat the last one" fallback: a fifth set has no counterpart, and inventing
@@ -93,8 +93,8 @@ export function pairedPreviousSet(
  * The numbers a bare check-off commits, for `updateSet`'s `fill` argument.
  *
  * The weight and reps fields show last session's numbers as placeholders, so
- * "same as last week, tap the check" — the most common gesture in the app —
- * used to complete a set holding two nulls: no volume, no PR, and a summary
+ * "same as last week, tap the check": the most common gesture in the app.
+ * Used to complete a set holding two nulls: no volume, no PR, and a summary
  * that quietly disagreed with what happened. This is what the tap writes.
  *
  * It belongs in `fill` rather than in the patch, so `updateSet` writes it as
@@ -105,7 +105,7 @@ export function pairedPreviousSet(
  *
  * `weightCleared` is the one thing this cannot see for itself. A field the user
  * emptied by hand and one never touched are the same null in the row, but only
- * the untouched one means "same as last time" — and only on the tracking types
+ * the untouched one means "same as last time", and only on the tracking types
  * where an empty box is itself a fact: "no belt" on weighted work, "no
  * assistance" on assisted. On a barbell lift it means nothing at all, so the
  * placeholder's promise stands whether or not the box was touched.

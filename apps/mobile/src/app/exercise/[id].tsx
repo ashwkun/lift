@@ -79,7 +79,7 @@ interface OneRepMaxTrend {
  * Best estimated 1RM per session, oldest first.
  *
  * Derived from the history this screen has already loaded rather than from a
- * query of its own — the sets are in memory, and one `Math.max` per session is
+ * query of its own. The sets are in memory, and one `Math.max` per session is
  * cheaper than the round trip would be. Sessions that produced no estimate
  * (warm-ups only, an exercise that isn't weight-and-reps) drop out instead of
  * plotting a zero, which would read as a week of no strength rather than a week
@@ -132,7 +132,7 @@ export default function ExerciseDetailScreen() {
   const scrollEdge = useScrollEdge();
 
   const { id } = useLocalSearchParams<{ id: string }>();
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const { oneRepMaxFormula, bodyweightKg } = useSettings();
 
@@ -142,8 +142,8 @@ export default function ExerciseDetailScreen() {
   const [records, setRecords] = useState<{ kind: PrKind; value: number }[]>([]);
 
   /*
-   * Every figure on this screen belongs to this one exercise — the trend, the
-   * rep-max table, the chart axis, the session history — so all of them read in
+   * Every figure on this screen belongs to this one exercise: the trend, the
+   * rep-max table, the chart axis, the session history, so all of them read in
    * its unit rather than the app's. That is the point of the override: someone
    * who logs the dumbbell press in pounds should not have to convert their own
    * history in their head to check it against last month.
@@ -290,8 +290,8 @@ export default function ExerciseDetailScreen() {
       {/*
        * Two tabs, and outside the scroll view so they stay put.
        *
-       * This screen answers two unrelated questions — what is this movement,
-       * and what have I done with it — and it used to answer both down one
+       * This screen answers two unrelated questions. What is this movement,
+       * and what have I done with it, and it used to answer both down one
        * scroll, which meant the demonstration clip, the muscles, the 1RM trend
        * and the records all stood between someone and the sets they came to
        * check. Reference above, log below, and the log is one tap away rather
@@ -320,8 +320,8 @@ export default function ExerciseDetailScreen() {
           {/*
            * Named muscles rather than a row of chips.
            *
-           * Chips are a control shape — the picker's filters are chips, and so
-           * are the set-type selectors — so a row of them here read as five
+           * Chips are a control shape. The picker's filters are chips, and so
+           * are the set-type selectors, so a row of them here read as five
            * things to tap that did nothing. "Primary: Biceps" is the same fact
            * in the form it is actually read: a label and a value.
            */}
@@ -343,8 +343,8 @@ export default function ExerciseDetailScreen() {
               <SectionHeader title="Est. 1RM" />
               {/* The chart has no scrub gesture and prints only its first and
                   last x labels, so the answer is stated above it. The reading
-                  you want — where you are now, and how far that is from where
-                  the line starts — should not require touching anything. */}
+                  you want. Where you are now, and how far that is from where
+                  the line starts. Should not require touching anything. */}
               <View style={styles.trend}>
                 <Text variant="numericLarge" numberOfLines={1}>
                   {trendFigure}
@@ -431,7 +431,7 @@ export default function ExerciseDetailScreen() {
           ) : (
             history.map((entry, index) => (
               <View key={entry.workoutId}>
-                {/* Between sessions, not after every one — a rule under the
+                {/* Between sessions, not after every one: a rule under the
                     last entry is a line drawn across the bottom of the list. */}
                 {index > 0 && <Divider />}
                 <SessionHeader
@@ -458,7 +458,7 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-/** A label and its value on one line — the muscle and equipment facts. */
+/** A label and its value on one line: the muscle and equipment facts. */
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.fact}>

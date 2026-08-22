@@ -8,7 +8,7 @@
  * descriptions of what to do to it from anywhere. Completing a set is not.
  * `handleToggleSet` in `app/workout/active.tsx` commits the ghosted weights the
  * user was looking at, asks `canLogSet` whether the tap is allowed at all, and
- * scales the rest that follows to the kind of set it was — reading state that
+ * scales the rest that follows to the kind of set it was: reading state that
  * only that screen holds. Re-deriving it next to the notification would be a
  * second implementation of the subtlest logic in the app, and the two would
  * disagree.

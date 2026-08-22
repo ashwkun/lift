@@ -24,8 +24,8 @@ export function useTicker(intervalMs = 1000, enabled = true): number {
      * Re-enabling needs a reading of its own: a ticker that was switched off
      * holds the timestamp it stopped at, so a rest timer starting from a value
      * minutes old would show the wrong number until the first interval landed a
-     * whole second later. Neither of the two obvious places for it will take it
-     * — `Date.now()` is impure, so it cannot be read while rendering, and a
+     * whole second later. Neither of the two obvious places for it will take it.
+     * `Date.now()` is impure, so it cannot be read while rendering, and a
      * `setNow` in this effect's body is the cascading render the hooks rule is
      * about. A frame is the smallest honest delay left, and it is spent under
      * the animation that opens the bar.

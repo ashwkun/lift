@@ -4,7 +4,7 @@ import type { MuscleGroup } from '@lift/shared';
  * Anatomical muscle outlines for the front and back figures.
  *
  * Derived from LiftShift (https://github.com/aree6/LiftShift), AGPL-3.0. Each
- * entry maps a muscle to the paths that cover it — most muscles are two paths,
+ * entry maps a muscle to the paths that cover it. Most muscles are two paths,
  * one per side, and there is no separate silhouette layer: the muscles tile the
  * whole figure, so anything not listed here simply is not drawn.
  *

@@ -4,8 +4,8 @@
  * The app-wide setting is a default, not a decision. A gym is not one unit: the
  * dumbbell rack is stamped in pounds, the plates on the next rack are kilos,
  * and a treadmill reports miles whatever the rest of the room does. So the unit
- * belongs to the movement — stored on the exercise row beside its rest override
- * — and the setting is what an exercise falls back to when the user has never
+ * belongs to the movement: stored on the exercise row beside its rest override,
+ * and the setting is what an exercise falls back to when the user has never
  * said anything about it.
  *
  * None of this touches storage. Weights are kept in kilograms and distances in
@@ -22,7 +22,7 @@ import type { DistanceUnit, WeightUnit } from '@lift/shared';
 
 import { useSettings } from '@/store/settings';
 
-/** A resolved pair — no nulls left, safe to hand to a formatter. */
+/** A resolved pair: no nulls left, safe to hand to a formatter. */
 export interface DisplayUnits {
   weightUnit: WeightUnit;
   distanceUnit: DistanceUnit;
@@ -54,7 +54,7 @@ export function useAppUnits(): DisplayUnits {
  *
  * Null is the whole mechanism. It is not "kilograms", it is "nobody has said",
  * which is what lets someone flip the app-wide setting and have every exercise
- * they never spoke for follow along — while the two they set in pounds stay in
+ * they never spoke for follow along, while the two they set in pounds stay in
  * pounds, because those were choices.
  */
 export function resolveExerciseUnits(

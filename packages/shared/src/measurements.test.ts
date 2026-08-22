@@ -156,7 +156,7 @@ describe('series', () => {
   });
 
   it('fits the rate to every reading, not just the ends', () => {
-    // A clean kilogram a week down, with the last reading two kilos high — a
+    // A clean kilogram a week down, with the last reading two kilos high: a
     // heavy meal, not a reversal. First-to-last would report the series going
     // *up*; the regression keeps it going down.
     const points = series([
@@ -274,7 +274,7 @@ describe('body composition', () => {
   });
 
   it('estimates body fat from circumferences', () => {
-    // A 180 cm man, 85 cm waist, 38 cm neck — the Navy regression puts this at
+    // A 180 cm man, 85 cm waist, 38 cm neck. The Navy regression puts this at
     // roughly 18%.
     const male = navyBodyFatPercent({
       sex: 'male',

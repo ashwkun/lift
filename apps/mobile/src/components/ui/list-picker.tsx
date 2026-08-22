@@ -14,8 +14,8 @@ export interface ListPickerOption<T extends string> {
   /**
    * A quieter second line under the label.
    *
-   * For a choice whose options need to be *compared* rather than merely named —
-   * the six one-rep-max formulas, which are six surnames until something says
+   * For a choice whose options need to be *compared* rather than merely named.
+   * The six one-rep-max formulas, which are six surnames until something says
    * what they do differently. Left off, the row is a single line and sits at the
    * same height it always did.
    */
@@ -38,8 +38,8 @@ export interface OptionListProps<T extends string> {
  * selected one.
  *
  * Split out of `ListPicker` because the settings screen needs the same sheet
- * hung off a *list row* rather than off a pill — same options, same reading
- * order, same checkmark — and two hand-rolled radio lists in one app is how a
+ * hung off a *list row* rather than off a pill: same options, same reading
+ * order, same checkmark, and two hand-rolled radio lists in one app is how a
  * picker ends up with two different row heights depending on which screen
  * opened it.
  *
@@ -112,8 +112,8 @@ export interface ListPickerProps<T extends string> {
  * line however many options are offered, which a segmented track does not.
  *
  * Deliberately *not* built on `FilterTrigger`. That control paints itself in
- * the accent whenever it holds a value, which is right for a filter — an active
- * filter is hiding rows — and wrong here: one of these options is always
+ * the accent whenever it holds a value, which is right for a filter. An active
+ * filter is hiding rows, and wrong here: one of these options is always
  * selected, so an accented pill would be permanently lit and would spend the
  * screen's one loud colour on a control rather than on the data.
  */

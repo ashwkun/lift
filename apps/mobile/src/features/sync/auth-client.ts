@@ -3,7 +3,7 @@
  *
  * The Expo plugin keeps the session token in platform storage and handles the
  * deep-link round-trip that OAuth requires. Which storage that is depends on
- * where the app is running — see `token-storage`, which is also the reason this
+ * where the app is running. See `token-storage`, which is also the reason this
  * module no longer touches `expo-secure-store` directly.
  */
 
@@ -18,7 +18,7 @@ import { readToken, tokenStorage } from './token-storage';
  * API base URL.
  *
  * Falls back to the LAN address Metro is served from, so a physical device can
- * reach a dev machine without anyone hardcoding an IP — `localhost` on a phone
+ * reach a dev machine without anyone hardcoding an IP: `localhost` on a phone
  * resolves to the phone itself, which is the classic wasted afternoon here.
  * Set `EXPO_PUBLIC_API_URL` to point at a deployed instance.
  */
@@ -40,7 +40,7 @@ export function resolveApiUrl(): string {
    *
    * The reasoning is the mirror image of the phone case above: there, the
    * device and the dev machine are different computers, so `localhost` is
-   * wrong. Here the tab and the API may well be on the same machine — but if
+   * wrong. Here the tab and the API may well be on the same machine, but if
    * the app is being reached over the LAN at `192.168.1.20:8081`, `localhost`
    * once again means "this computer" and points at the wrong one.
    */
@@ -56,12 +56,12 @@ export const API_URL = resolveApiUrl();
 /**
  * Where the signed session token is kept, for the Authorization header.
  *
- * The Expo plugin does not put it here — or anywhere, on the web. Its storage
+ * The Expo plugin does not put it here, or anywhere, on the web. Its storage
  * hook opens with `if (isWeb) return`, because in a browser it expects the
  * cookie jar to do the job, so `getCookie()` there returns an empty string
  * forever. The server's `bearer()` plugin hands the same token back in a
  * `set-auth-token` response header on any response that sets the session
- * cookie, and that header *is* readable cross-origin — it adds itself to
+ * cookie, and that header *is* readable cross-origin. It adds itself to
  * `Access-Control-Expose-Headers`. So this is where it gets kept.
  */
 const SESSION_TOKEN_KEY = 'lift_session_token';
@@ -94,7 +94,7 @@ export const { signIn, signUp, signOut, useSession, getSession } = authClient;
 
 /**
  * The stored session token, for use as a Bearer header on sync requests.
- * Returns null when signed out — sync then stays local-only.
+ * Returns null when signed out. Sync then stays local-only.
  */
 export async function getSessionToken(): Promise<string | null> {
   return (await readToken(SESSION_TOKEN_KEY)) || null;
@@ -112,7 +112,7 @@ export async function getSessionToken(): Promise<string | null> {
  *
  * **`credentials: 'include'`** is what lets a browser attach the session cookie
  * it already holds for the API's origin. Every call the auth client makes has
- * had this from the start — better-auth's own config sets it — and this one
+ * had this from the start (better-auth's own config sets it) and this one
  * request did not, which is the whole reason a signed-in browser was getting
  * 401s from sync while sign-in itself worked.
  *
@@ -153,7 +153,7 @@ export class SyncHttpError extends Error {
     this.name = 'SyncHttpError';
   }
 
-  /** 401 means the session expired — the user must sign in again. */
+  /** 401 means the session expired. The user must sign in again. */
   get isAuthError(): boolean {
     return this.status === 401 || this.status === 403;
   }

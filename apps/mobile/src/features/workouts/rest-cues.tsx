@@ -3,7 +3,7 @@
  *
  * Mounted once at the app root rather than inside the timer bar, because rest
  * keeps running while the user is on the exercise picker or reading their
- * history — the bell has to ring wherever they are. It renders nothing, so the
+ * history. The bell has to ring wherever they are. It renders nothing, so the
  * once-a-second re-render reconciles an empty component instead of the screen
  * underneath it.
  */
@@ -30,7 +30,7 @@ const TICK_FROM = 3;
  *
  * Ten seconds out the beeps come every other second; from four they come every
  * second, so the run is 10, 8, 6, 4, 3, 2, 1 and then the bell. The gap halving
- * is the whole point — a fixed cadence tells you rest is ending, an
+ * is the whole point: a fixed cadence tells you rest is ending, an
  * accelerating one tells you *how close* without anyone having to look at the
  * phone, which is the only reason to make noise in a gym at all.
  *
@@ -53,8 +53,8 @@ function beepsAt(remaining: number): boolean {
  * The readout carries an `accessibilityLabel` but no live region, because a
  * number that changes every second would be read out every second. A screen
  * reader user therefore hears nothing unless they go and find the bar, so the
- * two moments that change what they do — the warning window opening, and zero —
- * are announced instead. This is not the countdown-cue preference, which
+ * two moments that change what they do: the warning window opening, and zero.
+ * Are announced instead. This is not the countdown-cue preference, which
  * governs whether the phone buzzes; it is the only way the bar speaks at all.
  */
 const ANNOUNCE_FROM = 10;
@@ -92,7 +92,7 @@ export function RestCues() {
   // The decoded cues outlive any one workout, but not the app being torn down.
   useEffect(() => releaseRestSounds, []);
 
-  // Decoded when the period starts rather than when the first beep is due — see
+  // Decoded when the period starts rather than when the first beep is due: see
   // `primeRestSounds`. Keyed on `running` so it costs one call per rest period
   // instead of one per tick.
   useEffect(() => {

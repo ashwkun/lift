@@ -2,7 +2,7 @@
  * The in-app half of the rest-timer alert: the countdown beep, and the bell.
  *
  * The scheduled notification carries the same bell, but the system only
- * presents it when the app is in the background — and not at all if the user
+ * presents it when the app is in the background, and not at all if the user
  * declined the permission. This plays it directly so the cue is identical
  * either way, and so a denied notification prompt costs the user a banner
  * rather than the entire feature.
@@ -34,7 +34,7 @@ function ensureAudioMode(): void {
 
   void setAudioModeAsync({
     // A gym is loud and the ringer switch is not a statement about the rest
-    // timer — someone who silenced their phone still wants to know rest is up.
+    // timer: someone who silenced their phone still wants to know rest is up.
     playsInSilentMode: true,
     // Layers over whatever the user is listening to. `duckOthers` would dip
     // their music for every beep in the countdown, which over the last ten
@@ -78,8 +78,8 @@ async function play(cue: Cue): Promise<void> {
  *
  * Called when a rest period starts, which is the one moment with time to spare:
  * the first beep is ten seconds from zero and the bell is behind it. Left lazy,
- * the decode would land on the first beep — the cue that has to be *on* the
- * second to read as a countdown at all — and a player created inside that tick
+ * the decode would land on the first beep. The cue that has to be *on* the
+ * second to read as a countdown at all, and a player created inside that tick
  * is a cue that arrives late on exactly the beat that matters.
  *
  * Idempotent, and cheap after the first call.
@@ -107,7 +107,7 @@ export function playCountdownBeep(): Promise<void> {
 /**
  * Frees the native players.
  *
- * Worth calling when the last workout screen unmounts — the decoded buffers are
+ * Worth calling when the last workout screen unmounts. The decoded buffers are
  * a few hundred kilobytes that nothing outside a session needs.
  */
 export function releaseRestSounds(): void {

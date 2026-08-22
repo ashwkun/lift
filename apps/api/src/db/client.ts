@@ -12,7 +12,7 @@ if (!connectionString) {
 /**
  * Connection pool.
  *
- * `max: 10` suits a single VPS container — Postgres allocates memory per
+ * `max: 10` suits a single VPS container. Postgres allocates memory per
  * backend, so a large pool from one app instance mostly buys contention.
  * Raise it only alongside `max_connections`.
  */

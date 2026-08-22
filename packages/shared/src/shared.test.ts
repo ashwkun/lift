@@ -288,7 +288,7 @@ describe('computeWeekStreak', () => {
   });
 
   it('keeps the streak alive when the current week is still empty', () => {
-    // Trained last week, nothing yet this week — the week is not over, so the
+    // Trained last week, nothing yet this week. The week is not over, so the
     // streak should hold rather than reset to zero.
     const now = new Date(2026, 7, 12);
     assert.equal(computeWeekStreak([monday(1), monday(2)], now), 2);

@@ -5,7 +5,7 @@
  * while the app is foregrounded. A scheduled local notification is what actually
  * tells the user rest is over once they've pocketed their phone.
  *
- * While the app *is* foregrounded the notification stays silent and invisible —
+ * While the app *is* foregrounded the notification stays silent and invisible:
  * `RestCues` already rings the same bell and the timer bar is on screen, so
  * presenting it too would double the sound and cover the workout with a banner
  * describing something the user is looking at.
@@ -22,7 +22,7 @@ import { configureNotificationHandler } from './presentation';
  * Bumped from `rest-timer` when the bell replaced the system sound.
  *
  * An Android channel's sound is fixed at creation and cannot be changed
- * afterwards — updating the existing channel is silently ignored, so anyone
+ * afterwards. Updating the existing channel is silently ignored, so anyone
  * who had already opened the app would keep the old tone forever. A new id is
  * the only way to move them across.
  */
@@ -32,7 +32,7 @@ const LEGACY_ANDROID_CHANNEL_ID = 'rest-timer';
 /**
  * Bundled by the `expo-notifications` config plugin (see `app.json`), which
  * copies it into the iOS bundle and Android's `res/raw`. Referenced by bare
- * filename on both platforms, and only resolvable in a dev/EAS build — Expo Go
+ * filename on both platforms, and only resolvable in a dev/EAS build. Expo Go
  * has no way to carry a custom sound.
  */
 const SOUND_FILE = 'rest_complete.wav';
@@ -81,7 +81,7 @@ export async function prepareRestNotifications(): Promise<boolean> {
   const existing = await Notifications.getPermissionsAsync();
   if (existing.granted) return true;
 
-  // Don't re-prompt if the user has already said no — the OS won't show the
+  // Don't re-prompt if the user has already said no. The OS won't show the
   // dialog twice anyway, and asking mid-workout is intrusive.
   if (!existing.canAskAgain) return false;
 
@@ -92,7 +92,7 @@ export async function prepareRestNotifications(): Promise<boolean> {
 /**
  * Schedules the "rest over" alert, replacing any previously scheduled one.
  *
- * Called on every start, adjustment, pause and resume — the scheduled time and
+ * Called on every start, adjustment, pause and resume: the scheduled time and
  * the on-screen countdown have to agree, and the only way to move a scheduled
  * notification is to cancel it and post a new one.
  */
@@ -128,7 +128,7 @@ export async function scheduleRestNotification(
 }
 
 /**
- * Cancels the pending alert — called when rest is skipped, paused or adjusted.
+ * Cancels the pending alert. Called when rest is skipped, paused or adjusted.
  *
  * Unconditional, and it dismisses as well as cancels. Cancelling only reaches a
  * request that has not fired yet; a bell that already rang sits in the shade
@@ -160,7 +160,7 @@ export async function cancelRestNotification(): Promise<void> {
  * countdown behind it did not survive (an expired deadline restores as idle,
  * see `store/timer`), the alert would fire mid-set for nothing. This is called
  * from the active workout screen, next to the permission prompt, rather than at
- * launch — asking in context is a deliberate decision, and a sweep at bootstrap
+ * launch. Asking in context is a deliberate decision, and a sweep at bootstrap
  * would drag notification setup back to app start where it was refused.
  *
  * Safe to call at any time: a rest period that is genuinely still running keeps

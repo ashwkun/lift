@@ -65,7 +65,7 @@ export const useSync = create<SyncState>((set, get) => ({
        * Logged before it is swallowed into state.
        *
        * Everything below turns the error into one line for the card, which is
-       * all the UI has room for — and for a while that was the only trace it
+       * all the UI has room for, and for a while that was the only trace it
        * left anywhere. A failure with no stack in the log reads as the app
        * doing nothing at all when sync is tapped, so the one place with the
        * real message says it out loud.
@@ -74,8 +74,8 @@ export const useSync = create<SyncState>((set, get) => ({
 
       /*
        * A dead network is retried on its own and the user can ignore it. A
-       * database failure will not fix itself, so it is not filed as 'offline'
-       * — "will retry" is a promise this one cannot keep. Local data is
+       * database failure will not fix itself, so it is not filed as 'offline'.
+       * "will retry" is a promise this one cannot keep. Local data is
        * untouched either way.
        */
       set({
@@ -107,7 +107,7 @@ export const useSync = create<SyncState>((set, get) => ({
  * The database case is listed separately because collapsing it into the network
  * one is actively misleading. A constraint violation while applying a pull used
  * to report "No connection to the server" against a server that was answering
- * perfectly — which sends anyone debugging it to the wrong machine entirely.
+ * perfectly, which sends anyone debugging it to the wrong machine entirely.
  */
 function describeFailure(error: unknown): string {
   if (error instanceof SyncHttpError) {

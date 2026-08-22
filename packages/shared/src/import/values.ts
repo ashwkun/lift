@@ -4,13 +4,13 @@
  * The recurring problem is that none of these formats are declared anywhere in
  * the file. A cell reading `52,5` is 52.5 kg in Berlin and 525 nowhere; `5/6/25`
  * is May or June depending on which app wrote it. So each parser here commits to
- * a rule and returns `null` when it can't, and the caller counts the nulls —
- * that count is what the import screen shows instead of silently importing a
+ * a rule and returns `null` when it can't, and the caller counts the nulls.
+ * That count is what the import screen shows instead of silently importing a
  * workout dated 1923.
  *
  * English month names only. Hevy writes `21 May 2025, 20:44` in whatever
  * language the app is set to, which is why the import screen says to switch it
- * to English before exporting — the same caveat LiftShift ships with.
+ * to English before exporting: the same caveat LiftShift ships with.
  */
 
 import type { SetType } from '../types.ts';
@@ -28,7 +28,7 @@ const UNIT_SUFFIX = /\s*(kgs?|lbs?|pounds?|kms?|mi|miles?|m|secs?|s|mins?|reps?)
  * The convention is decided per cell rather than per file because it can be
  * read off the cell itself: `1.234,56` and `1,234.56` each pin down both
  * separators, and a lone comma with fewer than three digits after it can only
- * be a decimal point. The remaining case — `1,234` — is read as a thousands
+ * be a decimal point. The remaining case (`1,234`) is read as a thousands
  * group, which is the reading that is right when it matters (a weight of 1,234
  * is a formatted 1234; a weight of 1.234 kg is not a weight).
  */
@@ -68,7 +68,7 @@ export function parseInteger(value: string): number | null {
  * Seconds, from any of the three ways apps write a duration: a bare count,
  * a clock (`1:06:25`, `2:30`), or a spelled-out span (`1h 30m`).
  *
- * A two-part clock is minutes and seconds, not hours and minutes — `2:30` on a
+ * A two-part clock is minutes and seconds, not hours and minutes: `2:30` on a
  * plank is two and a half minutes, and reading it as two and a half hours would
  * put a 9,000-second set in the log.
  */
@@ -125,7 +125,7 @@ const TIME_PART_24 = /[\s,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*$/;
  * Timestamps carrying an explicit offset are handed to the platform, because
  * they name an instant and reinterpreting one is how an import ends up an hour
  * out. Everything else is wall-clock text with no zone in it and is read as
- * local time — a session logged at 20:44 belongs at 20:44 on the phone that
+ * local time. A session logged at 20:44 belongs at 20:44 on the phone that
  * imports it, whatever continent the export was written on.
  */
 export function parseTimestamp(value: string, order: DateOrder = 'dmy'): number | null {
@@ -290,7 +290,7 @@ export interface ParsedSetType {
    * False when the source drew a distinction Lift doesn't have.
    *
    * An AMRAP, a myo-rep and a cluster set all land on `normal`, which is the
-   * right place for them — they are working sets and they count — but the label
+   * right place for them (they are working sets and they count) but the label
    * is gone. The importer tallies these so the summary can say so, because
    * finding out later that a hundred drop sets became ordinary ones is worse
    * than being told at the time.

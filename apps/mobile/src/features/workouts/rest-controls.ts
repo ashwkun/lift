@@ -3,7 +3,7 @@
  *
  * The docked bar and the expandable sheet are two views of one clock, and the
  * failure mode of writing them out twice is not that they look slightly
- * different — it is that `+15` in the sheet extends the countdown while leaving
+ * different. It is that `+15` in the sheet extends the countdown while leaving
  * the scheduled notification where it was, and the phone rings fifteen seconds
  * early with the app in the user's pocket. Every action here is three things
  * that have to happen together (a haptic, a store write, and the bell moved to
@@ -42,7 +42,7 @@ import {
 } from '@/store/timer';
 import { type Palette } from '@/theme';
 
-/** Below this the readout turns amber — the "get back under the bar" window. */
+/** Below this the readout turns amber: the "get back under the bar" window. */
 const WARNING_SECONDS = 10;
 
 /** What one press of a `±` control is worth, in both surfaces. */
@@ -69,8 +69,8 @@ export interface RestControls {
  * the timer is no longer only driven from a press on screen: the ongoing
  * notification's `+15s`, `Pause` and `Skip` buttons reach the same store from
  * `features/workouts/workout-notice.tsx`, with no component anywhere near them.
- * Every mutation of the rest period has to move the bell to match — an extension
- * that leaves the alert where it was rings early with the phone in a pocket —
+ * Every mutation of the rest period has to move the bell to match. An extension
+ * that leaves the alert where it was rings early with the phone in a pocket,
  * so the rule belongs somewhere both callers can reach rather than in one of
  * them.
  *
@@ -97,7 +97,7 @@ export function syncRestNotification(): void {
 export function useRestControls(): RestControls {
   // Written as plain closures rather than `useCallback`s. The React Compiler is
   // on for this app (see `experiments.reactCompiler` in app.json), so hand-rolled
-  // memoisation here would be noise around something already being done — and
+  // memoisation here would be noise around something already being done, and
   // none of these are read from a dependency array anyway; they are only ever
   // called from a press handler.
   return {
@@ -154,21 +154,21 @@ export interface RestProgressOptions {
    * is a duration waiting to be started rather than one that has run out.
    */
   idleValue?: number;
-  /** False parks the animation — a closed sheet has nothing to draw. */
+  /** False parks the animation. A closed sheet has nothing to draw. */
   enabled?: boolean;
 }
 
 /**
  * The fraction of the rest period still to run, as a UI-thread value.
  *
- * One animation per period, whose duration is the milliseconds actually left —
+ * One animation per period, whose duration is the milliseconds actually left:
  * never a value nudged once a second from JS. That matters twice over: the
  * sweep is smooth instead of stepping, and it costs nothing on the JS thread,
  * which is busy with a controlled text input every time the user types a weight
  * while resting.
  *
  * Each surface gets its own shared value from its own call, driven by this one
- * definition — the docked line and the expanded ring are the same animation
+ * definition: the docked line and the expanded ring are the same animation
  * written once rather than two clocks that agree by coincidence. They are not
  * the same *value*, and they do not need to be: both are functions of the same
  * deadline, so they cannot drift while the store holds one.
@@ -185,7 +185,7 @@ export function useRestProgress({
   const resync = useForegroundResync();
 
   useEffect(() => {
-    // First, before any branch below decides what to do — several of them do
+    // First, before any branch below decides what to do. Several of them do
     // nothing at all, and "nothing" has to mean the line freezes where it is
     // rather than the previous period's run to zero carrying on underneath.
     cancelAnimation(remaining);
@@ -223,7 +223,7 @@ export function useRestProgress({
       /*
        * The one animation in the app that ignores the OS reduce-motion setting,
        * and it has to. `ReduceMotion.System` makes Reanimated jump straight to
-       * the target value — here that is an empty ring and an empty line, drawn
+       * the target value. Here that is an empty ring and an empty line, drawn
        * the instant a two-minute rest begins. This is not motion decorating a
        * state change; it *is* the state, and a user who has asked for less
        * animation has not asked to be told their rest is over.
@@ -240,7 +240,7 @@ export function useRestProgress({
  * that banked more than the overtime limit while it was away.
  *
  * A UI-thread animation is driven by the render loop, which stops while the app
- * is backgrounded — it resumes from where it froze rather than from where the
+ * is backgrounded: it resumes from where it froze rather than from where the
  * wall clock has since moved to. Re-running the animation on every return snaps
  * it back onto the real deadline.
  *

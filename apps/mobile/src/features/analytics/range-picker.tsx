@@ -5,7 +5,7 @@ import { STAT_RANGES, type StatRange } from './windows';
 export interface RangePickerProps {
   value: StatRange;
   onChange: (range: StatRange) => void;
-  /** Narrow the offer — the set-count trend has no use for a single week. */
+  /** Narrow the offer. The set-count trend has no use for a single week. */
   options?: readonly StatRange[];
 }
 

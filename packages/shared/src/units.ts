@@ -39,7 +39,7 @@ export function fromDisplayWeight(value: number, unit: WeightUnit): number {
  * Formats a weight for display, trimming trailing zeros.
  *
  * Gym weights are rarely more precise than 0.25 (micro-plates), so two decimals
- * is the ceiling — but 100 should render as "100", not "100.00".
+ * is the ceiling, but 100 should render as "100", not "100.00".
  *
  * With `withUnit: false` this is also the correct value for an editable weight
  * field. Two decimals absorbs the float noise of the kg↔lb round trip (an
@@ -144,8 +144,8 @@ export function parseDuration(input: string): number | null {
  *
  * It used to collapse anything past ten thousand to "12.4k" and past a million
  * to "1.3M". That is a compression that throws away the part of the number
- * people actually compare — a week at 12.4k and a week at 12.45k print the same
- * — and it did it exactly where volume gets interesting. Every figure in this
+ * people actually compare: a week at 12.4k and a week at 12.45k print the same,
+ * and it did it exactly where volume gets interesting. Every figure in this
  * app is set in a tabular face and sits in a column sized for it, so the extra
  * three or four characters cost layout nothing and buy back the precision.
  *
@@ -177,7 +177,7 @@ function pad(n: number): string {
  * "100.00" → "100", "102.50" → "102.5", "102.55" → "102.55"
  *
  * Exported because the editable distance field needs the same treatment and
- * cannot use `formatDistance` — that formatter switches to metres below 1 km,
+ * cannot use `formatDistance`: that formatter switches to metres below 1 km,
  * which is unusable in a field the user is typing kilometres into.
  */
 export function trimZeros(text: string): string {

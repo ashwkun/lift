@@ -10,13 +10,13 @@ import { Text } from './text';
 /**
  * Renders whatever is at the head of the dialog queue.
  *
- * Mounted once, at the root, above the navigator — see `app/_layout.tsx` for
+ * Mounted once, at the root, above the navigator: see `app/_layout.tsx` for
  * why it sits beside `Bootstrap` rather than inside `AppNavigator`. Everything
  * it knows comes from `store/dialog`, which is also the only way to open one.
  *
  * Card, backdrop and accessibility handling are `PromptModal`'s, deliberately:
  * that component is the app's existing dialog and the two appear in the same
- * flows — rename a routine, then delete it — so they have to be the same
+ * flows (rename a routine, then delete it) so they have to be the same
  * object. Only the body differs, text here against a field there.
  */
 export function DialogHost() {
@@ -27,14 +27,14 @@ export function DialogHost() {
   // over the frames after that, and children that vanish on the same commit
   // fade out an empty card. Holding the last request keeps the dialog readable
   // until it is actually gone. Adjusted during render rather than in an effect,
-  // the way `PromptModal` and `MeasurementEntrySheet` seed themselves — an
+  // the way `PromptModal` and `MeasurementEntrySheet` seed themselves. An
   // effect would paint the blank frame first and correct it a commit later.
   const [shown, setShown] = useState<QueuedDialog | null>(current);
 
   if (current && current !== shown) setShown(current);
 
   // Resolves to the Cancel action when there is one, so a backdrop tap and the
-  // Android back gesture are the same event as pressing it — including its
+  // Android back gesture are the same event as pressing it: including its
   // `onPress`. Every dialog can be closed this way, with no exception for the
   // ones that have no Cancel: a modal the hardware back button cannot dismiss
   // is a trap, and `Alert.alert`'s Android default of `cancelable: false` is
@@ -49,8 +49,8 @@ export function DialogHost() {
 
   const actions = shown?.actions ?? [];
 
-  // Accented only when it is the sole ordinary action. A menu — the exercise
-  // block's Replace / Edit note / Remove — is three or four of these at once,
+  // Accented only when it is the sole ordinary action. A menu: the exercise
+  // block's Replace / Edit note / Remove. Is three or four of these at once,
   // and painting them all in the accent spends a screen's entire colour budget
   // (`theme/tokens.ts`: roughly one accent element per view) on a list of
   // equally weighted choices, none of which is the one being recommended.
@@ -59,14 +59,14 @@ export function DialogHost() {
   // Side by side only when both labels are short enough to survive it. Two
   // buttons split a 400pt card into ~170pt each, which holds about twelve
   // characters at the label's size before `Button`'s `numberOfLines={1}`
-  // truncates — and a confirmation whose verb reads "Open Push Day…" is worse
+  // truncates, and a confirmation whose verb reads "Open Push Day…" is worse
   // than a taller dialog. Anything else stacks full width.
   const inline = actions.length === 2 && actions.every((action) => action.label.length <= 12);
 
   // Cancel leads the row and trails the stack, which is where each platform
   // puts it and where the eye looks for it. Sorting here rather than asking
   // call sites to order for a layout they cannot see also means the original
-  // index — the one `settleDialog` and the promise are keyed on — has to travel
+  // index (the one `settleDialog` and the promise are keyed on) has to travel
   // alongside. `sort` is stable, so everything else keeps the order it was
   // passed in.
   const ordered = actions
@@ -76,7 +76,7 @@ export function DialogHost() {
   return (
     <Modal visible={current !== null} transparent animationType="fade" onRequestClose={dismiss}>
       {/*
-        `accessible={false}` on both Pressables — the same reasoning as
+        `accessible={false}` on both Pressables: the same reasoning as
         `PromptModal`. Pressable defaults to accessible, which collapses its
         whole subtree into one element, and the backdrop would announce the
         dialog as a single button reading "Delete workout This session its sets
@@ -118,7 +118,7 @@ export function DialogHost() {
                 // different dialogs. Naming the title is what separates them.
                 accessibilityLabel={`${action.label}, ${shown?.title ?? ''}`}
                 variant={variantFor(action, ordinary)}
-                // `current`, not `shown` — the two agree whenever the dialog is
+                // `current`, not `shown`: the two agree whenever the dialog is
                 // actually open, and during the fade-out `current` is already
                 // null, which is what makes the closing card inert to a second
                 // tap. `settleDialog` refuses a repeat anyway; this stops the

@@ -9,7 +9,7 @@ product
 Lifters mid-workout, phone in one hand, chalk on the other, between sets. The
 context is hostile to interfaces: standing up, short attention window, sometimes
 one-handed, sometimes with a barbell waiting. The job is to record what just
-happened and get back to lifting — not to browse, explore, or be engaged.
+happened and get back to lifting: not to browse, explore, or be engaged.
 
 Secondary context is post-workout and rest-day review: checking history, PRs,
 volume trends, body measurements. Calmer, more willing to read, still not a
@@ -32,7 +32,7 @@ derived, so changing units never rewrites history.
 
 **Focused, warm, encouraging.** A training partner rather than an instrument.
 It stays out of the way while the work is happening, then acknowledges what was
-achieved — PR badges and the finish-workout celebration are part of the product,
+achieved: PR badges and the finish-workout celebration are part of the product,
 not decoration to be cut for performance. Warmth is expressed in acknowledgement
 and tone, never in chatter.
 
@@ -64,7 +64,7 @@ and tone, never in chatter.
 
 ## Accessibility & Inclusion
 
-Baseline WCAG AA for text contrast, verified per palette rather than assumed —
+Baseline WCAG AA for text contrast, verified per palette rather than assumed:
 both palettes name a foreground per role colour so a filled control can't pick
 an unreadable one. Minimum 44pt touch targets (`MIN_TOUCH_SIZE`), enforced
 deliberately in the dense set-row layout. Reduced-motion is honoured via
@@ -77,6 +77,6 @@ elements carry `accessibilityRole` and `accessibilityState`; dynamic values
 Optimize for **mid-range Android and up**. User-reported slow surfaces, in
 priority order:
 
-1. Exercise library — search and scroll over the ~6,800-row catalog.
-2. Active workout — logging sets, rest timer, checking sets off.
+1. Exercise library: search and scroll over the ~6,800-row catalog.
+2. Active workout. Logging sets, rest timer, checking sets off.
 3. Screen and tab transitions.

@@ -176,7 +176,7 @@ export default function RecordsScreen() {
       <Reveal style={styles.flex}>
         {/*
           The record is the largest thing on the row, and everything that
-          qualifies it — which record, which day — is set beneath it at caption
+          qualifies it (which record, which day) is set beneath it at caption
           size. This used to be a label-left / value-right list row, identical in
           weight to a settings toggle: the one screen in the app whose entire
           contents are worth being proud of read as a table of preferences. No
@@ -200,7 +200,7 @@ export default function RecordsScreen() {
                 onPress={() =>
                   router.push({ pathname: '/exercise/[id]', params: { id: entry.exerciseId } })
                 }
-                // Full-bleed, so it highlights rather than scales — the same rule
+                // Full-bleed, so it highlights rather than scales: the same rule
                 // `ListRow` follows. It crossfades from the canvas rather than
                 // from `surface` because this list is unboxed: the records are
                 // ruled off from each other, not carded.

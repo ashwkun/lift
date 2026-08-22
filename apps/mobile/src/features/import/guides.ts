@@ -3,7 +3,7 @@
  *
  * This is half the feature. An importer that works perfectly is useless to
  * someone who cannot find the export button, and that button is three taps deep
- * in an app they are trying to leave — so the instructions live next to the
+ * in an app they are trying to leave, so the instructions live next to the
  * file picker rather than in a support article nobody will go looking for.
  *
  * Menu labels drift. Where a path is documented it is given exactly; where it
@@ -66,7 +66,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
     summary: 'CSV export of your workout history',
     steps: [
       'Open Lyfta and go to Settings.',
-      'Look for the data section — the export sits near "Import Data", and has also appeared under Account and under Data & Privacy.',
+      'Look for the data section. The export sits near "Import Data", and has also appeared under Account and under Data & Privacy.',
       'Export your workouts as CSV and save the file.',
       'If you cannot find it, Lyfta support can send you the export.',
     ],
@@ -84,7 +84,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
     summary: 'A backup or CSV from another phone',
     steps: [
       'On the other phone, open Profile → Backup & export.',
-      'Tap "Export backup" for everything — workouts, routines, records and measurements.',
+      'Tap "Export backup" for everything: workouts, routines, records and measurements.',
       'Or "Export sets as CSV" for the training log alone.',
       'Send the file to this phone however you like, then pick it below.',
     ],
@@ -103,7 +103,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
     steps: [
       'Export your history as CSV from whatever app you use.',
       'It needs a column for the date and one naming the exercise. Weight, reps, set type, RPE, duration and distance are read when present.',
-      'Column names are matched loosely — "Weight (kg)", "weight_kg" and "weightKg" are all understood.',
+      'Column names are matched loosely. "Weight (kg)", "weight_kg" and "weightKg" are all understood.',
     ],
     warnings: [
       'English column headings only.',

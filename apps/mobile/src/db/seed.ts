@@ -56,7 +56,7 @@ export async function seedExerciseLibrary(): Promise<void> {
    * statement, so 137 statements instead of 6,800 is the difference between a
    * visibly long splash and well under a second. Wrapping the loop in
    * `db.transaction` looks like it would help further, but this driver runs
-   * `begin`, the callback and `commit` synchronously — an async callback
+   * `begin`, the callback and `commit` synchronously: an async callback
    * commits at its first `await`, leaving every chunk after the first outside
    * the transaction. It would buy one chunk's worth of nothing.
    */
@@ -87,7 +87,7 @@ export async function seedExerciseLibrary(): Promise<void> {
         /**
          * Refresh only canonical library data. `isArchived`, `notes`,
          * `defaultRestSeconds` and the two unit overrides are deliberately
-         * excluded — those are the user's, and overwriting them would undo
+         * excluded. Those are the user's, and overwriting them would undo
          * their customisations on the next launch that ships a new catalog.
          *
          * The rule for anything added to `exercises` later: if the user can
@@ -116,7 +116,7 @@ export async function seedExerciseLibrary(): Promise<void> {
     });
 }
 
-/** True when the library has never been seeded — used to show first-run UI. */
+/** True when the library has never been seeded. Used to show first-run UI. */
 export async function isFirstLaunch(): Promise<boolean> {
   const [row] = await db.select({ id: exercises.id }).from(exercises).limit(1);
   return row === undefined;

@@ -113,7 +113,7 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   error?: string;
   hint?: string;
   containerStyle?: ViewStyle;
-  /** Styles the input itself — a `TextInput` takes text styles, not view styles. */
+  /** Styles the input itself. A `TextInput` takes text styles, not view styles. */
   style?: StyleProp<TextStyle>;
 }
 
@@ -161,7 +161,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 });
 
 // ---------------------------------------------------------------------------
-// NumericField — used by set rows
+// NumericField. Used by set rows
 // ---------------------------------------------------------------------------
 
 export interface NumericFieldProps extends Omit<TextInputProps, 'style' | 'value'> {
@@ -183,7 +183,7 @@ export interface NumericFieldProps extends Omit<TextInputProps, 'style' | 'value
  * Everywhere this is used the `value` prop is a *formatted view of storage*:
  * the set row writes every keystroke to SQLite and reads the number back
  * through a live query and a kilogram conversion. Rendering that echo directly
- * makes the field fight the user — 225 entered in pounds returns as "225.0", a
+ * makes the field fight the user. 225 entered in pounds returns as "225.0", a
  * typed "." disappears because it parses to nothing new, and a half-typed "290"
  * can be rewritten between two keystrokes. So the raw string lives here while
  * the field is focused, and the echo is ignored.
@@ -219,7 +219,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
   const ring = useFocusRing({ onFocus, onBlur });
 
   // `draft` is what the field shows, `seen` the last `value` it reacted to, and
-  // `pending` every string still on its way to storage, oldest first — the three
+  // `pending` every string still on its way to storage, oldest first. The three
   // are one state object because they only ever change together, and because
   // comparing against a ref would mean reading a ref during render.
   const [buffer, setBuffer] = useState(() => ({
@@ -233,7 +233,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
   if (value !== buffer.seen) {
     /*
      * An echo that matches something still in flight is this field's own write
-     * coming back — possibly several keystrokes late — rather than somebody
+     * coming back (possibly several keystrokes late) rather than somebody
      * else writing the row, so the draft stands. Keeping only the newest
      * emission was not enough: two keystrokes inside one write's latency made
      * the first echo look foreign, and the field threw away the digit that had
@@ -242,8 +242,8 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
      * The first match, not the last: "5" then "50" then "5" again puts the same
      * string in twice, and draining to the last one would strand the entries
      * before it. Everything up to and including the match goes, which is what
-     * makes an emission that never echoes — a trailing "." formats back to what
-     * was already stored — harmless rather than permanent.
+     * makes an emission that never echoes. A trailing "." formats back to what
+     * was already stored: harmless rather than permanent.
      *
      * The queue holds what was typed, so each entry is compared through
      * `normalize`: a duration field never gets "2:0" back, it gets "2:00".
@@ -299,7 +299,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
           // The ring matters more here than anywhere else: set rows put several
           // of these side by side, and mid-set you need to know at a glance
           // which box the keyboard is pointed at. Unfocused it is the fill
-          // rather than transparent — see the search field above.
+          // rather than transparent: see the search field above.
           borderColor: ring.focused ? colors.accent : colors.surfaceMuted,
           textAlign: align,
         },
@@ -326,13 +326,13 @@ const styles = StyleSheet.create({
    * A `TextInput` inherits nothing: `Text` gets the bundled face because the
    * `Text` component puts it there per variant, and an input is a different
    * primitive that RN renders in the platform's own UI font unless told
-   * otherwise. So every typed field in the app — the search bars, a workout
-   * name, an exercise name, a note, a routine title — was set in Roboto or SF
+   * otherwise. So every typed field in the app: the search bars, a workout
+   * name, an exercise name, a note, a routine title. Was set in Roboto or SF
    * while the label directly above it was set in the bundled family. The
    * numeric field already knew this; these two were the ones that did not.
    *
    * `regular` because these are body text being composed rather than figures
-   * being read — the same weight `Text`'s `body` variant uses, so a field and
+   * being read: the same weight `Text`'s `body` variant uses, so a field and
    * the copy beside it are the same voice. The placeholder inherits it too.
    */
   searchInput: {
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     // `includeFontPadding`, reserves extra room above the ascender and below
     // the descender sized from the font's own metrics. Between that band and
     // the default padding, height 34 is overspent and the glyphs get cut off
-    // top and bottom — which is exactly what a weight of "50" looked like.
+    // top and bottom, which is exactly what a weight of "50" looked like.
     // Zeroing the padding and dropping the font padding lets
     // `textAlignVertical` centre the real glyph box instead of a padded one.
     //

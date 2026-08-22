@@ -73,7 +73,7 @@ type SheetState = { mode: 'add' } | { mode: 'edit'; entry: BodyMeasurement } | n
  * One measurement, in full.
  *
  * The chart used to be a 140pt strip that unfolded inside a list row, with no
- * axis worth reading and no way to interrogate a point — and the readings
+ * axis worth reading and no way to interrogate a point, and the readings
  * behind it were not reachable at all, so a tape misread at 39.5 instead of
  * 35.9 was in the log for good. This screen is the other half of that: a chart
  * big enough to scrub, the statistics for whatever window you picked, and every
@@ -83,7 +83,7 @@ export default function MeasurementDetailScreen() {
   const scrollEdge = useScrollEdge();
 
   const colors = useColors();
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const params = useLocalSearchParams<{ kind: string }>();
 
@@ -149,7 +149,7 @@ export default function MeasurementDetailScreen() {
   const overall = useMemo(() => summarizeMeasurements(points), [points]);
 
   // Drawn dashed behind the readings: what the series says, as against what any
-  // one reading said. Only where it earns its ink — under about a dozen
+  // one reading said. Only where it earns its ink: under about a dozen
   // readings the smoothing has nothing to smooth and the two lines overlap.
   const trendLine = useMemo(
     () => (windowed.length >= 10 ? toChartPoints(smoothMeasurements(windowed)) : undefined),
@@ -173,8 +173,8 @@ export default function MeasurementDetailScreen() {
     <Stack.Screen
       options={{
         title: label,
-        // Filled: everything below the header is a readout — a chart and the
-        // list of past readings — so adding one is the only thing the screen
+        // Filled: everything below the header is a readout: a chart and the
+        // list of past readings, so adding one is the only thing the screen
         // can be visited to *do*, and the rest of it is what you look at
         // afterwards. Editing and deleting a reading are reached from the rows
         // themselves, which keeps this the header's only action.
@@ -209,7 +209,7 @@ export default function MeasurementDetailScreen() {
       // The sheet this is asked from is itself a `Modal`, and so is the dialog.
       // Two of those on screen at once is not something Android stacks
       // reliably, so the sheet goes down first and comes back if the reading is
-      // kept — which is the state the user was in when they asked. Under
+      // kept, which is the state the user was in when they asked. Under
       // `Alert.alert` this did not arise: a platform alert is not a React
       // Native modal and had nothing to collide with.
       setSheet(null);
@@ -263,7 +263,7 @@ export default function MeasurementDetailScreen() {
   const latest = rows[rows.length - 1]!;
 
   // While a finger is on the chart the subtitle becomes the readout for the
-  // point under it — the chart has no room for a tooltip, and a line of text
+  // point under it. The chart has no room for a tooltip, and a line of text
   // that was already there costs nothing to repurpose.
   const subtitle = scrubbed
     ? `${formatMeasurementValue(kind, scrubbed.y, prefs)} · ${longDate(new Date(scrubbed.x))}`

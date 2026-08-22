@@ -6,7 +6,7 @@ import type { Palette } from '@/theme/tokens';
 /**
  * The colour a set count is drawn in, given the landmarks it is judged against.
  *
- * The landmarks themselves live in `@lift/shared` — they are per muscle, and the
+ * The landmarks themselves live in `@lift/shared`. They are per muscle, and the
  * API and the sync engine have as much claim on them as the statistics screens
  * do. What is left here is the part that is only ever true of this app: how a
  * week's volume becomes a colour on a body map.
@@ -21,11 +21,11 @@ import type { Palette } from '@/theme/tokens';
  *
  * Colour changes fastest where the boundaries actually mean something, so two
  * muscles that sit either side of `mev` look different even when their set
- * counts are close. Past `mrv` — the recoverable ceiling — the ramp leaves the
+ * counts are close. Past `mrv` (the recoverable ceiling) the ramp leaves the
  * accent hue entirely: an overreached muscle should not read as "more of a good
  * thing", which is the one thing a single-hue opacity ramp can never express.
  *
- * Rows whose `mv` and `mev` are zero (glutes, abs, traps — the muscles fed by
+ * Rows whose `mv` and `mev` are zero (glutes, abs, traps: the muscles fed by
  * work logged against something else) collapse the first two stops onto zero,
  * so their ramp starts partway up the accent. That is the right reading: a
  * muscle with no minimum effective volume is growing from its first direct set.
@@ -55,7 +55,7 @@ export function volumeColor(
 ): string {
   if (setsPerWeek <= 0) return colors.surfaceMuted;
   // A row with no ceiling is one of the non-muscles, and every stop below would
-  // sit on zero — which would put a single logged cardio set at the far end of
+  // sit on zero, which would put a single logged cardio set at the far end of
   // the ramp, in the colour reserved for overreaching. Nothing is being measured
   // here, so nothing is coloured.
   if (landmarks.mrv <= 0) return colors.surfaceMuted;

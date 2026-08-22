@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png" alt="Lift — local-first workout tracker" width="560">
+  <img src="docs/banner.png" alt="Lift: local-first workout tracker" width="560">
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@ lift/
 ├── apps/mobile      Expo SDK 57 · React Native 0.86 · expo-router
 ├── apps/api         NestJS 11 · Postgres · better-auth
 ├── apps/landing     Next 16 · Tailwind v4 · the marketing page
-└── packages/shared  domain logic — no React, no database, fully tested
+└── packages/shared  domain logic: no React, no database, fully tested
 ```
 
 ## Install on Android
@@ -25,8 +25,8 @@ Download the APK from [the latest release](https://github.com/pawan67/lift/relea
 and open it on the phone. Android will ask you to allow installs from your
 browser the first time.
 
-Builds are produced by [`.github/workflows/android.yml`](.github/workflows/android.yml)
-— push a `v*` tag to cut a release, or run the workflow by hand from the
+Builds are produced by [`.github/workflows/android.yml`](.github/workflows/android.yml):
+push a `v*` tag to cut a release, or run the workflow by hand from the
 Actions tab to get an APK as a build artifact. Two things to know:
 
 - **arm64-v8a only** by default, which covers any phone from the last decade.
@@ -37,7 +37,7 @@ Actions tab to get an APK as a build artifact. Two things to know:
   other. It also means the APK is not publishable to the Play Store as-is.
 
 Sync needs the API to be reachable from the phone. Set the `API_URL`
-repository variable before building — a release build has no Metro server to
+repository variable before building. A release build has no Metro server to
 infer a host from, so it otherwise falls back to `localhost`, which on a phone
 means the phone itself.
 
@@ -52,7 +52,7 @@ pnpm --filter @lift/shared build   # the API consumes compiled JS
 
 ### Mobile
 
-A native dev build is required — `expo-sqlite` and the notification modules are
+A native dev build is required. `expo-sqlite` and the notification modules are
 not available in Expo Go.
 
 ```bash
@@ -70,14 +70,14 @@ npx expo prebuild --platform android --no-install
 cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 ```
 
-`android/` and `ios/` are gitignored — prebuild regenerates them, so nothing
+`android/` and `ios/` are gitignored: prebuild regenerates them, so nothing
 generated is committed. The one piece of hand-written native code lives in
 `apps/mobile/modules/workout-live`, a local Expo module that prebuild links
 rather than overwrites.
 
 ### Desktop web
 
-The same app, same code, same database — laid out for a window instead of a
+The same app, same code, same database: laid out for a window instead of a
 phone. Below 840px it is the phone layout unchanged; above it the bottom tab bar
 becomes a persistent side rail, content is capped to a readable column rather
 than stretched across the monitor, bottom sheets become centred dialogs, and
@@ -101,13 +101,13 @@ it.
 
 So `expo start --web` is isolated and persists, and **anything serving the
 exported files has to send those two headers itself**. Without them the app
-still loads and still answers every query — from memory, silently, losing the
+still loads and still answers every query: from memory, silently, losing the
 whole training log on reload. Check `crossOriginIsolated === true` in the
 console of a deployed build before trusting it with data.
 
 `apps/mobile/Dockerfile` is that server: it runs the export and serves it from
 nginx with both headers set, which is what the `web` service in both compose
-files builds. To check a built export locally before deploying one — the one
+files builds. To check a built export locally before deploying one: the one
 thing `expo start` cannot tell you, since it is the only server that reads
 `enhanceMiddleware`:
 
@@ -127,7 +127,7 @@ and a push subscription, so the web target takes the same path as a phone with
 the permission denied. The rest countdown, its bell and the docked timer all
 work; what is missing is being told rest is over while the tab is in the
 background. Session tokens go to `localStorage` there rather than the OS
-keychain — see `features/sync/token-storage.ts`.
+keychain: see `features/sync/token-storage.ts`.
 
 ### API
 
@@ -143,7 +143,7 @@ migration step. `pnpm db:generate` writes a new one after a schema change;
 
 Point the app at it with `EXPO_PUBLIC_API_URL`. If unset, the app derives the
 API host from the Metro address, which is usually what you want on a physical
-device — `localhost` there resolves to the phone.
+device. `localhost` there resolves to the phone.
 
 ### Landing page
 
@@ -169,7 +169,7 @@ python3 apps/api/test/sync-e2e.py     # 28 end-to-end tests, needs a running API
 The end-to-end suite signs up several users in a few seconds, which the
 production rate limit is there to stop. Run it against `pnpm start:dev`, or
 against a container started with `NODE_ENV=development`, not against a
-production one — the failures otherwise look like auth bugs.
+production one: the failures otherwise look like auth bugs.
 
 ## Design decisions
 
@@ -177,7 +177,7 @@ production one — the failures otherwise look like auth bugs.
 centimetres in the database; unit preference is applied at the edge. Switching
 between kg and lb never rewrites history or invalidates an aggregate.
 
-**The active workout is a database row**, not in-memory state — a row with
+**The active workout is a database row**, not in-memory state: a row with
 `finishedAt IS NULL`. Force-quitting mid-set loses nothing.
 
 **Deletes are soft, always.** A hard `DELETE` cannot replicate: the other device
@@ -211,7 +211,7 @@ chronometer, which SystemUI ticks in its own process. So the countdown in the
 shade is live and correct without this app running, and adjusting the timer
 moves one number rather than resynchronising two. The Android foreground service
 behind it (`modules/workout-live`) exists to keep the JavaScript runtime alive
-so the notification's buttons reach a live store — not to count anything.
+so the notification's buttons reach a live store: not to count anything.
 
 **1RM formulas are clamped.** Brzycki and Lander divide by `37 − reps`, so they
 go infinite at 37 reps and negative beyond; past 30 they hand off to Epley,
@@ -228,7 +228,7 @@ On Dokploy:
 1. Create a **Postgres** service and copy the connection URL it hands back.
 2. Create a **Compose** application from this repository and set the compose
    path to `docker-compose.dokploy.yml`. That file defines the API, the web app
-   and the landing page — the database is the service from step 1, not a
+   and the landing page. The database is the service from step 1, not a
    container of its own.
 3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
    as the public `https://` address including scheme, `TRUSTED_ORIGINS`, which
@@ -247,7 +247,7 @@ On Dokploy:
 
    `api` and `landing` both name port 3000 and do not clash: they are separate
    containers, and the number is the port inside each one.
-5. Add the `web` domain's origin to `TRUSTED_ORIGINS` —
+5. Add the `web` domain's origin to `TRUSTED_ORIGINS`.
    `lift://,https://app.example.com`. Without it the browser can load the app
    and then fails every request it makes, which reads as a broken sign-in
    rather than as a missing setting. The **landing page's origin does not go in
@@ -256,7 +256,7 @@ On Dokploy:
 
 `EXPO_PUBLIC_API_URL` is baked into the web bundle at build time, so moving the
 API means redeploying the web app, not restarting it. `NEXT_PUBLIC_SITE_URL` is
-the same kind of value for the landing page — it is what the social card's image
+the same kind of value for the landing page. It is what the social card's image
 URL is resolved against, so a wrong one leaves the page looking perfect while
 every share preview comes back blank. The phone builds are unaffected by any of
 this; they carry their own copy, set when the APK is built.
@@ -266,7 +266,7 @@ down with it instead of serving against a half-applied schema, so a broken
 deploy is reported as broken rather than quietly answering 500s.
 
 `TRUSTED_PROXIES` defaults to Docker's private ranges, which is what Traefik
-sits in. It only needs setting if something else — a CDN, another proxy — ends
+sits in. It only needs setting if something else (a CDN, another proxy) ends
 up in front, in which case rate limiting counts that hop as the caller until
 its ranges are added.
 
@@ -284,6 +284,6 @@ from a single vector definition:
 
 Editing the mark means editing the geometry at the top of that script and
 re-running it, rather than hand-editing seven PNGs. Each output needs its own
-scale — Android crops the adaptive-icon layers to their central 66%, so the
+scale: Android crops the adaptive-icon layers to their central 66%, so the
 foreground is drawn smaller than the iOS icon to land at the same apparent
-size — and the script is where those ratios are recorded.
+size, and the script is where those ratios are recorded.

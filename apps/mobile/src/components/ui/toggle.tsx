@@ -12,7 +12,7 @@ const THUMB_INSET = 2;
  *
  * The border counts twice over: React Native sizes borders inside `width`, so
  * the usable track is narrower than `TRACK_WIDTH` by one stroke at each end.
- * Leaving it out lands the thumb a fraction past the padding on the "on" side —
+ * Leaving it out lands the thumb a fraction past the padding on the "on" side:
  * not enough to see, enough to make the two ends visibly uneven.
  */
 const BORDER_WIDTH = stroke.outline;
@@ -41,7 +41,7 @@ export interface ToggleProps {
    * target and the switch is only the readout of it. The parent must then be a
    * Pressable carrying `accessibilityRole="switch"`, `accessibilityState`
    * `{ checked, disabled }` and a label, and must call the same handler this
-   * component would have called — a 52×31 switch is a third of the area of the
+   * component would have called. A 52×31 switch is a third of the area of the
    * row it sits in, and growing the switch to 44 would make it a different,
    * chunkier control on every platform.
    */
@@ -64,13 +64,13 @@ export interface ToggleProps {
  * like every other control.
  *
  * The thumb runs on the native driver (transform only); the track colour cannot
- * — `backgroundColor` interpolation has no native equivalent — so the two are
+ * (`backgroundColor` interpolation has no native equivalent) so the two are
  * separate drivers started together rather than one shared value forced onto
  * the JS thread.
  *
  * The track is 31pt, which is the right size for the object and 13pt short of a
  * touch target. Standing alone it makes that up with vertical slop; inside a
- * labelled row it hands the whole job to the row — see `presentational`.
+ * labelled row it hands the whole job to the row: see `presentational`.
  */
 export function Toggle({
   value,

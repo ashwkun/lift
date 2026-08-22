@@ -4,7 +4,7 @@
  * They exist as one file, and are not `ListRow`, because a settings row differs
  * from a navigation row in the one place that cannot be papered over: what it
  * *is* to a screen reader. A toggle row is a switch, a choice row is a button
- * that opens a picker, and a segmented row is not a control at all — it is a
+ * that opens a picker, and a segmented row is not a control at all. It is a
  * label sitting beside two of them. `ListRow` is a button, always, and it wraps
  * its subtree in one accessibility element; a `SegmentedControl` handed to it as
  * an accessory would be swallowed whole and unreachable.
@@ -34,7 +34,7 @@ import { haptics } from '@/features/feedback/haptics';
 import { hoverFill, radius, spacing, useColors } from '@/theme';
 
 /**
- * Every control on this screen buzzes the same way, and it is `selection` —
+ * Every control on this screen buzzes the same way, and it is `selection`:
  * documented in `features/feedback/haptics.ts` as "a value moved between
  * discrete states", which is what these rows do and the only thing they do. A
  * settings screen is the one place in the app where the tap *is* the outcome:
@@ -53,7 +53,7 @@ const ROW_MIN_HEIGHT = 56;
  * How wide an inline segmented control draws.
  *
  * Fixed, because the control positions its sliding thumb from a measured track
- * divided evenly — segments that size to their own labels would put the thumb
+ * divided evenly. Segments that size to their own labels would put the thumb
  * under the wrong one. 104 is two 52pt halves, which is comfortable for the
  * two-letter unit abbreviations this row is for and nothing wider. A choice
  * whose options are *words* belongs in `SettingChoice`, where the sheet gives
@@ -106,7 +106,7 @@ function RowFace({ icon, label, description, dimmed = false }: RowFaceProps) {
 /**
  * The pressable frame.
  *
- * No scale — a row runs the full width of its card, so shrinking it pulls both
+ * No scale. A row runs the full width of its card, so shrinking it pulls both
  * edges off the margin at once and reads as the row lifting away from the page
  * rather than being pressed into it. See `PRESS_SCALE` in the motion tokens.
  */
@@ -162,7 +162,7 @@ export function SettingToggle({
   disabledReason,
 }: SettingToggleProps) {
   // A disabled row describes behaviour that is not happening, so the reason it
-  // is dead is the more useful of the two lines — and the only one that tells
+  // is dead is the more useful of the two lines, and the only one that tells
   // the user which switch above to turn back on.
   const detail = disabled ? disabledReason : description;
 
@@ -238,7 +238,7 @@ export interface SettingChoiceProps<T extends string> {
  *
  * The default for anything whose options are words rather than abbreviations.
  * Six formulas or two weekdays both fit here and neither fits across a phone,
- * and the row stays one line however many options exist — which is the property
+ * and the row stays one line however many options exist, which is the property
  * that lets a settings card hold ten of these and still be scannable.
  */
 export function SettingChoice<T extends string>({

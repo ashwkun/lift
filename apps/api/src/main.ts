@@ -57,7 +57,7 @@ async function bootstrap() {
    *
    * A browser whose origin is missing from this list is refused by the CORS
    * middleware above and again by better-auth, and the only place either
-   * refusal appears is that browser's console — as a CORS error, which reads
+   * refusal appears is that browser's console: as a CORS error, which reads
    * as a networking problem rather than as a list this server was started
    * with. The phone app never exercises it: a native fetch sends no Origin,
    * so the whole path stays untested until the day the web app is deployed.
@@ -69,7 +69,7 @@ async function bootstrap() {
   logger.log(
     trustedOrigins.length > 0
       ? `Trusted origins: ${trustedOrigins.join(', ')}`
-      : 'Trusted origins: none set — every origin is allowed. Set TRUSTED_ORIGINS.',
+      : 'Trusted origins: none set. Every origin is allowed. Set TRUSTED_ORIGINS.',
   );
 }
 

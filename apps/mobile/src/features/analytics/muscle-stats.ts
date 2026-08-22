@@ -3,7 +3,7 @@
  *
  * Everything here counts **sets**, not volume, as the primary measure. Set
  * count is the standard unit for judging training distribution, and volume lets
- * one heavy squat bury an entire session of arm work — a 140 kg × 5 set is
+ * one heavy squat bury an entire session of arm work. A 140 kg × 5 set is
  * 700 kg, and no amount of lateral raises will ever reach it.
  */
 
@@ -64,7 +64,7 @@ interface ExerciseFacts {
  *
  * Two queries rather than one join, for the reason spelled out in
  * `getMuscleBreakdown`: `secondaryMuscles` is a JSON column, and joining it in
- * makes drizzle parse the same handful of arrays once per *set* — tens of
+ * makes drizzle parse the same handful of arrays once per *set*: tens of
  * thousands of parses to learn about a hundred exercises. The second query is
  * keyed by the ids the sets actually reference.
  *
@@ -122,7 +122,7 @@ async function loadWorkingSets(
       {
         primaryMuscle: row.primaryMuscle,
         // Seeded exercises always carry an array, but a row written by an older
-        // build — or by a sync peer — may not.
+        // build (or by a sync peer) may not.
         secondaryMuscles: Array.isArray(row.secondaryMuscles) ? row.secondaryMuscles : [],
         trackingType: row.trackingType,
       },
@@ -190,7 +190,7 @@ function finish(builder: TallyBuilder): MuscleTally[] {
  * Folds one set into a builder, crediting the target muscle whole and every
  * assisting muscle at the secondary discount.
  *
- * Returns false when the row contributed nothing — a warm-up, or an exercise
+ * Returns false when the row contributed nothing: a warm-up, or an exercise
  * deleted out from under its own history.
  */
 function tallySet(
@@ -256,7 +256,7 @@ export interface MuscleBoard {
  * Everything the body graph and its table need for one span of days.
  *
  * Serves both the rolling seven days on the statistics hub and a navigable
- * calendar week on the body-distribution screen — they differ only in which
+ * calendar week on the body-distribution screen: they differ only in which
  * dates they ask for.
  */
 export async function getMuscleBoard(from: Date, to: Date): Promise<MuscleBoard> {
@@ -344,7 +344,7 @@ export interface MuscleSetTrend {
  * Sets per muscle per period.
  *
  * The per-bucket series counts **direct** sets only. A chart of "sets logged"
- * has to be countable — a bar reading 8.5 invites the reader to work out which
+ * has to be countable: a bar reading 8.5 invites the reader to work out which
  * half-set they did, and the secondary discount is a weighting for comparing
  * muscles, not a thing that happened in the gym. The ranked list beside it
  * carries both figures.
@@ -456,7 +456,7 @@ export interface DistributionReport {
   totals: DistributionTotals;
   /** Null on "all time", which has no window before it to compare against. */
   previousTotals: DistributionTotals | null;
-  /** Largest value on any axis in either series — the outer ring's value. */
+  /** Largest value on any axis in either series: the outer ring's value. */
   peak: number;
   /**
    * Working sets that fell outside the six drawn axes: cardio, full-body and
@@ -470,7 +470,7 @@ export interface DistributionReport {
  * Set distribution across body parts, current window against previous.
  *
  * Absolute sets rather than percentage share. A share chart draws a deload week
- * and a brutal one identically — the shape is all it can express — and the
+ * and a brutal one identically (the shape is all it can express) and the
  * question this screen is asked most often is whether the last month was more
  * work than the one before it, which only an absolute scale answers. The shape
  * is still perfectly readable either way.
@@ -542,7 +542,7 @@ function emptyTotals(): DistributionTotals {
 
 /**
  * Finished sessions in a window, read from the denormalised totals on
- * `workouts` — no set-level join needed to answer "how much, for how long".
+ * `workouts`: no set-level join needed to answer "how much, for how long".
  */
 export async function loadSessions(
   from: Date | null,
@@ -599,7 +599,7 @@ export interface MuscleSplitSlice {
  * How one session's work divided across the body, largest share first.
  *
  * Computed from the blocks the detail screen has already loaded rather than
- * from a query of its own — the sets are in memory, and this is a dozen
+ * from a query of its own. The sets are in memory, and this is a dozen
  * additions.
  *
  * The attribution rule is deliberately the same one `getMuscleDistribution`

@@ -13,7 +13,7 @@ import { MUSCLE_GROUPS, type MuscleGroup } from './types.ts';
 /** The four landmarks of a row, in the order they are crossed. */
 const FIELDS = ['mv', 'mev', 'mav', 'mrv'] as const;
 
-/** Muscles whose row is deliberately all zeros — the buckets that are not muscles. */
+/** Muscles whose row is deliberately all zeros. The buckets that are not muscles. */
 const NON_MUSCLES: readonly MuscleGroup[] = ['cardio', 'full_body', 'other'];
 
 function values(landmarks: VolumeLandmarks): number[] {

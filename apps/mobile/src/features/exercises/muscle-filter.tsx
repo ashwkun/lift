@@ -24,14 +24,14 @@ export interface MuscleFilterProps {
 /**
  * The muscle filter, as a body rather than as a list of names.
  *
- * The list this replaced was 21 alphabetical rows — "Abductors" through
- * "Upper Back" — which is a taxonomy, not a question anyone asks. People come
+ * The list this replaced was 21 alphabetical rows: "Abductors" through
+ * "Upper Back", which is a taxonomy, not a question anyone asks. People come
  * to this filter pointing at themselves, and the app already draws the figure
  * they would point at on the History tab. Reusing it means the same shape means
  * the same muscle wherever you meet it.
  *
  * Multi-select, because "shoulders and triceps" is one training decision rather
- * than two searches — the single-value filter made you run the query twice and
+ * than two searches. The single-value filter made you run the query twice and
  * remember the first half of the answer.
  */
 export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
@@ -116,7 +116,7 @@ export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
  * What the trigger reads.
  *
  * A single muscle names itself. Past that the pill has no room, and the count
- * is the part that matters — the names are one tap away in the sheet.
+ * is the part that matters. The names are one tap away in the sheet.
  */
 function summarise(values: readonly MuscleGroup[]): string | null {
   if (values.length === 0) return null;

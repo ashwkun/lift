@@ -1,5 +1,5 @@
 /**
- * Plate calculator — "what do I actually load on the bar for 102.5 kg?"
+ * Plate calculator. "what do I actually load on the bar for 102.5 kg?"
  */
 
 import type { WeightUnit } from './types.ts';
@@ -65,7 +65,7 @@ export function defaultBarKg(unit: WeightUnit): number {
  *
  * Greedy heaviest-first, which is provably optimal for real plate sets because
  * each denomination divides evenly into the ones above it. It also matches what
- * lifters actually do — nobody loads 102.5 kg as eight 5s and a 2.5.
+ * lifters actually do. Nobody loads 102.5 kg as eight 5s and a 2.5.
  *
  * Plates are placed in pairs; an odd plate can't be balanced on a barbell, so
  * the per-side count is what we solve for.

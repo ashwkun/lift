@@ -4,7 +4,7 @@
  * Every local change to a syncable table must do two things atomically: stamp
  * `updatedAt` on the row, and append an entry to `sync_oplog`. If a write skips
  * the oplog it becomes invisible to the sync engine and silently never reaches
- * the server — so repositories go through these helpers rather than calling
+ * the server, so repositories go through these helpers rather than calling
  * `db.insert` directly.
  */
 
@@ -26,7 +26,7 @@ interface TrackedRow {
 }
 
 /**
- * Records a create/update. `row` should be the full post-write row — the server
+ * Records a create/update. `row` should be the full post-write row. The server
  * applies whole rows rather than patches, which keeps conflict resolution to a
  * single timestamp comparison.
  */
@@ -48,7 +48,7 @@ export async function trackUpsert(table: SyncableTable, row: TrackedRow): Promis
  *
  * Bulk restores are the only caller: an import of three years of training is
  * tens of thousands of rows, and one `INSERT` per oplog entry doubles the
- * statement count of the whole operation for no benefit — these entries are
+ * statement count of the whole operation for no benefit. These entries are
  * written together, drained together, and none of them can be coalesced with
  * anything, because each row is seen for the first time.
  *
@@ -93,7 +93,7 @@ export async function trackDelete(
  *
  * Editing a set's weight five times while it's still offline produces five
  * entries that all resolve to the same final state. Since the server applies
- * whole rows, only the last one matters — dropping the rest keeps the push
+ * whole rows, only the last one matters. Dropping the rest keeps the push
  * payload small after a long offline stretch.
  */
 export async function trackUpsertCoalesced(table: SyncableTable, row: TrackedRow): Promise<void> {

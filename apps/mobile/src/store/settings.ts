@@ -3,8 +3,8 @@
  *
  * Held in a Zustand store for synchronous reads (formatting code runs inside
  * render and can't await), and mirrored into the `settings` table so they
- * survive restarts. Writes update memory first and persist in the background —
- * a preference toggle should never feel like it waits on disk.
+ * survive restarts. Writes update memory first and persist in the background.
+ * A preference toggle should never feel like it waits on disk.
  */
 
 import {
@@ -49,8 +49,8 @@ export interface Settings {
   /**
    * 0 = Sunday, 1 = Monday. Which column the calendar's grid starts on.
    *
-   * The weekly streak and the history buckets are Monday-based regardless —
-   * see `weekKey` in `@lift/shared` — so this is deliberately described to the
+   * The weekly streak and the history buckets are Monday-based regardless:
+   * see `weekKey` in `@lift/shared`, so this is deliberately described to the
    * user as a calendar setting and nothing more.
    */
   firstDayOfWeek: 0 | 1;
@@ -65,8 +65,8 @@ export interface Settings {
   /**
    * Height in centimetres, and the sex the body-fat regression is fitted for.
    *
-   * Both exist for the derived figures on the measurements screen — BMI and
-   * waist-to-height need the height, the US Navy body-fat estimate needs both —
+   * Both exist for the derived figures on the measurements screen. BMI and
+   * waist-to-height need the height, the US Navy body-fat estimate needs both,
    * and for nothing else. Null is a supported state throughout: leaving either
    * blank costs only the estimates that depend on it, so neither is ever asked
    * for as a condition of logging a measurement.
@@ -133,7 +133,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
 
       if (row?.value) stored = JSON.parse(row.value) as Partial<Settings>;
     } catch {
-      // A corrupt or unreadable row should not block app start — fall through
+      // A corrupt or unreadable row should not block app start. Fall through
       // to defaults, which will be rewritten on the next change.
     }
 
@@ -160,7 +160,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     const patch: Partial<Settings> = { [key]: value };
 
     /*
-     * Switching weight units brings the bar with them — but only while it is
+     * Switching weight units brings the bar with them, but only while it is
      * still whichever default it arrived as.
      *
      * A kg gym's bar is 20 kg and a lb gym's is 45 lb, and those are different
@@ -172,7 +172,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
      * Guarded on the old default rather than applied unconditionally, because
      * the alternative is silently overwriting a real preference. Someone who
      * set a 15 kg bar meant it, and a unit switch is not a request to forget
-     * that — they get their 15 kg bar rendered as 33.07 lb, which is at least
+     * that. They get their 15 kg bar rendered as 33.07 lb, which is at least
      * the bar they own.
      */
     if (key === 'weightUnit') {
@@ -186,14 +186,14 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   },
 
   /**
-   * Back to the defaults — except the three figures that are not preferences.
+   * Back to the defaults. Except the three figures that are not preferences.
    *
    * Bodyweight, height and sex are facts about a person, not choices about how
    * the app behaves, and nobody tapping "reset settings" is asking to be
    * forgotten. Clearing `bodyweightKg` in particular is not even a clean
    * deletion: the number is mirrored from the measurement log, so it would come
    * back on the next app start (`hydrate` backfills it) and in the meantime
-   * every push-up and pull-up logged would count as zero volume — a reset that
+   * every push-up and pull-up logged would count as zero volume. A reset that
    * quietly breaks the volume figures until the process is restarted.
    */
   reset: async () => {
@@ -208,7 +208,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
  *
  * Read straight off the table rather than through
  * `features/measurements/repository`, which imports this store to mirror new
- * entries into it — going the other way too would close the cycle.
+ * entries into it. Going the other way too would close the cycle.
  */
 async function readLatestBodyweightKg(): Promise<number | null> {
   try {
@@ -230,7 +230,7 @@ async function readLatestBodyweightKg(): Promise<number | null> {
  *
  * Read imperatively because the only caller is an event handler (finishing a
  * workout), and because the answer has to be true *at that moment* rather than
- * at the last render. `USES_BODYWEIGHT`, not `TRACKING_FIELDS` — see the note
+ * at the last render. `USES_BODYWEIGHT`, not `TRACKING_FIELDS`: see the note
  * beside it in `@lift/shared`: a push-up renders no weight field yet its whole
  * volume is bodyweight.
  */

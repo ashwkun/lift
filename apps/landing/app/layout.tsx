@@ -45,7 +45,7 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
-  title: "Lift — a workout tracker that lives on your phone",
+  title: "Lift: a workout tracker that lives on your phone",
   description:
     "Every workout, set, routine and record in a real database on the phone. " +
     "Works with no account and no network. Sync is optional and the server is " +
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     "self-hosted",
   ],
   openGraph: {
-    title: "Lift — a workout tracker that lives on your phone",
+    title: "Lift: a workout tracker that lives on your phone",
     description:
       "Local-first, offline by design, no account required. AGPL-3.0.",
     type: "website",
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lift — a workout tracker that lives on your phone",
+    title: "Lift: a workout tracker that lives on your phone",
     description:
       "Local-first, offline by design, no account required. AGPL-3.0.",
   },

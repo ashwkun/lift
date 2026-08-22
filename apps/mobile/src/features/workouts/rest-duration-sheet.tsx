@@ -32,7 +32,7 @@ export interface RestDurationSheetProps {
 /**
  * Picks the rest duration for one exercise.
  *
- * The saved value is deliberately not scoped to the current session — rest is a
+ * The saved value is deliberately not scoped to the current session. Rest is a
  * property of the movement, not of the day. Someone who decides five minutes
  * between heavy squats should not have to decide it again next week, which is
  * why the copy says so out loud rather than leaving it to be discovered.
@@ -51,7 +51,7 @@ export function RestDurationSheet({
 
   // Re-seeds each time the sheet opens, so a cancelled edit doesn't leak into
   // the next one. Done during render against the props the selection was last
-  // seeded from — an effect would do the same job a commit later, showing the
+  // seeded from. An effect would do the same job a commit later, showing the
   // stale number for one frame.
   const [seed, setSeed] = useState({ visible, value });
 
@@ -73,7 +73,7 @@ export function RestDurationSheet({
         `accessible={false}` on both Pressables, deliberately.
 
         Pressable defaults to `accessible`, which collapses everything under it
-        into one element — so the backdrop announced the entire sheet as a
+        into one element, so the backdrop announced the entire sheet as a
         single button called "Rest timer 1:30 30 45 60 …" and nothing inside it
         could be reached. Tap-outside-to-dismiss has no screen reader
         equivalent here on purpose: Cancel is two swipes away, and Android's
@@ -181,7 +181,7 @@ export function RestDurationSheet({
                         : colors.surfaceMuted;
 
                     // Unselected, the outline is the fill rather than
-                    // transparent — same reasoning as `Chip`.
+                    // transparent: same reasoning as `Chip`.
                     return [
                       styles.preset,
                       { backgroundColor: fill, borderColor: selected ? colors.accent : fill },
@@ -200,7 +200,7 @@ export function RestDurationSheet({
           </View>
 
           <Text variant="caption" color="textTertiary">
-            Saved for {exerciseName} — this session and every workout after it.
+            Saved for {exerciseName}: this session and every workout after it.
           </Text>
 
           <View style={styles.actions}>
@@ -220,7 +220,7 @@ export function RestDurationSheet({
             />
           </View>
 
-          {/* Only offered once there is something to clear — showing "use the
+          {/* Only offered once there is something to clear: showing "use the
               default" while already on the default is a button that does nothing. */}
           {!usingDefault && (
             <Button

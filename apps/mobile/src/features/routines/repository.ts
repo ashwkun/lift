@@ -1,7 +1,7 @@
 /**
  * Routine (workout template) reads and writes.
  *
- * A routine stores *prescribed* work — exercises and target sets — which
+ * A routine stores *prescribed* work (exercises and target sets) which
  * `startWorkout` materialises into a live session. The two are deliberately
  * separate tables: editing a routine must never rewrite history.
  */
@@ -133,13 +133,13 @@ export async function getRoutineDetail(routineId: string): Promise<RoutineDetail
  * Applies the writes a reorder produced.
  *
  * Takes the rows rather than a from/to pair because the caller has already done
- * the arithmetic — `reorder()` in `@lift/shared` decides whether a move is one
+ * the arithmetic: `reorder()` in `@lift/shared` decides whether a move is one
  * midpoint or a full renumber, and this only has to write whatever it handed
  * back. Usually that is a single row.
  *
  * Sequential rather than batched: each write also emits an oplog entry, and the
  * sync layer's coalescing is per row. A renumber of ten exercises is ten
- * statements, which happens roughly never — see `MIN_GAP` in `ordering.ts`.
+ * statements, which happens roughly never: see `MIN_GAP` in `ordering.ts`.
  */
 export async function applyRoutineExerciseOrder(updates: PositionedRow[]): Promise<void> {
   if (updates.length === 0) return;

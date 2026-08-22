@@ -31,8 +31,8 @@ function reason(cause: unknown): string {
 /**
  * How much of the document the preview shows.
  *
- * Enough to reach the first session — the part nobody believes is really in
- * there until they see it — and not so much that the screen becomes a text
+ * Enough to reach the first session. The part nobody believes is really in
+ * there until they see it, and not so much that the screen becomes a text
  * viewer. Anyone who wants the whole thing has two buttons above that hand it
  * to something built for reading.
  */
@@ -47,7 +47,7 @@ const PREVIEW_LINES = 80;
  */
 const DEFAULT_RANGE: StatRange = '30d';
 
-/** What the document is read from — the three answers that cost a query. */
+/** What the document is read from. The three answers that cost a query. */
 interface Choices {
   range: StatRange;
   withSessions: boolean;
@@ -57,9 +57,9 @@ interface Choices {
 /**
  * Handing your training to a language model.
  *
- * The screen builds one Markdown document — the sessions as they happened, the
+ * The screen builds one Markdown document: the sessions as they happened, the
  * weekly set count per muscle against the landmarks the statistics screens use,
- * the routines, the records — and ends it by asking for criticism. The user
+ * the routines, the records, and ends it by asking for criticism. The user
  * sends it to whichever assistant they already use and gets an answer written
  * against their real log instead of against a description of it.
  *
@@ -99,7 +99,7 @@ export default function CoachScreen() {
   }, []);
 
   useEffect(() => {
-    // Two reads can be in flight — change the range, then a toggle — and they
+    // Two reads can be in flight (change the range, then a toggle) and they
     // answer in whatever order they answer in. Without this the slower one wins
     // and the screen describes a window nobody asked for.
     let cancelled = false;
@@ -197,8 +197,8 @@ export default function CoachScreen() {
 
       <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         <Text variant="body" color="textSecondary">
-          This writes out your training as one long message — every session in the window, how many
-          sets each muscle got against what it needs, your routines and your records — and ends by
+          This writes out your training as one long message: every session in the window, how many
+          sets each muscle got against what it needs, your routines and your records, and ends by
           asking for criticism. Send it to ChatGPT, Claude or whatever you use, and the answer comes
           back against your real log instead of a guess at it.
         </Text>
@@ -254,7 +254,7 @@ export default function CoachScreen() {
 
         {failed ? (
           <Text variant="label" color="danger" style={styles.hint}>
-            Could not read the database to build the review. Nothing was changed — it is worth
+            Could not read the database to build the review. Nothing was changed. It is worth
             trying again, or exporting a backup from Backup &amp; export instead.
           </Text>
         ) : empty ? (
@@ -263,7 +263,7 @@ export default function CoachScreen() {
           </Text>
         ) : report && report.omittedSessions > 0 ? (
           <Text variant="caption" color="textTertiary" style={styles.hint}>
-            The log is capped at the {MAX_LOGGED_SESSIONS} most recent sessions —{' '}
+            The log is capped at the {MAX_LOGGED_SESSIONS} most recent sessions:{' '}
             {report.omittedSessions.toLocaleString()} older ones are summarised rather than written
             out, which the message says where it happens. A shorter range writes every one.
           </Text>
@@ -332,7 +332,7 @@ function countOf(report: CoachReport | null, read: (report: CoachReport) => numb
 }
 
 /**
- * A value of `null` is "still counting", which is not the statement zero is —
+ * A value of `null` is "still counting", which is not the statement zero is:
  * the same rule the export screen's rows follow.
  */
 function Row({ label, value }: { label: string; value: string | null }) {

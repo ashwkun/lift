@@ -19,19 +19,19 @@ export interface LineChartProps {
   formatValue?: (value: number) => string;
   formatLabel?: (x: number) => string;
   color?: string;
-  /** Tints the area under the line. Flat — see `AREA_OPACITY`. */
+  /** Tints the area under the line. Flat: see `AREA_OPACITY`. */
   filled?: boolean;
   showDots?: boolean;
   /**
-   * A second series drawn dashed and quiet behind the first — a smoothed trend
+   * A second series drawn dashed and quiet behind the first: a smoothed trend
    * against the raw readings it was computed from. Scaled against the same
    * domain as `data`, so the two only line up if they describe the same thing.
    */
   overlay?: DataPoint[];
   /**
    * Turns the plot into a readout: dragging across it reports the nearest
-   * reading, and releasing reports null. The caller renders the value — only it
-   * knows the unit and the date format — and passes the point back as
+   * reading, and releasing reports null. The caller renders the value: only it
+   * knows the unit and the date format, and passes the point back as
    * `highlight` so this can mark it.
    */
   onScrub?: (point: DataPoint | null) => void;
@@ -183,7 +183,7 @@ export function LineChart({
 
     return PanResponder.create({
       // Claimed on touch-down so a tap reads a value, and handed straight back
-      // if the ScrollView above asks for it — which is what happens the moment
+      // if the ScrollView above asks for it, which is what happens the moment
       // the gesture turns out to be a vertical scroll. Without the termination
       // request the chart would swallow every scroll that began on top of it.
       onStartShouldSetPanResponder: () => true,
@@ -235,7 +235,7 @@ export function LineChart({
         startFillColor={lineColor}
         endFillColor={lineColor}
         // Flat, not faded. The fill used to ramp 0.28 → 0 down the plot, which
-        // put a soft edge across the chart at no fixed value — a horizontal
+        // put a soft edge across the chart at no fixed value: a horizontal
         // boundary the eye reads as data and the axis cannot explain. One low
         // tint says "under the line" and stops there. Both ends are set because
         // the library interpolates between them whether or not it is asked to.
@@ -257,7 +257,7 @@ export function LineChart({
         rulesThickness={stroke.outline}
         xAxisColor={colors.border}
         xAxisThickness={stroke.outline}
-        // The x labels are drawn below instead — see the note on that row.
+        // The x labels are drawn below instead: see the note on that row.
         xAxisLabelsHeight={0}
         yAxisThickness={0}
         yAxisExtraHeight={0}

@@ -10,14 +10,14 @@
  * the single clearest tell that a phone layout has been dropped into a browser.
  *
  * So past `breakpoint.medium` the same component centres itself and closes its
- * bottom corners, which is what every desktop dialog does — including the four
+ * bottom corners, which is what every desktop dialog does: including the four
  * this app already had (`PromptModal`, `DialogHost`, the measurement entry sheet
  * and the rest-duration sheet were all centred from the start, because they were
  * written as dialogs rather than as sheets).
  *
  * Returned as style objects to append rather than as a wrapper component. The
  * three sheets that need this each own a `Modal`, a backdrop `Pressable` that
- * dismisses, and an inner `Pressable` that swallows the tap — a wrapper would
+ * dismisses, and an inner `Pressable` that swallows the tap. A wrapper would
  * have to reproduce all of that and the accessibility handling around it, where
  * two style overrides slot into what is already there.
  */
@@ -49,7 +49,7 @@ export interface SheetLayout {
    * A docked sheet has to clear the gesture pill because it is sitting on top of
    * it. A centred one is nowhere near the bottom of the screen, and keeping the
    * inset there would open a band of dead space under the buttons of every
-   * dialog — on a device where the value is 34, a third of the gap between the
+   * dialog: on a device where the value is 34, a third of the gap between the
    * last control and the sheet's edge, for nothing.
    */
   bottomInset: number;
@@ -59,7 +59,7 @@ export interface SheetLayout {
    * For the one thing inside a sheet that has to be handed a width rather than
    * filling one: the body map in the muscle filter, which draws into an SVG.
    * It was sized from the window, which is the same width the sheet had while
-   * the sheet was the width of a phone — and is four times too wide the moment
+   * the sheet was the width of a phone, and is four times too wide the moment
    * the sheet becomes a 400pt dialog in the middle of a monitor.
    */
   width: number;
@@ -77,7 +77,7 @@ const wide = StyleSheet.create({
     width: '100%',
     maxWidth: SHEET_MAX_WIDTH,
     // Only the bottom two. The top corners are already `radius.xl` on every
-    // sheet that needs this, and `borderRadius` would not override them anyway —
+    // sheet that needs this, and `borderRadius` would not override them anyway.
     // React Native resolves the specific corner properties over the shorthand,
     // so a blanket `borderRadius` here would round the bottom and be silently
     // ignored at the top.
@@ -98,7 +98,7 @@ export function useSheetLayout(): SheetLayout {
         sheet: wide.sheet,
         bottomInset: 0,
         // Mirrors the two rules above it: the backdrop's padding comes off the
-        // window, and what is left is capped. Both have to be accounted for —
+        // window, and what is left is capped. Both have to be accounted for:
         // in a window narrower than 448 the padding binds before the cap does.
         width: Math.min(width - spacing.xxl * 2, SHEET_MAX_WIDTH),
       }
@@ -106,7 +106,7 @@ export function useSheetLayout(): SheetLayout {
         backdrop: undefined,
         sheet: undefined,
         bottomInset: insets.bottom,
-        // Docked, the sheet spans the screen — which is what the window is.
+        // Docked, the sheet spans the screen, which is what the window is.
         width,
       };
 }

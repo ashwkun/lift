@@ -37,9 +37,9 @@ const PRESSED_OPACITY = 0.6;
 /**
  * The two hover fills this file needs, built once per palette.
  *
- * Every hoverable surface here rests on one of two colours — `surface` for
+ * Every hoverable surface here rests on one of two colours: `surface` for
  * cards and the rows inside them, `surfaceMuted` for chips and filled icon
- * buttons — and both press to `surfacePressed`. So there are exactly two
+ * buttons, and both press to `surfacePressed`. So there are exactly two
  * blends, and computing them inside `ListRow` would repeat them per row of
  * every list in the app. Same shape as `makeStyles` in the theme, and cached on
  * the palette object for the same reason: there are two of those and they are
@@ -63,7 +63,7 @@ function hoverFills(c: Palette): { onSurface: string; onMuted: string } {
  * Maps a tone to its foreground and its tinted background.
  *
  * Chips, badges and callouts all read from here, so a "record" badge is the
- * same gold in the history list, the summary screen and the PR sheet — they
+ * same gold in the history list, the summary screen and the PR sheet. They
  * used to each pick their own pairing inline.
  */
 function toneColors(c: Palette, tone: Tone): { fg: string; bg: string } {
@@ -103,12 +103,12 @@ export function Card({ padded = true, elevated = false, onPress, style, ...rest 
 
   // A tappable card gets a real pressed surface rather than a dimmed one. On
   // AMOLED a card is already close to the canvas, so dropping its opacity moves
-  // it *towards* the background — the press reads as the card disappearing.
+  // it *towards* the background. The press reads as the card disappearing.
   //
   // The fill crossfades and the card takes a small step back under the thumb,
   // both on the UI thread. A card is a discrete object sitting on the canvas
   // with margin on every side, so it is exactly the shape that can afford to
-  // scale — see `PRESS_SCALE`.
+  // scale: see `PRESS_SCALE`.
   if (onPress) {
     return (
       <PressableScale
@@ -165,7 +165,7 @@ export function Chip({ label, selected = false, icon, ...rest }: ChipProps) {
   // is always drawn, so the chip keeps one width, and a transparent stroke
   // around a pill leaves a seam where the border path meets the background
   // path. See `stroke` in the tokens. It follows the fill through the press
-  // for the same reason — an outline left behind at the resting colour is a
+  // for the same reason: an outline left behind at the resting colour is a
   // ring around a pressed centre, which is that seam by another route.
   const border = selected ? colors.accent : fill;
   const borderPressed = selected ? border : fillPressed;
@@ -246,13 +246,13 @@ export function IconButton({
    * An unfilled icon button grows a shape where there is a cursor to meet it.
    *
    * On a phone it has no background to darken, so it keeps the opacity dip and
-   * nothing else — that is what the `dimTo` below is, and it is right for a
+   * nothing else. That is what the `dimTo` below is, and it is right for a
    * finger, which has already found the target by the time anything can respond.
    * A cursor has to find it first, and a bare 22pt glyph gives no indication
    * that it sits in a 44pt target: these are the smallest things in the app and
    * they carry real actions, including the destructive ones in the headers.
    *
-   * So where hovering is possible it borrows the filled variant's shape —
+   * So where hovering is possible it borrows the filled variant's shape:
    * nothing at rest, the muted surface under the cursor, the pressed surface
    * under the click. Gated on `canHover` rather than applied everywhere, so a
    * touch device cannot end up with a fill it has no way to reveal, and the
@@ -269,7 +269,7 @@ export function IconButton({
       hoverFill={filled ? hoverFills(colors).onMuted : colors.surfaceMuted}
       dimTo={filled ? 1 : PRESSED_OPACITY}
       // A deeper press than the shared scale. These are the smallest targets in
-      // the app — a bare 22pt glyph in a 44pt circle — and 3% of that is a
+      // the app (a bare 22pt glyph in a 44pt circle) and 3% of that is a
       // couple of pixels, which is not a response anyone can see.
       scaleTo={PRESS_SCALE_SMALL}
       style={[styles.iconButton, filled && { backgroundColor: colors.surfaceMuted }, style]}
@@ -287,7 +287,7 @@ export function IconButton({
 export interface StatFigure {
   label: string;
   value: string;
-  /** Set apart from the figure — smaller, quieter, on the same baseline. */
+  /** Set apart from the figure: smaller, quieter, on the same baseline. */
   unit?: string;
   /** Renders in the accent. At most one per band; see the note below. */
   lead?: boolean;
@@ -301,8 +301,8 @@ export interface StatBandProps {
 /**
  * A row of figures, unruled and unboxed.
  *
- * This replaces a row of tiles — rounded card, tinted circle, icon, number,
- * grey caption — which is the single most generic component in mobile design
+ * This replaces a row of tiles: rounded card, tinted circle, icon, number,
+ * grey caption, which is the single most generic component in mobile design
  * and read as such. Three of them side by side, each in a different role
  * colour, also broke the palette's own rule: lime, amber and green are all
  * near-maximum saturation on a black canvas, and using them decoratively for
@@ -316,7 +316,7 @@ export interface StatBandProps {
  * the number and "kg" as its annotation. The first label aligns to the screen's
  * left margin, so the band sits on the same grid as every section header.
  *
- * The rules are gone — hairlines above, below and between every column. Three
+ * The rules are gone: hairlines above, below and between every column. Three
  * figures set in columns, on a shared baseline, under uppercase labels already
  * read as a table; the rules boxed that table in and made a band of two stacked
  * ones read as a grid drawn in chrome. Anything that needs a band separated
@@ -351,7 +351,7 @@ export function StatBand({ items, style }: StatBandProps) {
 }
 
 /**
- * Splits a formatted measurement into figure and unit — "184.2k kg" becomes
+ * Splits a formatted measurement into figure and unit. "184.2k kg" becomes
  * `['184.2k', 'kg']`, "142" stays `['142', undefined]`.
  *
  * The formatters in `@lift/shared` return display-ready strings with the unit
@@ -382,8 +382,8 @@ export interface ListRowProps {
   /**
    * Reaches whatever the accessory does.
    *
-   * A row is one accessibility element, so a button rendered into `accessory` —
-   * the routine list's Start, say — is swallowed by the row that contains it
+   * A row is one accessibility element, so a button rendered into `accessory`.
+   * The routine list's Start, say. Is swallowed by the row that contains it
    * and cannot be reached at all. Naming it as a custom action gives it back:
    * the row announces its title, the rotor offers "Start", and the screen keeps
    * the one-element reading order that makes the list scannable.
@@ -399,7 +399,7 @@ export interface ListRowProps {
  *
  * The press highlight crossfades from `surface`, which assumes what every call
  * site in the app already does: rows live inside a plain `Card`. A row dropped
- * straight onto the canvas would crossfade from the wrong colour — put it in a
+ * straight onto the canvas would crossfade from the wrong colour. Put it in a
  * card, which is also the only way its dividers and corners come out right.
  */
 export function ListRow({
@@ -426,8 +426,8 @@ export function ListRow({
       fill={colors.surface}
       fillPressed={onPress ? colors.surfacePressed : colors.surface}
       // A row that does nothing does not light up under the cursor either. This
-      // is the one component in the app that is routinely rendered inert — a
-      // settings row showing a value, a stat line inside a card — and on a phone
+      // is the one component in the app that is routinely rendered inert: a
+      // settings row showing a value, a stat line inside a card, and on a phone
       // that reads correctly because nothing responds until it is touched. A
       // cursor asks the question earlier, and answering it on a row that cannot
       // be clicked is a worse lie than staying dark.
@@ -481,7 +481,7 @@ export interface EmptyStateProps {
 
 /**
  * The glyph used to sit in a 64px grey disc. The disc said nothing the icon did
- * not — it was there to give the icon a shape, and a grey circle floating above
+ * not. It was there to give the icon a shape, and a grey circle floating above
  * centred text is the house style of every empty state ever auto-generated.
  * Naked and larger, at tertiary weight, it reads as a mark rather than a button
  * nobody can press.
@@ -510,7 +510,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
 // ---------------------------------------------------------------------------
 
 /**
- * Pass `title` in sentence case — the `overline` variant uppercases it in CSS.
+ * Pass `title` in sentence case: the `overline` variant uppercases it in CSS.
  * Passing "QUICK START" here would be uppercased twice, which is invisible in
  * Latin but mangles locales with real case rules.
  */
@@ -531,8 +531,8 @@ const styles = StyleSheet.create({
     // No outline. The fill is the card: `surface` is a full step off the canvas
     // in both palettes (#0C0C0F on black, white on #F4F4F6), so the edge is
     // already legible and a stroke on top of it was drawing the same boundary
-    // twice. A card that needs to be marked out — the PR card on the summary
-    // screen — asks for its own border in a role colour, which now reads as a
+    // twice. A card that needs to be marked out: the PR card on the summary
+    // screen. Asks for its own border in a role colour, which now reads as a
     // signal rather than as one card among many wearing a slightly louder edge.
     overflow: 'hidden',
   },
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     alignSelf: 'flex-start',
   },
-  // Both halves of the weight, not a bare `fontWeight` — that alone would bold
+  // Both halves of the weight, not a bare `fontWeight`. That alone would bold
   // the badge on iOS and leave it regular on Android, which is where the family
   // decides the weight.
   badgeLabel: font('semibold'),
@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
   statValue: {
     // One size, whether the band holds two figures or four.
     //
-    // It used to be 32px, stepping down to 24 once a third column arrived —
+    // It used to be 32px, stepping down to 24 once a third column arrived:
     // logic that existed because three six-digit volumes at 32 overflowed a
     // phone. At 17 the overflow case cannot arise, so the step-down goes with
     // it, and a band no longer changes type size depending on how many things
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     // A row of figures read across is the case this exists for: without it the
     // columns set to different widths as the numbers change.
     fontVariant: ['tabular-nums'],
-    // Nearly spent at this size — see the tracking note above `VARIANTS` in
+    // Nearly spent at this size: see the tracking note above `VARIANTS` in
     // `ui/text.tsx`. It was -0.4 when the figures were twice as big.
     letterSpacing: -0.1,
   },

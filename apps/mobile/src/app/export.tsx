@@ -15,7 +15,7 @@ type Task = 'json' | 'csv' | 'import';
  * The one line of an unknown failure worth putting in front of someone.
  *
  * File-system and SQLite errors arrive as `Error`s whose message is usually a
- * real sentence — "ENOSPC: no space left on device" — and that sentence is the
+ * real sentence ("ENOSPC: no space left on device") and that sentence is the
  * only thing separating a full disk from a permission problem. Anything that is
  * not an `Error` has no message worth rendering, so it says so plainly rather
  * than printing `[object Object]`.
@@ -30,7 +30,7 @@ function reason(cause: unknown): string {
  *
  * Written for the bad day rather than the curious one. The active workout
  * screen links here when its writes start failing, because a full disk stops
- * SQLite writing without stopping it reading — so this screen is often the last
+ * SQLite writing without stopping it reading, so this screen is often the last
  * intact route out of a phone that is already losing sets. That is why the
  * export button sits above everything else, why every failure names what it
  * left untouched, and why the row counts admit when they could not be read
@@ -120,7 +120,7 @@ export default function ExportScreen() {
       if (result.skipped > 0) {
         lines.push(`${result.skipped.toLocaleString()} rows were unreadable and left out.`);
       }
-      // `queued` is zero while signed out — the oplog entries are written either
+      // `queued` is zero while signed out. The oplog entries are written either
       // way, but with no account there is nothing to promise them to.
       if (result.queued > 0) {
         lines.push(`${result.queued.toLocaleString()} are queued for your account.`);
@@ -172,12 +172,12 @@ export default function ExportScreen() {
         {countsFailed ? (
           <Text variant="label" color="danger" style={styles.hint}>
             Could not read the database to count rows. Exporting reads the same tables, so it is
-            still worth trying — it will say what it finds.
+            still worth trying. It will say what it finds.
           </Text>
         ) : (
           <Text variant="caption" color="textTertiary" style={styles.hint}>
             Built-in exercises are left out; they ship with the app and come back on install. App
-            settings stay behind too — units, rest defaults and the rest belong to this install,
+            settings stay behind too: units, rest defaults and the rest belong to this install,
             not to the training log.
           </Text>
         )}
@@ -207,7 +207,7 @@ export default function ExportScreen() {
           onPress={() => router.push('/coach')}
         />
         <Text variant="caption" color="textTertiary" style={styles.hint}>
-          The same training history written out for ChatGPT or Claude to criticise — sessions,
+          The same training history written out for ChatGPT or Claude to criticise: sessions,
           weekly sets per muscle, routines and records, ending in a request for the things you could
           be doing better.
         </Text>
@@ -236,7 +236,7 @@ export default function ExportScreen() {
           onPress={() => router.push('/import')}
         />
         <Text variant="caption" color="textTertiary" style={styles.hint}>
-          For a Hevy, Lyfta or Strong export, or a Lift CSV — and for restoring only part of a
+          For a Hevy, Lyfta or Strong export, or a Lift CSV, and for restoring only part of a
           history rather than all of it.
         </Text>
 

@@ -1,5 +1,5 @@
 /**
- * The persistent "workout in progress" notification — the fallback renderer.
+ * The persistent "workout in progress" notification: the fallback renderer.
  *
  * Posted for as long as a workout is open, so the session is reachable from the
  * shade without hunting for the app, and so a workout left running is visible
@@ -8,7 +8,7 @@
  * ## What this is not
  *
  * It is not a foreground service. Android keeps showing the notification once
- * posted, but the content only changes while JavaScript is running — which
+ * posted, but the content only changes while JavaScript is running, which
  * means while the app is foregrounded. Pocket the phone mid-workout and the
  * elapsed time freezes at whatever it last read; it catches up on return.
  * Live-ticking text in the shade needs either `setUsesChronometer` or a real
@@ -44,7 +44,7 @@ import { configureNotificationHandler, ONGOING_WORKOUT_TYPE } from './presentati
  * changed would be intolerable. LOW means it appears in the shade with no
  * sound, no vibration and no heads-up banner, and it also gives the user a
  * single switch in system settings to turn this off without losing the rest
- * alert — which is the only "off" this notification has.
+ * alert, which is the only "off" this notification has.
  */
 const ANDROID_CHANNEL_ID = 'workout-ongoing';
 
@@ -60,8 +60,8 @@ export interface WorkoutNoticeContent {
 /**
  * Channel creation and the permission prompt are once-per-process.
  *
- * `showWorkoutNotice` is called on every content change — roughly once a minute
- * for a whole session — and neither of those belongs on that path. Asking for
+ * `showWorkoutNotice` is called on every content change: roughly once a minute
+ * for a whole session, and neither of those belongs on that path. Asking for
  * permission repeatedly is the worse of the two: the OS shows the dialog once
  * and silently denies afterwards, so a retry loop is pure noise.
  */
@@ -72,7 +72,7 @@ let promptShown = false;
  *
  * Re-posting identical content still costs an IPC round trip and can make the
  * shade flicker, and the caller re-renders far more often than the rendered
- * string actually changes — a per-second tick only moves a minute-granularity
+ * string actually changes. A per-second tick only moves a minute-granularity
  * elapsed time once in sixty.
  */
 let lastPosted: string | null = null;
@@ -81,7 +81,7 @@ let lastPosted: string | null = null;
  * Whether a notification may currently be in the shade.
  *
  * Starts `true` on purpose. An ongoing notification outlives the process that
- * posted it — force-quitting the app mid-workout leaves it sitting there — so
+ * posted it (force-quitting the app mid-workout leaves it sitting there) so
  * the first clear of a new process has to actually run rather than assume a
  * clean slate. After that it tracks reality, which keeps the no-workout case
  * from crossing the bridge on every render.
@@ -123,7 +123,7 @@ async function prepare(): Promise<boolean> {
 /**
  * Posts or updates the notification.
  *
- * Safe to call on every render — identical content is dropped before it
+ * Safe to call on every render. Identical content is dropped before it
  * reaches the OS.
  */
 export async function showWorkoutNotice(content: WorkoutNoticeContent): Promise<void> {
@@ -147,7 +147,7 @@ export async function showWorkoutNotice(content: WorkoutNoticeContent): Promise<
         data: { type: ONGOING_WORKOUT_TYPE },
         // `sticky` maps to setOngoing: no swipe-to-dismiss. `autoDismiss:false`
         // maps to setAutoCancel(false), so tapping through to the workout
-        // leaves the notification in place rather than clearing it — the
+        // leaves the notification in place rather than clearing it. The
         // workout is still running, so the status should still be there.
         sticky: true,
         autoDismiss: false,
@@ -155,7 +155,7 @@ export async function showWorkoutNotice(content: WorkoutNoticeContent): Promise<
         priority: Notifications.AndroidNotificationPriority.LOW,
       },
       // Immediate, but routed through the workout channel rather than the
-      // default one. `trigger: null` also delivers immediately — but it posts
+      // default one. `trigger: null` also delivers immediately, but it posts
       // to Android's default channel, which is HIGH importance, so every
       // minute's update would arrive with a sound and a heads-up banner.
       trigger: Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null,

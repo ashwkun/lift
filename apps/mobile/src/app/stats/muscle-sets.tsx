@@ -28,7 +28,7 @@ import { radius, spacing, stroke, useColors, useContentWidth } from '@/theme';
 /**
  * A week is not a range this screen can plot.
  *
- * Its buckets are weeks or months, so "last 7 days" would draw a single bar —
+ * Its buckets are weeks or months, so "last 7 days" would draw a single bar:
  * a chart with nothing to compare against. The body graph on the statistics
  * hub is where a single week belongs.
  */
@@ -40,7 +40,7 @@ const PENDING = '—';
 export default function MuscleSetsScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
@@ -66,8 +66,8 @@ export default function MuscleSetsScreen() {
 
   // The query is asynchronous, so `trend` still describes the range the user
   // just moved off for as long as it takes to run. Nothing on this screen is
-  // labelled by range — the picker is the only thing that says which window the
-  // figures belong to — so matching on the range the result carries drops them
+  // labelled by range. The picker is the only thing that says which window the
+  // figures belong to, so matching on the range the result carries drops them
   // the instant the picker moves, rather than showing three-month counts under
   // "Last year" where they are read as fact.
   const ranged = trend?.range === range ? trend : null;
@@ -163,7 +163,7 @@ export default function MuscleSetsScreen() {
 
             <Text variant="caption" color="textTertiary" style={styles.footnote}>
               The chart counts sets where the muscle was the target. The weekly rate beside each
-              row also counts sets that trained it as an assisting muscle, at half a set each —
+              row also counts sets that trained it as an assisting muscle, at half a set each,
               which is why the two figures differ on a row like triceps.
             </Text>
 
@@ -171,7 +171,7 @@ export default function MuscleSetsScreen() {
               Stated rather than papered over.
 
               The window is exactly the range that was picked, so the totals
-              match their label — which means the first and last bars are
+              match their label, which means the first and last bars are
               whichever slice of their period the window happens to cover.
               Rounding the window out to whole weeks would fix the bars and
               break the number above them, and the number is the one a reader
@@ -233,7 +233,7 @@ function MuscleRow({
 
   // The bar tracks this muscle's own recoverable ceiling rather than the busiest
   // muscle, so a row short of MEV looks short even in a month where nothing else
-  // got trained either — and 16 sets of triceps reads fuller than 16 of
+  // got trained either, and 16 sets of triceps reads fuller than 16 of
   // shoulders, which is the truth of it. Muscles with no ceiling (cardio and
   // friends) get an empty track rather than a division by zero.
   const fill = landmarks.mrv <= 0 ? 0 : Math.min(100, (entry.setsPerWeek / landmarks.mrv) * 100);

@@ -2,7 +2,7 @@
  * What the measurement log implies, as opposed to what it stores.
  *
  * A tape measure and a scale produce numbers; almost everything worth knowing
- * is a *relationship* between them — a rate of change, a ratio, a gap between
+ * is a *relationship* between them: a rate of change, a ratio, a gap between
  * two sides. The arithmetic lives in `@lift/shared`; this file decides which of
  * it applies to the data on hand, what it should be called, and what to ask for
  * when a figure is one input short.
@@ -275,7 +275,7 @@ const SYMMETRY_THRESHOLD_PERCENT = 3;
 
 export interface SymmetryNote {
   label: string;
-  /** "Right 1.5 cm bigger" — already in display units. */
+  /** "Right 1.5 cm bigger": already in display units. */
   summary: string;
   /** True once the gap is large enough to be worth training around. */
   notable: boolean;
@@ -286,7 +286,7 @@ export interface SymmetryNote {
  *
  * The app has asked for both arms and both legs since the first release and
  * then never compared them, which made half those fields busywork. A gap that
- * has held for months is the kind of thing a unilateral accessory fixes — but
+ * has held for months is the kind of thing a unilateral accessory fixes, but
  * only if someone puts the two numbers side by side.
  */
 export function buildSymmetryNotes(
@@ -325,7 +325,7 @@ export function buildSymmetryNotes(
 // Copy
 // ---------------------------------------------------------------------------
 
-/** "12 days ago", "Today", "3 weeks ago" — how fresh a reading is. */
+/** "12 days ago", "Today", "3 weeks ago". How fresh a reading is. */
 export function describeRecency(days: number): string {
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
@@ -337,7 +337,7 @@ export function describeRecency(days: number): string {
 /**
  * The rate a series is moving at, in words: "−0.4 kg per week".
  *
- * Null below two readings a week apart — a rate fitted to a couple of days of
+ * Null below two readings a week apart: a rate fitted to a couple of days of
  * data extrapolates a normal fluctuation into a trend, and printing it would
  * make the app confidently wrong about the thing people most want it to be
  * right about.
@@ -354,7 +354,7 @@ export function describeRate(
   return `${magnitude} per week`;
 }
 
-/** "Bodyweight, 82.4 kg, down 1.2 kg since last time" — one sentence per row. */
+/** "Bodyweight, 82.4 kg, down 1.2 kg since last time": one sentence per row. */
 export function describeSummary(
   summary: KindSummary,
   prefs: MeasurementUnitPreferences,

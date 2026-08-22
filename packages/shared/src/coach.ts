@@ -6,7 +6,7 @@
  * muscle against the landmarks the statistics screens judge it by, the routines
  * the work came out of, and a brief saying what kind of answer is wanted. The
  * user hands it to ChatGPT, Claude or whatever else they keep open and gets a
- * critique back — an export whose destination happens to be a model rather than
+ * critique back. An export whose destination happens to be a model rather than
  * a spreadsheet.
  *
  * It is pure, and it lives here rather than in the app because it is the half
@@ -19,7 +19,7 @@
  * Two rules run through the whole document.
  *
  * Every figure carries its unit on the figure itself, never inherited from a
- * heading three sections up. A reader that skims — and this one skims — must
+ * heading three sections up. A reader that skims (and this one skims) must
  * not have to hold "we are in pounds now" in its head to read a number.
  *
  * And anything left out says so, in the text, where it was left out: a capped
@@ -63,7 +63,7 @@ export const COACH_PROMPT_VERSION = 1;
 /**
  * The landmarks the muscle table is printed against.
  *
- * Intermediate, matching every other screen in the app — `landmarksFor` takes
+ * Intermediate, matching every other screen in the app. `landmarksFor` takes
  * the same default. A picker here would let the document disagree with the body
  * map the user is looking at while they read it, over a distinction the brief
  * already invites them to correct in their own words.
@@ -87,7 +87,7 @@ export interface CoachProfile extends CoachUnits {
   heightCm: number | null;
   sex: Sex | null;
   /**
-   * Whatever the user typed on the way out — a goal, an injury, the days they
+   * Whatever the user typed on the way out: a goal, an injury, the days they
    * can train. The one thing in the document the log cannot supply, and the
    * thing that most changes what a useful answer looks like.
    */
@@ -122,7 +122,7 @@ export interface CoachSession {
   durationSeconds: number | null;
   notes: string | null;
   volumeKg: number;
-  /** Working sets — the denormalised totals from the workout row. */
+  /** Working sets: the denormalised totals from the workout row. */
   sets: number;
   reps: number;
   prCount: number;
@@ -145,7 +145,7 @@ export interface CoachMuscle {
   directSets: number;
   /** Distinct exercises that trained it. */
   exercises: number;
-  /** `sets` over the weeks the window spans — what the landmarks judge. */
+  /** `sets` over the weeks the window spans: what the landmarks judge. */
   setsPerWeek: number;
 }
 
@@ -209,7 +209,7 @@ export interface CoachReport {
   from: number | null;
   /** Exclusive end. */
   to: number;
-  /** "Last 3 months" — the range as the user chose it. */
+  /** "Last 3 months": the range as the user chose it. */
   rangeLabel: string;
   /** Weeks the window spans, floored at 1. The divisor behind every rate. */
   weeks: number;
@@ -245,7 +245,7 @@ export interface CoachReport {
  * The brief.
  *
  * Written as an ordered list because the failure mode of asking a model for
- * "feedback on my training" is four paragraphs of encouragement — and someone
+ * "feedback on my training" is four paragraphs of encouragement, and someone
  * who exported their whole log did not do it to be told they are consistent.
  * Each heading names the question it wants answered, and the rules underneath
  * spend their words on the two things a model gets wrong here: praising instead
@@ -259,15 +259,15 @@ Answer under these headings, in this order:
 
 1. **What this block of training actually was.** Two or three sentences. Frequency, emphasis, how hard, whether it progressed. No preamble.
 2. **What is working.** The specific things worth keeping, and why they are working.
-3. **What is holding me back.** The costliest problems first. Be blunt and be specific — name the exercise, the muscle, the session date. Where a muscle is under- or over-worked, say by how many sets per week.
+3. **What is holding me back.** The costliest problems first. Be blunt and be specific. Name the exercise, the muscle, the session date. Where a muscle is under- or over-worked, say by how many sets per week.
 4. **Progression.** Which lifts moved over this window and which stalled, read off the session log. For each stalled lift say what to change: load, reps, frequency, exercise selection, or effort.
-5. **Fix my routines.** Concrete edits to the routines listed below — exercises to add, drop, swap or reorder, and the sets and rep ranges to prescribe. Give me the edited routine, not a new programme.
+5. **Fix my routines.** Concrete edits to the routines listed below. Exercises to add, drop, swap or reorder, and the sets and rep ranges to prescribe. Give me the edited routine, not a new programme.
 6. **The next four weeks.** Week by week, in a form I can log: exercises, sets, target reps, and how to progress load.
 7. **What you could not tell from this.** Anything missing that you would need to answer properly, and how I should record it.
 
 Rules:
 
-- Specifics over principles. "Side delts got 4 sets a week against an MEV of 10 — add 3 sets of lateral raises to Push A and Push B" is worth more than "make sure you train your shoulders".
+- Specifics over principles. "Side delts got 4 sets a week against an MEV of 10. Add 3 sets of lateral raises to Push A and Push B" is worth more than "make sure you train your shoulders".
 - Use only the sets that are in this document. Do not invent work I did not do, and do not assume work happened outside the window.
 - Where the data is thin, missing or contradictory, say so instead of filling the gap.
 - Skip the encouragement. I want the criticism.`;
@@ -301,7 +301,7 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** `lift-review-2026-04-14.md` — stable, sortable, and obviously ours. */
+/** `lift-review-2026-04-14.md`: stable, sortable, and obviously ours. */
 export function coachFileName(generatedAt: number): string {
   return `lift-review-${isoDay(new Date(generatedAt))}.md`;
 }
@@ -320,7 +320,7 @@ function aboutSection(report: CoachReport): string {
   lines.push(
     `- Bodyweight: ${
       profile.bodyweightKg == null
-        ? 'not recorded — treat any bodyweight exercise below as unloaded reps'
+        ? 'not recorded. Treat any bodyweight exercise below as unloaded reps'
         : formatWeight(profile.bodyweightKg, profile.weightUnit)
     }`,
   );
@@ -346,7 +346,7 @@ function windowSection(report: CoachReport): string {
   const { totals, weeks } = report;
   const lines = ['## The window', ''];
 
-  lines.push(`- Range: ${report.rangeLabel} — ${describeSpan(report)}`);
+  lines.push(`- Range: ${report.rangeLabel}: ${describeSpan(report)}`);
   lines.push(`- Length: ${oneDecimal(weeks)} weeks`);
   lines.push(
     `- Sessions: ${totals.workouts} across ${totals.activeDays} separate days (${oneDecimal(
@@ -374,7 +374,7 @@ function windowSection(report: CoachReport): string {
  * own screens colour a muscle by, and a review that judged the same numbers
  * against some other private standard would contradict the body map the user is
  * looking at. The caveat under the table is the same one the landmark table
- * carries in `landmarks.ts` — informed estimates, not measurements — and it is
+ * carries in `landmarks.ts` (informed estimates, not measurements) and it is
  * repeated here because this is the copy a stranger reads.
  */
 function muscleSection(report: CoachReport): string {
@@ -393,8 +393,8 @@ function muscleSection(report: CoachReport): string {
 
   for (const entry of report.muscles) {
     const landmarks = landmarksFor(entry.muscle, REVIEW_LEVEL);
-    // A row of zeros is the honest entry for the buckets that are not muscles —
-    // cardio, whole-body work, the unclassified — and printing it as real
+    // A row of zeros is the honest entry for the buckets that are not muscles.
+    // Cardio, whole-body work, the unclassified, and printing it as real
     // thresholds would have the table calling someone's running overreached.
     const scaled = landmarks.mrv > 0;
 
@@ -409,7 +409,7 @@ function muscleSection(report: CoachReport): string {
 
   lines.push(
     '',
-    'MEV is the minimum weekly sets growth starts at, MAV the band it grows fastest in, MRV the most that can be recovered from. They are the Renaissance Periodization landmarks for an intermediate lifter. Treat them as informed estimates rather than measurements — the spread between two lifters is wider than the spread between two of these rows — and adjust them if what I said about myself above suggests they are wrong for me.',
+    'MEV is the minimum weekly sets growth starts at, MAV the band it grows fastest in, MRV the most that can be recovered from. They are the Renaissance Periodization landmarks for an intermediate lifter. Treat them as informed estimates rather than measurements (the spread between two lifters is wider than the spread between two of these rows) and adjust them if what I said about myself above suggests they are wrong for me.',
   );
 
   return lines.join('\n');
@@ -481,12 +481,12 @@ function exerciseLines(exercise: CoachExercise, units: CoachUnits): string[] {
     exercise.supersetGroup != null ? `superset ${exercise.supersetGroup}` : null,
   ].filter((part): part is string => part !== null);
 
-  const lines = [`**${exercise.name}** — ${context.join(', ')}`];
+  const lines = [`**${exercise.name}**: ${context.join(', ')}`];
   if (exercise.notes) lines.push(`Note: ${collapse(exercise.notes)}`);
 
-  // Warm-ups are printed but not numbered: they are part of what happened — a
+  // Warm-ups are printed but not numbered: they are part of what happened: a
   // heavy top single after two ramping sets is a different session from the same
-  // single cold — and they are excluded from every count in the app, so
+  // single cold, and they are excluded from every count in the app, so
   // numbering them would put a "4" beside a set no total includes.
   let working = 0;
 
@@ -514,7 +514,7 @@ function routineSection(report: CoachReport): string {
     return [
       '## Routines',
       '',
-      'I have no saved routines — every session above was put together as I went. Say whether a routine would help, and if so write me one.',
+      'I have no saved routines: every session above was put together as I went. Say whether a routine would help, and if so write me one.',
     ].join('\n');
   }
 
@@ -551,7 +551,7 @@ function routineLines(routine: CoachRoutine, units: CoachUnits): string[] {
       exercise.restSeconds != null ? `${formatDuration(exercise.restSeconds)} rest` : null,
     ].filter((part): part is string => part !== null);
 
-    lines.push('', `${index + 1}. **${exercise.name}** — ${context.join(', ')}`);
+    lines.push('', `${index + 1}. **${exercise.name}**: ${context.join(', ')}`);
     if (exercise.notes) lines.push(`   Note: ${collapse(exercise.notes)}`);
 
     if (exercise.sets.length === 0) {
@@ -577,7 +577,7 @@ function recordSection(report: CoachReport): string {
   const lines = [
     '## Current personal bests',
     '',
-    'All-time, for the exercises I trained in this window. Not limited to the window itself — a best set two years ago is still the number to beat.',
+    'All-time, for the exercises I trained in this window. Not limited to the window itself. A best set two years ago is still the number to beat.',
     '',
     '| Exercise | Record | Value | Set on |',
     '| --- | --- | ---: | --- |',
@@ -628,8 +628,8 @@ function measurementSection(report: CoachReport): string {
  * Bodyweight across the window, as one sentence.
  *
  * A gaining or losing phase changes what almost every other criticism in the
- * review should be — stalled lifts in a deficit are not the same finding as
- * stalled lifts eating over maintenance — so the direction is stated in prose
+ * review should be. Stalled lifts in a deficit are not the same finding as
+ * stalled lifts eating over maintenance, so the direction is stated in prose
  * rather than left for a reader to derive from a column of dates.
  */
 function bodyweightTrend(report: CoachReport): string | null {
@@ -780,7 +780,7 @@ function describeMeasurement(entry: CoachMeasurement, units: CoachUnits): string
  * A length in the user's measurement unit.
  *
  * `formatMeasurement` in `units.ts` would do this, but it is one decimal and a
- * unit suffix — the same thing — and importing it here alongside four other
+ * unit suffix (the same thing) and importing it here alongside four other
  * formatters from the same module for a two-line conversion was the whole of
  * its usefulness. This exists so the height line and the measurement table
  * cannot round differently.
@@ -798,13 +798,13 @@ function formatMeasure(cm: number, unit: MeasurementUnit): string {
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * `2026-04-14 (Tue)` — a date that cannot be misread.
+ * `2026-04-14 (Tue)`. A date that cannot be misread.
  *
  * Deliberately not the locale date the app prints everywhere else. `04/06/2026`
  * is two different days depending on where the reader learned to read dates,
  * and the reader here is a model summarising a hundred of them into a claim
  * about training frequency. The weekday is spelled out beside it because the
- * shape of a training week — which days are trained, which are rest — is one of
+ * shape of a training week (which days are trained, which are rest) is one of
  * the things being reviewed, and nobody derives that from a numeric date.
  */
 function stamp(ms: number): string {
@@ -830,7 +830,7 @@ function describeSpan(report: CoachReport): string {
  * One decimal, and none at all on a whole number.
  *
  * Weekly rates are averages and the indirect-set discount is a half, so the
- * decimal carries meaning — but "12.0 sets" in a table of counts reads as a
+ * decimal carries meaning, but "12.0 sets" in a table of counts reads as a
  * precision the figure does not have.
  */
 function oneDecimal(value: number): string {

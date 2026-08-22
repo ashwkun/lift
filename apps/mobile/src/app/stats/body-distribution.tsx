@@ -18,7 +18,7 @@ import { HIT_SLOP, MIN_TOUCH_SIZE, radius, spacing, stroke, useColors, useConten
 export default function BodyDistributionScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const colors = useColors();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
@@ -104,7 +104,7 @@ export default function BodyDistributionScreen() {
 
         {/* The full table, not just the muscles that were trained.
             A zero is the answer to "did I do any calves this week", and a table
-            that only lists what happened cannot answer it — the reader is left
+            that only lists what happened cannot answer it. The reader is left
             scanning for a row that was never printed. */}
         <Card padded={false}>
           <View
@@ -138,7 +138,7 @@ export default function BodyDistributionScreen() {
         <Text variant="caption" color="textTertiary" style={styles.footnote}>
           The table counts sets by their target muscle, so the rows add up to the total. The
           figures are shaded on the body above using a weekly rate that also credits assisting
-          muscles at half a set{current ? ` — ${assistNote(current)}` : ''}.
+          muscles at half a set{current ? `: ${assistNote(current)}` : ''}.
         </Text>
       </ScrollView>
     </Screen>

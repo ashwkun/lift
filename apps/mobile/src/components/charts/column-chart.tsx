@@ -6,7 +6,7 @@ import { Text } from '@/components/ui';
 import { font, fontSize, radius, spacing, stroke, useColors } from '@/theme';
 
 export interface ColumnDatum {
-  /** Stable identity for selection — the bucket's start timestamp. */
+  /** Stable identity for selection. The bucket's start timestamp. */
   key: number;
   label: string;
   value: number;
@@ -16,7 +16,7 @@ export interface ColumnChartProps {
   data: ColumnDatum[];
   width: number;
   height?: number;
-  /** Formats the y-axis ticks. Keep it short — the gutter is 44px. */
+  /** Formats the y-axis ticks. Keep it short. The gutter is 44px. */
   formatValue?: (value: number) => string;
   selectedKey?: number | null;
   /** Tapping the selected column again passes null, clearing the selection. */
@@ -32,7 +32,7 @@ const AXIS_GUTTER = 44;
 const TOP_PAD = spacing.md;
 /** The strip below the baseline that the x-axis labels are drawn into. */
 const LABEL_ROW = spacing.lg;
-/** Three ticks — zero, half, ceiling — which is two gaps between them. */
+/** Three ticks (zero, half, ceiling) which is two gaps between them. */
 const SECTIONS = 2;
 /** Floor for a column's height, in px. See the note on empty buckets below. */
 const MIN_BAR = 2;
@@ -46,7 +46,7 @@ const LOWLIGHT = 0.3;
  * implies a continuous value moving between samples. Two weeks at 12,000 kg
  * with an empty one between them is a gap, not a slope through 6,000.
  *
- * Bars always start at zero for the same reason — a truncated baseline makes a
+ * Bars always start at zero for the same reason. A truncated baseline makes a
  * 5% week-on-week change look like a doubling. `BarChart` measures every column
  * from zero unless it is handed a `yAxisOffset`, so this amounts to never
  * setting one.
@@ -173,7 +173,7 @@ export function ColumnChart({
         // the left of three ticks is one line more than the chart needs.
         yAxisThickness={0}
         rulesColor={colors.border}
-        // Doubled because these are SVG strokes rather than view borders — a
+        // Doubled because these are SVG strokes rather than view borders. A
         // hairline stroke gets antialiased away to almost nothing.
         rulesThickness={stroke.rule * 2}
         rulesLength={plotWidth}
@@ -195,7 +195,7 @@ export function ColumnChart({
         A full-height target per bucket, laid over the plot.
 
         The library sizes each column's `TouchableOpacity` to the column, which
-        makes a rest week — floored at `MIN_BAR` and painted in nothing — a 2px
+        makes a rest week (floored at `MIN_BAR` and painted in nothing) a 2px
         strip of target sitting on the baseline. A rest week is exactly the kind
         of week worth tapping, so the whole slot is the target instead, as it
         was before. Equal flex per child reproduces the slot width the bars were
@@ -225,7 +225,7 @@ export function ColumnChart({
  * Rounds an axis maximum up to a readable step (1, 2, 2.5 or 5 × 10ⁿ).
  *
  * Without this the top gridline reads "13,847 kg", which nobody parses at a
- * glance — and the half-way tick inherits the same problem.
+ * glance, and the half-way tick inherits the same problem.
  */
 function niceCeiling(value: number): number {
   if (value <= 0) return 1;

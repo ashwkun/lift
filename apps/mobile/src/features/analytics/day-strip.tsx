@@ -13,8 +13,8 @@ export interface DayStripProps {
  * A week at a glance: one cell per day, filled on the days that were trained.
  *
  * Read-only, and that is the design rather than an omission. Every colour on
- * the body map below it comes from weekly volume landmarks — how many sets a
- * muscle needs in a *week* to grow — so filtering the map down to a single day
+ * the body map below it comes from weekly volume landmarks. How many sets a
+ * muscle needs in a *week* to grow, so filtering the map down to a single day
  * would leave the ramp measuring a rate against a window a seventh of its
  * length. Eight sets of chest in one session is a good chest day and would
  * paint as deep overreach. The strip therefore says which days were trained,

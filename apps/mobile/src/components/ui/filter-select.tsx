@@ -89,7 +89,7 @@ export interface FilterSheetProps {
 /**
  * Bottom sheet chrome shared by every filter dimension.
  *
- * Owns the modal, the backdrop, the heading and the two ways out — so a sheet
+ * Owns the modal, the backdrop, the heading and the two ways out, so a sheet
  * full of checkboxes and a sheet holding a body map dismiss identically.
  */
 export function FilterSheet({ visible, label, onClose, onClear, children }: FilterSheetProps) {
@@ -102,7 +102,7 @@ export function FilterSheet({ visible, label, onClose, onClear, children }: Filt
         `accessible={false}` on both Pressables, deliberately.
 
         Pressable defaults to `accessible`, which collapses everything under
-        it into one element — so the backdrop announced the entire sheet as a
+        it into one element, so the backdrop announced the entire sheet as a
         single button reading all 21 muscle groups in a row, and no option
         inside it could be reached. This is the control that gates every
         search on the exercise library, so it cannot be a blob.
@@ -123,7 +123,7 @@ export function FilterSheet({ visible, label, onClose, onClear, children }: Filt
             {
               backgroundColor: colors.surfaceElevated,
               // Docked to the bottom edge, the footer would otherwise sit under
-              // the gesture pill. Centred, there is no pill to clear — see
+              // the gesture pill. Centred, there is no pill to clear: see
               // `bottomInset`.
               paddingBottom: spacing.md + sheetLayout.bottomInset,
             },
@@ -199,7 +199,7 @@ export interface FilterSelectProps<T extends string> {
 /**
  * One filter dimension, as a compact trigger that opens a multi-select sheet.
  *
- * This replaced a horizontal strip of chips — one per possible value. That was
+ * This replaced a horizontal strip of chips: one per possible value. That was
  * fine for a curated library, but the catalog populates all 21 muscle groups
  * and 12 equipment types, so the strip became 33 identically-styled chips in
  * one scrolling run with nothing to distinguish a muscle from a piece of
@@ -209,8 +209,8 @@ export interface FilterSelectProps<T extends string> {
  * Selecting is additive: "Barbell **or** Dumbbell" is the question people
  * actually ask in a gym where half the racks are taken, and a single-value
  * filter made them run the search twice. Rows therefore toggle in place rather
- * than dismissing the sheet — the trip is worth making once, not once per
- * value — and Done is what closes it.
+ * than dismissing the sheet. The trip is worth making once, not once per
+ * value, and Done is what closes it.
  */
 export function FilterSelect<T extends string>({
   label,
@@ -272,7 +272,7 @@ export function FilterSelect<T extends string>({
 /**
  * What the trigger says once something is on.
  *
- * A single value names itself — "Barbell" is more useful than "Equipment · 1",
+ * A single value names itself. "Barbell" is more useful than "Equipment · 1",
  * and it is the common case. Past that the pill has no room for a list, so it
  * falls back to the dimension and a count.
  */

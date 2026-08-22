@@ -9,7 +9,7 @@
  *   bookkeeping, compared numerically on both ends, never displayed.
  * - **Domain timestamps use Drizzle's `timestamp_ms` mode** and surface as
  *   `Date`, because the UI actually formats them.
- * - **Deletes are soft.** A hard DELETE cannot replicate — the other device has
+ * - **Deletes are soft.** A hard DELETE cannot replicate. The other device has
  *   no way to learn the row ever existed. `deletedAt` is the tombstone.
  * - **`position` is a REAL, not an INTEGER.** Drag-to-reorder can then insert
  *   between two neighbours (1.0, 1.5, 2.0) by writing one row instead of
@@ -70,7 +70,7 @@ export const exercises = sqliteTable(
     imageUrl: text('image_url'),
     /**
      * Demonstration media from the bundled catalog. Remote URLs, not downloaded
-     * assets — the catalog is ~6,800 exercises and shipping their clips would
+     * assets. The catalog is ~6,800 exercises and shipping their clips would
      * be gigabytes. Both are null for custom exercises and for the slice of the
      * catalog the upstream source has no media for.
      */
@@ -85,7 +85,7 @@ export const exercises = sqliteTable(
      *
      * A gym is not one unit. The dumbbell rack is stamped in pounds, the plates
      * on the rack next to it are kilos, and a treadmill reports miles whatever
-     * the rest of the room does — so the unit belongs to the movement, the way
+     * the rest of the room does, so the unit belongs to the movement, the way
      * `defaultRestSeconds` does, and not to the app or to one session. The
      * column changes nothing about storage: weights are still kept in kilos and
      * distances in kilometres, and this only decides what the user is shown and
@@ -165,7 +165,7 @@ export const routineExercises = sqliteTable(
   ],
 );
 
-/** The prescribed sets of a routine — targets, not performed work. */
+/** The prescribed sets of a routine. Targets, not performed work. */
 export const routineSets = sqliteTable(
   'routine_sets',
   {
@@ -201,7 +201,7 @@ export const workouts = sqliteTable(
     /**
      * Null marks the session as *in progress*. Making the active workout an
      * ordinary row rather than in-memory state means a crash or force-quit
-     * loses nothing — the logger just reopens it on next launch.
+     * loses nothing: the logger just reopens it on next launch.
      */
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
     /** Wall-clock minus paused time; not derivable from the timestamps alone. */
@@ -323,7 +323,7 @@ export const settings = sqliteTable('settings', {
  * Outbound mutation log.
  *
  * Every local write appends here. The sync engine drains it in `seq` order,
- * which preserves causality — a set can never reach the server before the
+ * which preserves causality. A set can never reach the server before the
  * workout it belongs to. Entries are deleted once the server acknowledges them.
  */
 export const syncOplog = sqliteTable(

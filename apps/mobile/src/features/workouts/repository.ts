@@ -84,7 +84,7 @@ export function hasRestOverride(detail: WorkoutExerciseDetail): boolean {
 const WARMUP_REST_CAP_SECONDS = 45;
 
 export interface RestPlan {
-  /** Zero means "do not rest" — see the caller note on `restAfterSet`. */
+  /** Zero means "do not rest": see the caller note on `restAfterSet`. */
   seconds: number;
   kind: RestKind;
 }
@@ -95,7 +95,7 @@ export interface RestPlan {
  * A deliberate sibling of `resolveRestSeconds` rather than an extra argument to
  * it. That function is the one place the timer, the header chip and the
  * duration editor agree on a number, and all three are asking about the
- * exercise, not about a set — threading `setType` through it would make the
+ * exercise, not about a set. Threading `setType` through it would make the
  * chip advertise a duration that only applies to whichever set came last.
  *
  * Two set classes override the exercise's own figure. A warm-up is capped, and
@@ -169,7 +169,7 @@ export class ActiveWorkoutExistsError extends Error {
  * Inserts the session row itself, refusing when one is already open.
  *
  * Two concurrent sessions would make "the active workout" ambiguous everywhere
- * downstream, so this is the single gate — `startWorkout` and `repeatWorkout`
+ * downstream, so this is the single gate: `startWorkout` and `repeatWorkout`
  * both pass through it and neither can accidentally skip the check.
  */
 async function createSession(options: {
@@ -232,8 +232,8 @@ export async function startWorkout(options: {
 /**
  * Starts a session shaped like one already in the log.
  *
- * Copies the structure — which exercises, in what order, their notes, rest and
- * superset grouping, and one row per set with its position and set type — but
+ * Copies the structure, which exercises, in what order, their notes, rest and
+ * superset grouping, and one row per set with its position and set type, but
  * deliberately **not** the weights and reps. `finishWorkout` discards unchecked
  * sets, so the source is a record of what was performed rather than planned,
  * and pre-filling it would turn every repeat into a page of numbers the user
@@ -322,7 +322,7 @@ async function copyRoutineIntoWorkout(routineId: string, workoutId: string): Pro
       await addSet(created.id, {
         position: target.position,
         setType: target.setType,
-        // Targets seed the row but stay unchecked — the user still logs what
+        // Targets seed the row but stay unchecked. The user still logs what
         // they actually did.
         weightKg: target.targetWeightKg,
         reps: target.targetReps,
@@ -411,7 +411,7 @@ export async function removeExerciseFromWorkout(workoutExerciseId: string): Prom
 type TrackedSetColumn = 'weightKg' | 'reps' | 'durationSeconds' | 'distanceKm';
 
 export interface SubstitutionResult {
-  /** The row now carrying the new exercise — the original one when it was reused. */
+  /** The row now carrying the new exercise. The original one when it was reused. */
   workoutExercise: WorkoutExercise;
   /** False when completed sets forced the replacement to be inserted below instead. */
   replacedInPlace: boolean;
@@ -421,7 +421,7 @@ export interface SubstitutionResult {
  * Swaps the exercise in a slot, mid-session.
  *
  * The bench is taken, the cable stack is missing a pin, the leg press has a
- * queue — this is the most common thing that happens in a gym that the log
+ * queue. This is the most common thing that happens in a gym that the log
  * previously could not express, leaving "delete and re-add" as the only route
  * and taking the block's rest and notes with it.
  *
@@ -465,7 +465,7 @@ export async function substituteExercise(
     const created = await addExerciseToWorkout(link.workoutId, newExerciseId, {
       position: link.position + 0.5,
     });
-    // One empty set, matching what adding an exercise by hand produces — a
+    // One empty set, matching what adding an exercise by hand produces: a
     // block with no rows reads as an error rather than an invitation.
     await addSet(created.id);
 
@@ -533,14 +533,14 @@ export async function reorderExercise(
  * Applies the writes a reorder produced.
  *
  * Takes the rows rather than a from/to pair because the caller has already done
- * the arithmetic — `reorder()` in `@lift/shared` decides whether a move is one
+ * the arithmetic: `reorder()` in `@lift/shared` decides whether a move is one
  * midpoint or a full renumber, and this only has to write whatever it handed
  * back. Usually that is a single row, which is the entire point of `position`
  * being a REAL.
  *
  * Sequential rather than batched: each write also emits an oplog entry, and the
  * sync layer's coalescing is per row. A renumber of ten exercises is ten
- * statements, which happens roughly never — see `MIN_GAP` in `ordering.ts`.
+ * statements, which happens roughly never: see `MIN_GAP` in `ordering.ts`.
  */
 export async function applyExerciseOrder(updates: PositionedRow[]): Promise<void> {
   if (updates.length === 0) return;
@@ -565,8 +565,8 @@ export async function applyExerciseOrder(updates: PositionedRow[]): Promise<void
  * Sets how long to rest after this exercise, now and in future sessions.
  *
  * Two writes on purpose. The session row is what the running workout reads, and
- * the exercise row is the fallback every *later* workout resolves against —
- * deciding that heavy squats need five minutes is a fact about squats, not
+ * the exercise row is the fallback every *later* workout resolves against.
+ * Deciding that heavy squats need five minutes is a fact about squats, not
  * about today, and having to re-enter it every session is the whole reason
  * per-exercise rest is worth having.
  *
@@ -633,13 +633,13 @@ export interface SetInput {
  * differently: the active screen decides whether to accept the tap, and the row
  * decides whether to run the optimistic tint before the write echoes back. When
  * they disagreed, the screen accepted the set while the row believed it was
- * refused, and the plate stayed grey until SQLite and the live query came back
- * — exactly the latency the optimistic path exists to hide.
+ * refused, and the plate stayed grey until SQLite and the live query came back:
+ * exactly the latency the optimistic path exists to hide.
  *
  * `previous` counts because an empty field means "same as last time" on the
  * most common gesture in the app: the numbers are already on screen as
  * placeholders, and the screen folds them into the write. Weight is excluded on
- * rep-tracked work on purpose — there the reps are the measure and an empty
+ * rep-tracked work on purpose. There the reps are the measure and an empty
  * weight is a fact ("no belt today"), so it cannot stand in for them. On
  * `weight_distance` there is no rep count at all, which makes the carried load
  * a measurement in its own right and it counts.
@@ -719,7 +719,7 @@ async function nextSetPosition(workoutExerciseId: string): Promise<number> {
  *
  * `fill` exists because the caller cannot see current storage. The active
  * screen decides what to copy forward from last session using the set it
- * rendered, which lags the database by one live-query round trip — so typing
+ * rendered, which lags the database by one live-query round trip, so typing
  * "102.5" and tapping the check inside that window would queue last week's 100
  * *after* the keystroke's write and silently replace the typed figure. Written
  * as `coalesce(column, value)`, the decision is made by SQLite against the row
@@ -830,7 +830,7 @@ export async function listCompletedWorkouts(limit = 50, offset = 0): Promise<Wor
 }
 
 export interface PreviousPerformanceOptions {
-  /** A session to leave out — normally the one being logged or edited. */
+  /** A session to leave out. Normally the one being logged or edited. */
   excludeWorkoutId?: string;
   /**
    * Only consider sessions that started before this instant.
@@ -850,21 +850,21 @@ export interface PreviousPerformance {
    * The most recent note written against this exercise, from any of the last
    * few sessions rather than only the one the sets came from.
    *
-   * Cues are sticky. "Pin 4, not 5" or "left knee — go slow out of the hole" is
+   * Cues are sticky. "Pin 4, not 5" or "left knee. Go slow out of the hole" is
    * true until it isn't, and the session it was typed in may be three back. The
    * app already knew this and threw it away every time the screen loaded.
    */
   note: string | null;
   /**
    * The same window of sessions the note is drawn from, newest first, each
-   * holding the completed **working** sets it logged — what `suggestProgression`
+   * holding the completed **working** sets it logged. What `suggestProgression`
    * reads.
    *
    * `sets` above is one session and every class of set in it, because it feeds
    * the Previous column, which pairs warm-ups against warm-ups. This is that
    * window widened and narrowed at once: several sessions, working sets only.
    * A stall is a run of sessions that failed to beat the one before, and nothing
-   * can see one from a single session — which is all the app was reading here,
+   * can see one from a single session, which is all the app was reading here,
    * having already paid for the query that found the others.
    *
    * Sessions that completed no working set are left out rather than carried as
@@ -907,7 +907,7 @@ export async function getPreviousPerformance(
 
   const earlier = links.filter((link) => link.workoutId !== excludeWorkoutId);
   const candidate = earlier[0];
-  // The newest session that has a note, not the newest session — the two are
+  // The newest session that has a note, not the newest session. The two are
   // usually different, and the older one is still the standing instruction.
   const note = earlier.find((link) => link.notes)?.notes ?? null;
 
@@ -915,7 +915,7 @@ export async function getPreviousPerformance(
 
   // One statement for the whole window rather than one per session. This runs
   // for every exercise in the session the moment the logging screen opens, so
-  // a query per link is five round trips per block before anything is painted —
+  // a query per link is five round trips per block before anything is painted,
   // and the widest case, five sessions, is exactly the one where the engine has
   // something to say.
   const setRows = await db
@@ -963,7 +963,7 @@ export interface FinishResult {
 /**
  * Closes out a session: recomputes totals, awards PRs, then drops unchecked sets.
  *
- * Unlogged sets are discarded rather than saved as zeros — a planned fourth set
+ * Unlogged sets are discarded rather than saved as zeros. A planned fourth set
  * the user never did should not drag their averages down or count toward volume.
  *
  * That deletion happens *last*, and the order is the whole safety story. There
@@ -978,16 +978,16 @@ export interface FinishResult {
  * The durable point is the oplog write that follows the session update, and
  * only failures above it reject. The cleanup below swallows its own, because a
  * rejection there would have the caller announce that the session stayed open
- * when it is finished, closed, and already gone from the active-session query
- * — leaving the user told to retry something they can no longer reach.
+ * when it is finished, closed, and already gone from the active-session query:
+ * leaving the user told to retry something they can no longer reach.
  *
  * `summarizeSets` and `detectPrs` both skip incomplete sets themselves, so
  * working from the pre-deletion snapshot changes no number.
  *
  * `name` and `notes` arrive from the save screen that sits in front of this
  * call, and they are folded into the *same* statement as the totals rather than
- * written by one of their own. Two statements can half-land — a session finished
- * under yesterday's name, or renamed and left open — and they would also publish
+ * written by one of their own. Two statements can half-land: a session finished
+ * under yesterday's name, or renamed and left open, and they would also publish
  * as two versions of the row, so a device receiving the sync would see a rename
  * and a finish rather than one saved workout.
  *
@@ -995,7 +995,7 @@ export interface FinishResult {
  * it and `defaultWorkoutName` guarantees there is one, so an emptied field means
  * the user cleared the box, not that this workout is to be called nothing. An
  * emptied *note* is stored as null, because "I have nothing to say about this
- * session" is a thing someone can mean — matching what the per-exercise note
+ * session" is a thing someone can mean: matching what the per-exercise note
  * editor writes for the same gesture.
  */
 export async function finishWorkout(
@@ -1109,7 +1109,7 @@ export async function finishWorkout(
   // later finish or by `deleteWorkout`. It therefore must not reject. A throw
   // here would tell the caller the finish failed and have it say the session
   // stayed open, when the session is closed and the screen's live query has
-  // already dropped it — there would be nothing left to retry.
+  // already dropped it. There would be nothing left to retry.
   try {
     for (const setId of uncheckedSetIds) await deleteSet(setId);
     for (const exerciseId of abandonedExerciseIds) await removeExerciseFromWorkout(exerciseId);
@@ -1129,7 +1129,7 @@ export async function finishWorkout(
  *
  * All three are things the app only ever guessed at. The name defaults to the
  * time of day, the note is written from memory afterwards, and the duration is
- * wall-clock between two timestamps — which is exactly right until the session
+ * wall-clock between two timestamps, which is exactly right until the session
  * is left open on a phone in a locker and comes back as four hours. A logged
  * duration nobody can correct drags every average and every weekly total with
  * it, for as long as the log exists.
@@ -1186,8 +1186,8 @@ export interface RecalculateResult {
  *
  * `finishWorkout` computes the totals and the records once, at the moment the
  * session closes, and every screen afterwards reads the stored figures rather
- * than the sets. That is the right shape — the history list would otherwise
- * aggregate thousands of rows to draw a card — but it means a set corrected
+ * than the sets. That is the right shape. The history list would otherwise
+ * aggregate thousands of rows to draw a card, but it means a set corrected
  * three days later changes nothing anybody can see. This is the other half of
  * that bargain: the editor writes sets, and this puts the derived figures back
  * in agreement with them.
@@ -1195,7 +1195,7 @@ export interface RecalculateResult {
  * The structure is deliberately `finishWorkout`'s, down to the order of the
  * writes: read everything, derive in memory, write the session row, and only
  * then delete. There is no usable transaction here (see `finishWorkout`), so
- * the order is the failure plan — interrupted, the session is either untouched
+ * the order is the failure plan. Interrupted, the session is either untouched
  * or correctly recomputed with a few unchecked rows still attached, which every
  * query already ignores.
  *
@@ -1209,7 +1209,7 @@ export interface RecalculateResult {
  *
  * `finishedAt` is not touched. It records when Save was pressed, which is a
  * fact about the app rather than about the training, and the duration is stored
- * separately for exactly that reason — see the column note in the schema.
+ * separately for exactly that reason: see the column note in the schema.
  */
 export async function recalculateWorkout(
   workoutId: string,
@@ -1223,7 +1223,7 @@ export async function recalculateWorkout(
   const detail = await getWorkoutDetail(workoutId);
   if (!detail) throw new Error(`Workout ${workoutId} not found`);
 
-  // An open session has no derived figures yet — `finishWorkout` is what
+  // An open session has no derived figures yet. `finishWorkout` is what
   // produces them, and running this against one would stamp totals on a workout
   // the logging screen is still writing to.
   const finishedAt = detail.workout.finishedAt;
@@ -1320,7 +1320,7 @@ export async function recalculateWorkout(
 
   await trackUpsertCoalesced('workouts', serializeWorkout(saved));
 
-  // Cosmetic, and must not reject — every total above came from the
+  // Cosmetic, and must not reject: every total above came from the
   // pre-deletion snapshot, and `summarizeSets` and `detectPrs` skip incomplete
   // sets themselves. See the same paragraph in `finishWorkout`.
   try {
@@ -1360,8 +1360,8 @@ function sameRecords(
  * session row.
  *
  * Records go first because they are the only child that outlives its parent in
- * practice. A personal record is a *ceiling* — `getPreviousBests` compares
- * every future attempt against it — so a mistyped 500 kg bench used to survive
+ * practice. A personal record is a *ceiling*: `getPreviousBests` compares
+ * every future attempt against it, so a mistyped 500 kg bench used to survive
  * the deletion of the session that created it and silently gate every real
  * bench PR from then on, with no screen anywhere that could reach it.
  *
@@ -1371,7 +1371,7 @@ function sameRecords(
  * only row that can reach the records first, stranding them permanently.
  *
  * The children are read from `workoutExercises` directly rather than through
- * `getWorkoutDetail`, which skips links whose exercise row has gone — those are
+ * `getWorkoutDetail`, which skips links whose exercise row has gone. Those are
  * exactly the rows that must not be left behind.
  */
 export async function deleteWorkout(workoutId: string): Promise<void> {

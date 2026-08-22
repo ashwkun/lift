@@ -5,7 +5,7 @@ import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import { useColors } from '@/theme';
 
 export interface SparklineProps {
-  /** Oldest first. Any unit — the line is scaled to its own range. */
+  /** Oldest first. Any unit. The line is scaled to its own range. */
   values: readonly number[];
   width?: number;
   height?: number;
@@ -28,7 +28,7 @@ const AXIS_HEIGHT_MAKEUP = 11;
  * A line with no axes, no labels and no scale.
  *
  * It belongs beside a figure that already states the value, and its only job is
- * the shape of the last few months — whether the number has been climbing,
+ * the shape of the last few months. Whether the number has been climbing,
  * falling or sitting still. That is the one thing a list of current values
  * cannot show and the reason the measurements list used to need a tap per row
  * before it said anything at all.

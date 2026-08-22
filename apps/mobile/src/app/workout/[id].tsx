@@ -117,7 +117,7 @@ export default function WorkoutDetailScreen() {
       if (!confirmed) return;
 
       try {
-        // The repository owns the order — records, then sets, then the session.
+        // The repository owns the order. Records, then sets, then the session.
         // Deleting the row here left a mistyped record behind to gate every
         // future PR for that exercise.
         await deleteWorkout(id);
@@ -166,8 +166,8 @@ export default function WorkoutDetailScreen() {
             // target, and without this the two frames would meet.
             <View style={styles.headerActions}>
               {/* Edit before Delete, and a glyph each. A session is corrected
-                  far more often than it is thrown away — a weight typed into
-                  the wrong row, a set logged twice, a timer left running — and
+                  far more often than it is thrown away: a weight typed into
+                  the wrong row, a set logged twice, a timer left running, and
                   until this existed the only remedy for any of them was the
                   button beside it. */}
               <HeaderAction
@@ -205,7 +205,7 @@ export default function WorkoutDetailScreen() {
         </Pressable>
 
         {/* One stat grammar across the app: overline labels over tabular
-            figures — not 15px numbers in a rounded box, which is what made this
+            figures: not 15px numbers in a rounded box, which is what made this
             session's four figures read differently here than on the summary
             screen one tap away. Four across a phone is one too many for a
             single band once a six-digit volume is one of them, so they run as
@@ -234,7 +234,7 @@ export default function WorkoutDetailScreen() {
         ) : null}
 
         {/* Percentages of the session's completed working sets, primary muscle
-            only — see `workoutMuscleSplit` for why the secondary discount the
+            only: see `workoutMuscleSplit` for why the secondary discount the
             statistics screens apply is deliberately not used here. */}
         {split.length > 0 && (
           <>
@@ -247,7 +247,7 @@ export default function WorkoutDetailScreen() {
 
         <SectionHeader title="Workout" />
 
-        {/* Each block reads in its own exercise's units — the dumbbell press in
+        {/* Each block reads in its own exercise's units: the dumbbell press in
             pounds under a session whose volume total is in kilos. The total is
             the app's unit because it is a sum across exercises that may not
             agree, and a number added up from two units has to be printed in one

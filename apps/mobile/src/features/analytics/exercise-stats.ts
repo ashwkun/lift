@@ -52,7 +52,7 @@ interface ExerciseMeta {
 /**
  * Completed sets in a window, with the exercise columns these screens draw.
  *
- * Same two-query shape as `muscle-stats`, and for the same reason — but a
+ * Same two-query shape as `muscle-stats`, and for the same reason, but a
  * different column list: nothing here needs `secondaryMuscles`, and everything
  * here needs a name and a thumbnail.
  */
@@ -132,7 +132,7 @@ export interface MainExercises {
   window: StatWindow;
   /** Most-performed first. */
   exercises: MainExercise[];
-  /** Finished sessions in the window — the denominator for "2 of 9 sessions". */
+  /** Finished sessions in the window: the denominator for "2 of 9 sessions". */
   sessions: number;
   /** Working sets across every exercise in the window. */
   totalSets: number;
@@ -142,8 +142,8 @@ export interface MainExercises {
  * The exercises you actually do, ordered by how often you do them.
  *
  * Ranked by **sessions containing the exercise**, not by set count. Set count
- * ranks a routine's accessory block above the lift it was built around — five
- * sets of curls in one session outrank three sessions of squats — and the
+ * ranks a routine's accessory block above the lift it was built around. Five
+ * sets of curls in one session outrank three sessions of squats, and the
  * question the screen answers is which lifts a programme is made of.
  */
 export async function getMainExercises(
@@ -157,7 +157,7 @@ export async function getMainExercises(
 
 /**
  * The same rollup over an arbitrary span, for callers that own their own
- * window — the monthly report, which is bounded by a calendar month rather
+ * window. The monthly report, which is bounded by a calendar month rather
  * than by a trailing range.
  */
 export async function getExercisesBetween(
@@ -237,8 +237,8 @@ export async function getExercisesBetween(
  * Sessions of a lift before its best counts as a result rather than an attempt.
  *
  * One good day is a data point; three separate sessions is a lift you train.
- * The threshold exists so a single mis-typed weight — 500 instead of 50 —
- * cannot crown itself the top of the board.
+ * The threshold exists so a single mis-typed weight: 500 instead of 50.
+ * Cannot crown itself the top of the board.
  */
 export const LEADERBOARD_MIN_SESSIONS = 3;
 
@@ -248,8 +248,8 @@ export const LEADERBOARD_MIN_SESSIONS = 3;
  * A 100 kg barbell is 100 kg wherever it is racked. A machine's stack is not:
  * plate weights, lever arms and pulley ratios differ by manufacturer, so "80"
  * on one leg press is nowhere near "80" on another. Cables have the same
- * problem through the pulley. Comparing those numbers between people — or
- * between two gyms you have trained at — measures the equipment, not the lift,
+ * problem through the pulley. Comparing those numbers between people, or
+ * between two gyms you have trained at. Measures the equipment, not the lift,
  * so they are left off the board rather than quietly ranked.
  */
 export const LEADERBOARD_EQUIPMENT: readonly Equipment[] = [
@@ -298,7 +298,7 @@ export interface LeaderboardBoard {
   pending: LeaderboardExercise[];
   /** How many exercises in the library are eligible at all. */
   eligibleInLibrary: number;
-  /** True when the multiples are meaningful — i.e. a bodyweight is on record. */
+  /** True when the multiples are meaningful. I.e. a bodyweight is on record. */
   hasBodyweight: boolean;
 }
 
@@ -323,11 +323,11 @@ export function isLeaderboardEligible(exercise: {
  * Scored on an estimate rather than a tested single because almost nobody tests
  * singles, and a table that only counted them would be empty. The set behind
  * each estimate is carried alongside it so the figure can be shown with its
- * working — "142 kg, from 120 × 5" is a claim a reader can check, where a bare
+ * working: "142 kg, from 120 × 5" is a claim a reader can check, where a bare
  * 142 is one they have to take on trust.
  *
  * Ranking is against your own history. Nothing here is sent anywhere, and there
- * is no population to place you in — a global board would need every other
+ * is no population to place you in. A global board would need every other
  * user's log, which this app has no business collecting for a statistics
  * screen.
  */

@@ -32,7 +32,7 @@ const PULL_LIMIT = 1000;
 
 /**
  * Stop sending a mutation the server keeps rejecting, so it can't block the
- * queue behind it forever. The entry is kept, not deleted — see
+ * queue behind it forever. The entry is kept, not deleted: see
  * `recordFailedAttempt`.
  */
 const MAX_ATTEMPTS = 5;
@@ -77,7 +77,7 @@ async function writeMeta(key: string, value: string): Promise<void> {
  * Stable per-install identifier.
  *
  * The server keys push idempotency on (user, device, clientSeq), so this must
- * survive restarts — a device that regenerated its id on every launch would
+ * survive restarts: a device that regenerated its id on every launch would
  * re-apply mutations it had already pushed.
  */
 export async function getDeviceId(): Promise<string> {
@@ -141,7 +141,7 @@ async function pushPending(deviceId: string): Promise<{
       // Retired entries stay in the table so the UI can count what did not
       // sync, but sending them again would wedge the queue behind them.
       .where(lt(syncOplog.attempts, MAX_ATTEMPTS))
-      // Ascending seq preserves causality — parents were logged before children.
+      // Ascending seq preserves causality. Parents were logged before children.
       .orderBy(asc(syncOplog.seq))
       .limit(PUSH_BATCH);
 
@@ -161,7 +161,7 @@ async function pushPending(deviceId: string): Promise<{
       deviceId,
     });
 
-    // Applied entries are done with — drop them from the log.
+    // Applied entries are done with. Drop them from the log.
     if (response.applied.length > 0) {
       await db.delete(syncOplog).where(inArray(syncOplog.seq, response.applied));
       pushed += response.applied.length;
@@ -227,7 +227,7 @@ async function pushPending(deviceId: string): Promise<{
        * If the server said nothing at all about the batch, charge the attempt
        * to the oldest entry and only that one: mutations are pushed in causal
        * order, so the head is the one that can be holding the rest up, and the
-       * old behaviour — an attempt against every entry in the batch — spent all
+       * old behaviour (an attempt against every entry in the batch) spent all
        * five lives of 500 unrelated mutations on a single bad response.
        */
       const head = entries[0];
@@ -245,8 +245,8 @@ async function pushPending(deviceId: string): Promise<{
  * Charges one failed attempt, with the reason, against each entry.
  *
  * Entries are never deleted here. Once `attempts` reaches `MAX_ATTEMPTS` the
- * entry stops being sent, but it stays in the log: deleting it — which is what
- * this used to do — turned a permanent sync failure into silent divergence that
+ * entry stops being sent, but it stays in the log: deleting it, which is what
+ * this used to do. Turned a permanent sync failure into silent divergence that
  * the sync card then reported as "All changes synced".
  */
 async function recordFailedAttempt(seqs: number[], reason: string): Promise<void> {
@@ -273,7 +273,7 @@ async function retireEntries(seqs: number[], reason: string): Promise<void> {
  *
  * A retirement is a statement about the server's answer at the time, not about
  * the change itself: a schema fix, a re-auth or a corrected clock can make the
- * same rows acceptable. This is the user's way out, and it deletes nothing —
+ * same rows acceptable. This is the user's way out, and it deletes nothing:
  * entries that fail again simply retire again.
  */
 export async function retryRejected(): Promise<void> {
@@ -319,7 +319,7 @@ async function sweepRetired(): Promise<void> {
  * sort behind its own children: edit a workout after logging its sets and the
  * workout's seq moves past them. The server pages strictly by seq
  * (`sync.service.ts`), and builds each page's `changes` keyed in the order rows
- * are met — so a child table can both precede its parent within a page and land
+ * are met, so a child table can both precede its parent within a page and land
  * a whole page ahead of it. With `PRAGMA foreign_keys = ON` (see `db/client`)
  * that insert raises `FOREIGN KEY constraint failed`, which is why this used to
  * die partway through a large first sync.
@@ -327,7 +327,7 @@ async function sweepRetired(): Promise<void> {
  * Applying in `SYNCABLE_TABLES` order fixes it, because that list is already
  * parent-before-child and no syncable table references itself. Doing it across
  * the *whole* pull rather than per page is what handles the parent being on a
- * later page — sorting within a page leaves that case failing exactly as before.
+ * later page. Sorting within a page leaves that case failing exactly as before.
  *
  * There is deliberately no transaction around this. expo-sqlite's
  * `withTransactionAsync` is documented as non-exclusive, so a set logged while
@@ -384,8 +384,8 @@ async function pullChanges(): Promise<number> {
     }
   }
 
-  // Advanced only once every row is in. Persisting it per page — which is what
-  // this did — would strand the rest of the pull behind a cursor that claimed
+  // Advanced only once every row is in. Persisting it per page, which is what
+  // this did. Would strand the rest of the pull behind a cursor that claimed
   // it had already been applied.
   if (cursor !== null) await writeMeta(CURSOR_KEY, cursor);
 
@@ -401,7 +401,7 @@ let inFlight: Promise<SyncResult> | null = null;
 /**
  * Runs a full sync cycle.
  *
- * Concurrent calls share one run — the app triggers sync on focus, on network
+ * Concurrent calls share one run. The app triggers sync on focus, on network
  * regain and after finishing a workout, and those can easily coincide.
  */
 export function runSync(): Promise<SyncResult> {
@@ -425,7 +425,7 @@ export interface OutboxState {
   /** Local changes still on their way to the server. */
   pending: number;
   /** Local changes that ran out of attempts. They are not sent again unless the
-   *  user asks for it — see `retryRejected`. */
+   *  user asks for it: see `retryRejected`. */
   rejected: number;
   /** Why the most recent rejection happened, for the one line the UI has. */
   rejectionReason: string | null;

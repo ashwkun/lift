@@ -1,5 +1,5 @@
 /**
- * `workout-live` — the ongoing workout notification, rendered natively.
+ * `workout-live`: the ongoing workout notification, rendered natively.
  *
  * A local Expo module rather than anything in `android/`, because `android/` is
  * generated: it is gitignored and `pnpm prebuild` runs `expo prebuild --clean`,
@@ -10,7 +10,7 @@
  *
  * `expo-notifications` cannot express three things this notification needs: a
  * clock that ticks while the app is not running, a progress bar, and buttons
- * that reach back into the session. The first is the one that matters — see
+ * that reach back into the session. The first is the one that matters: see
  * `WorkoutLiveNotification.kt` for how Android renders it, and why that means
  * this module holds no timer of its own.
  *
@@ -34,7 +34,7 @@ import { type EventSubscription } from 'expo-modules-core';
 export interface WorkoutLiveState {
   /** Workout name. */
   title: string;
-  /** Current exercise and set tally — "Bench Press · 12 sets". */
+  /** Current exercise and set tally: "Bench Press · 12 sets". */
   line: string;
   /** Epoch ms the workout started. Renders as a count-up clock. */
   startedAtMs: number;
@@ -44,7 +44,7 @@ export interface WorkoutLiveState {
   restPausedSeconds: number | null;
   /** The span the countdown covers, for the progress bar. */
   restTotalSeconds: number;
-  /** What the rest belongs to — an exercise name, or "Warm-up rest". */
+  /** What the rest belongs to. An exercise name, or "Warm-up rest". */
   restLabel: string | null;
   /** What one press of the adjust button is worth, so it can be labelled with it. */
   adjustSeconds: number;
@@ -66,7 +66,7 @@ export interface WorkoutLivePermissions {
   canPost: boolean;
   /**
    * ACTIVITY_RECOGNITION, the runtime half of the `health` foreground-service
-   * type on Android 14+. False still leaves a working notification — it is only
+   * type on Android 14+. False still leaves a working notification. It is only
    * no longer protected from being killed in the background.
    */
   canRunService: boolean;
@@ -112,7 +112,7 @@ export async function stopWorkoutLive(): Promise<void> {
 /**
  * Removes and returns every press since the last call.
  *
- * The queue is the only channel a press travels on — the event below carries no
+ * The queue is the only channel a press travels on. The event below carries no
  * payload and is purely a signal to call this. One channel means a press cannot
  * arrive twice, and it means a press made while the app was not listening is
  * still here when it starts.

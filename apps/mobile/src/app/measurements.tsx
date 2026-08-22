@@ -71,11 +71,11 @@ type SheetState =
 /**
  * The body screen.
  *
- * It used to be fifteen rows of "label — number", where the number was the last
+ * It used to be fifteen rows of "label. Number", where the number was the last
  * thing you typed and a tap unfolded a chart. That is a filing cabinet: it
  * stores measurements faithfully and answers no question you would open it to
- * ask. What people want from a tape measure is direction — is this moving, how
- * fast, and what does it imply — so the direction is now on the surface. Every
+ * ask. What people want from a tape measure is direction. Is this moving, how
+ * fast, and what does it imply, so the direction is now on the surface. Every
  * row carries its shape and its change, the figures a tape implies but does not
  * state are computed above them, and the tap goes to a screen that can hold a
  * real chart instead of a 140pt sliver wedged into a list.
@@ -131,7 +131,7 @@ export default function MeasurementsScreen() {
   const activeKind = sheet ? (sheet.mode === 'single' ? sheet.kind : sheet.kinds[sheet.index]!) : null;
 
   const startSession = () => {
-    // Whatever this person already tracks, in the declared order — a session is
+    // Whatever this person already tracks, in the declared order. A session is
     // for repeating a set of measurements, not for discovering new ones. With
     // nothing tracked yet it falls back to the starter set rather than marching
     // a first-time user through all fifteen.
@@ -183,7 +183,7 @@ export default function MeasurementsScreen() {
   );
 
   // The query answers a tick after mount, so the empty state has to wait for
-  // it — otherwise every visit opens on "Nothing logged yet" and corrects
+  // it. Otherwise every visit opens on "Nothing logged yet" and corrects
   // itself a frame later. The header stays mounted so the native title does not
   // flash the route name. Same rule as records.tsx and history.tsx.
   if (!loaded) {
@@ -220,7 +220,7 @@ export default function MeasurementsScreen() {
         {/*
          * Bodyweight leads because it is the one measurement almost everyone
          * takes, the one taken most often, and the only one the rest of the app
-         * reads back — push-ups and dips are valued at it. Tapping the figure
+         * reads back. Push-ups and dips are valued at it. Tapping the figure
          * logs a new one, which makes the most common action on this screen the
          * largest target on it.
          */}
@@ -442,7 +442,7 @@ function Masthead({
 /**
  * One measurement: its shape, its current value and how it got there.
  *
- * Two siblings under a plain View, not a Pressable inside a Pressable —
+ * Two siblings under a plain View, not a Pressable inside a Pressable.
  * Android's touch handling gives the whole area to the outer one, so a nested
  * button is unreachable there and works only on iOS. Each half carries its own
  * 44pt, which also avoids the overlapping hitSlop the two would otherwise need.
@@ -575,7 +575,7 @@ function buildBand(
     );
     // The smoothed figure, not the last reading. A scale swings a kilo on salt
     // and sleep, so the newest number is the noisiest estimate of where someone
-    // actually is — this is the one to compare month to month.
+    // actually is. This is the one to compare month to month.
     candidates.push({ label: 'Trend', value, unit, lead: true });
 
     const rate = describeRate('bodyweight', bodyweight.stats, prefs);

@@ -15,7 +15,7 @@ import { resetSyncState, retryRejected, RETIRED_LIMIT } from './engine';
 /**
  * Account and sync status.
  *
- * Signed out is a completely valid state — the app is local-first, and this is
+ * Signed out is a completely valid state. The app is local-first, and this is
  * framed as an optional backup rather than a wall in front of the product.
  */
 export function SyncCard() {
@@ -36,7 +36,7 @@ export function SyncCard() {
 
   // Read on every focus, not once at mount. The profile tab stays mounted
   // after its first visit, and the only other writer of these counts is a
-  // finished sync run — so a card that read them once went on saying "All
+  // finished sync run, so a card that read them once went on saying "All
   // changes synced" over a session logged two taps away.
   useDeferredFocusEffect(
     useCallback(() => {
@@ -209,7 +209,7 @@ function describeStatus(status: SyncStatus, pending: number, rejected: number): 
     const count = rejected >= RETIRED_LIMIT ? `${RETIRED_LIMIT}+` : String(rejected);
     return `${count} change${rejected === 1 ? '' : 's'} could not sync`;
   }
-  if (status === 'offline') return 'Offline — will retry';
+  if (status === 'offline') return 'Offline. Will retry';
   // Distinct from 'offline' because nothing retries it into working: the
   // changes arrived and this device would not store them.
   if (status === 'error') return 'Sync failed on this device';

@@ -215,7 +215,7 @@ function BoardRow({
           <>
             {/* The estimate with its working beside it. "142 kg, from 120 × 5"
                 is a claim the reader can check; a bare 142 is one they have to
-                take on trust — and an estimated max is exactly the figure that
+                take on trust, and an estimated max is exactly the figure that
                 deserves the scrutiny. */}
             <Text variant="numeric" color="record" numberOfLines={1}>
               {figure}
@@ -268,7 +268,7 @@ function Rules({ board }: { board: LeaderboardBoard | null }) {
       {/* The equipment list is read off the constant rather than written out,
           so the rule the screen states and the rule it applies cannot drift. */}
       <Text variant="caption" color="textTertiary">
-        A lift makes this list when it is a library exercise — not one you created — loaded with{' '}
+        A lift makes this list when it is a library exercise (not one you created) loaded with{' '}
         {LEADERBOARD_EQUIPMENT.map((equipment) => EQUIPMENT_LABELS[equipment]).join(', ')}, tracked
         as weight for reps, and logged in at least {LEADERBOARD_MIN_SESSIONS} separate sessions.
       </Text>
@@ -276,13 +276,13 @@ function Rules({ board }: { board: LeaderboardBoard | null }) {
       <Text variant="caption" color="textTertiary">
         Machines and cables are left off deliberately. Stack weights, lever arms and pulley ratios
         differ between manufacturers, so &ldquo;80&rdquo; on one leg press is not
-        &ldquo;80&rdquo; on another — ranking those numbers measures the equipment rather than the
+        &ldquo;80&rdquo; on another. Ranking those numbers measures the equipment rather than the
         lift.
       </Text>
 
       <Text variant="caption" color="textTertiary">
         Results are estimated one-rep maxes from your own completed sets, ranked against each
-        other. Nothing here is uploaded and there is no one else on the board — this is your log,
+        other. Nothing here is uploaded and there is no one else on the board. This is your log,
         placed in order.
       </Text>
 

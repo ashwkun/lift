@@ -7,7 +7,7 @@
  * A set count that may be fractional.
  *
  * Weekly rates are averages and the secondary-muscle discount is a half, so a
- * decimal is meaningful — but not a trailing `.0` on the whole numbers most
+ * decimal is meaningful, but not a trailing `.0` on the whole numbers most
  * rows land on, which would put a decimal point in a column of counts.
  */
 export function formatSets(sets: number): string {

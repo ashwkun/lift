@@ -32,7 +32,7 @@ export interface WorkoutDurationSheetProps {
  *
  * Two fields rather than the rest timer's stepper: rest is nudged in fifteen-
  * second hops around a number the user half-remembers, and a session duration
- * is a figure they already know — "it was about an hour and ten" — so the
+ * is a figure they already know ("it was about an hour and ten") so the
  * fastest control is the one that takes it dictated. The presets cover the
  * cases where they don't, which is most of them.
  *
@@ -54,7 +54,7 @@ export function WorkoutDurationSheet({
 
   // Re-seeds each time the sheet opens, so a cancelled edit doesn't leak into
   // the next one. Done during render against the props the fields were last
-  // seeded from — an effect would do the same job a commit later, showing the
+  // seeded from. An effect would do the same job a commit later, showing the
   // stale figure for one frame. Same arrangement as `RestDurationSheet`.
   const [seed, setSeed] = useState({ visible, value });
 
@@ -149,7 +149,7 @@ export function WorkoutDurationSheet({
                           : colors.surfaceMuted;
 
                       // Unselected, the outline is the fill rather than
-                      // transparent — same reasoning as `Chip`.
+                      // transparent: same reasoning as `Chip`.
                       return [
                         styles.preset,
                         { backgroundColor: fill, borderColor: selected ? colors.accent : fill },
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   // and a left-aligned "1" in a full-width field reads as an accident.
   fieldText: { textAlign: 'center' },
   // Six pills in a wrapping grid, 8pt apart in both directions, so the height
-  // is real padding rather than slop — overlapping slop is silently won by the
+  // is real padding rather than slop. Overlapping slop is silently won by the
   // later sibling. Same reasoning as the rest sheet's presets.
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   preset: {

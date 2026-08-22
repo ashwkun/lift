@@ -92,7 +92,7 @@ const METRICS: Record<
 export default function HistoryScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -130,8 +130,8 @@ export default function HistoryScreen() {
 
   // The query is asynchronous, so `analytics` still describes the range the user
   // just moved off for as long as it takes to run. Every figure on this screen
-  // is unlabelled by range — the segmented control is the only thing that says
-  // which window they belong to — so leaving them up puts three-month totals
+  // is unlabelled by range. The segmented control is the only thing that says
+  // which window they belong to, so leaving them up puts three-month totals
   // under "Year" and they are read as fact. Matching on the range the result
   // carries drops them the instant the control moves, and needs no reset in the
   // handler that a later range source could forget.
@@ -174,7 +174,7 @@ export default function HistoryScreen() {
   );
 
   // Denominator for each muscle's share. Sums working sets across muscles, which
-  // is not `totals.sets` — that counts warm-ups too.
+  // is not `totals.sets`. That counts warm-ups too.
   const totalMuscleSets = useMemo(
     () => (ranged?.muscles ?? []).reduce((sum, entry) => sum + entry.sets, 0),
     [ranged],
@@ -349,7 +349,7 @@ function RangeTotals({
   const totals = analytics?.totals;
 
   // Four figures across a phone is one too many for a single ruled band, so
-  // these run as two bands of two — which also pairs them by kind: what was
+  // these run as two bands of two, which also pairs them by kind: what was
   // done, and how much of it.
   const [volume, volumeUnit]: [string, string | undefined] = totals
     ? splitMeasure(formatVolume(totals.volumeKg, weightUnit))
@@ -391,7 +391,7 @@ function ChartReadout({
 }) {
   const config = METRICS[metric];
 
-  // The figure holds its line while the range is being counted — and the second
+  // The figure holds its line while the range is being counted, and the second
   // line is deliberately blank rather than absent, so the chart below it doesn't
   // step up and back down under a thumb already reaching for a bar.
   if (!analytics) {
@@ -475,8 +475,8 @@ function MuscleRow({
 
   // The bar tracks this muscle's own recoverable ceiling rather than the busiest
   // muscle, so a row that is short of MEV looks short even in a week where
-  // nothing hit it. Muscles with no ceiling — cardio and the other buckets that
-  // are not muscles — get an empty track rather than a division by zero.
+  // nothing hit it. Muscles with no ceiling: cardio and the other buckets that
+  // are not muscles. Get an empty track rather than a division by zero.
   const fill = landmarks.mrv <= 0 ? 0 : Math.min(100, (entry.setsPerWeek / landmarks.mrv) * 100);
 
   return (

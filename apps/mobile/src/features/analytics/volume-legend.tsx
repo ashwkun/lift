@@ -18,11 +18,11 @@ export interface VolumeLegendProps {
  * Built from `legendSamples` rather than from evenly spaced fractions, so the
  * swatches step where the colour actually steps. A legend that sampled 0–100%
  * linearly would show a smooth gradient for a ramp that deliberately is not
- * one — most of its movement happens between MEV and MAV.
+ * one. Most of its movement happens between MEV and MAV.
  *
  * The map colours 21 muscles against 21 different set counts, so this can no
  * longer quote one. It shows the *shape* of the ramp, which every muscle shares,
- * sampled on chest because it sits in the middle of the table — and the caption
+ * sampled on chest because it sits in the middle of the table, and the caption
  * says whose numbers each figure is being held to instead of naming a range that
  * would be wrong for two thirds of the body.
  */

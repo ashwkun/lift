@@ -4,7 +4,7 @@
  * This is the fix for the app's worst stutter, and it is worth being precise
  * about what the stutter actually was.
  *
- * Nearly every screen here opens by firing a batch of SQLite aggregates —
+ * Nearly every screen here opens by firing a batch of SQLite aggregates:
  * `getDashboardStats`, `getMuscleBoard`, a twelve-week volume scan. Wired
  * through plain `useFocusEffect` those queries start on the same tick the
  * screen is being pushed or the tab is being switched, and their results land
@@ -15,7 +15,7 @@
  * pixel move at a specific rate.
  *
  * The symptom was read as "the animation is janky", and the previous fix was to
- * delete the animations — the tab bar was pinned to `animation: 'none'` and the
+ * delete the animations. The tab bar was pinned to `animation: 'none'` and the
  * stack was left on the platform default with a comment warning against
  * overriding it. That traded a stuttering transition for an instant cut to a
  * blank screen followed by a pop of content, which is not actually smoother,
@@ -27,7 +27,7 @@
  * with `isInteraction` left at its default, so it holds an interaction handle
  * for its whole run and this callback genuinely waits it out. A native stack
  * push animates entirely on the OS side and registers no handle, so there the
- * queue drains on the next flush — which is still after the mount render has
+ * queue drains on the next flush, which is still after the mount render has
  * committed and the first frames of the push have gone out, which is the part
  * that mattered.
  *
@@ -37,7 +37,7 @@
  * matter how quickly its numbers appear. Pair it with a `Reveal` so the late
  * arrival is a fade rather than a pop.
  *
- * Use it exactly like `useFocusEffect` — including the `useCallback`, which is
+ * Use it exactly like `useFocusEffect`. Including the `useCallback`, which is
  * still required for the same reason:
  *
  * ```ts
@@ -68,7 +68,7 @@ export function useDeferredFocusEffect(effect: FocusEffect): void {
       // Two things have to be undone and they become known at different times,
       // hence two variables: the scheduled task always exists, the effect's own
       // teardown only exists if the effect got to run at all. Blurring during
-      // the transition — a fast double tap across the tab bar — has to cancel
+      // the transition (a fast double tap across the tab bar) has to cancel
       // the first without waiting for a cleanup that will never be produced.
       let cancelled = false;
       let teardown: undefined | void | (() => void);

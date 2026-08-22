@@ -101,7 +101,7 @@ export function advance(date: Date, granularity: Granularity, steps = 1): Date {
  * Both ends name their month even when it is the same month twice, which reads
  * a word longer than it needs to in English and is the only form that survives
  * translation. The locale decides whether a date is "17 Aug" or "Aug 17", so
- * dropping the first month — the obvious saving — yields "17 – Aug 23" wherever
+ * dropping the first month (the obvious saving) yields "17 – Aug 23" wherever
  * the month leads, which is not a range anyone can read.
  *
  * The year appears only on a week that crosses one, and then on both ends:
@@ -175,7 +175,7 @@ export interface StatWindow {
   range: StatRange;
   /** Inclusive start at local midnight. Null on "all time". */
   from: Date | null;
-  /** Exclusive end — the start of tomorrow, so today's session counts. */
+  /** Exclusive end. The start of tomorrow, so today's session counts. */
   to: Date;
   /**
    * The equally-long window immediately before this one, for the current-vs-
@@ -191,7 +191,7 @@ export interface StatWindow {
  * A trailing window ending at the end of today.
  *
  * The end is *tomorrow's* midnight rather than `now`, so a workout logged an
- * hour from now still lands inside the window the user is looking at — a
+ * hour from now still lands inside the window the user is looking at: a
  * boundary at the current instant makes the last row of a list appear to be
  * missing from the totals above it.
  */
@@ -215,7 +215,7 @@ export function statWindow(range: StatRange, now: Date = new Date()): StatWindow
 }
 
 /**
- * Weeks a window spans, floored at 1 — the divisor behind every "sets per week"
+ * Weeks a window spans, floored at 1: the divisor behind every "sets per week"
  * figure.
  *
  * `earliest` is only consulted on "all time", where the window is however long
@@ -251,7 +251,7 @@ export function granularityForMonths(months: number): Granularity {
  * The bucket sequence covering a window, oldest first.
  *
  * Buckets with no workouts are included with whatever the caller seeds them
- * with rather than skipped — a gap in training should read as a dip in the
+ * with rather than skipped. A gap in training should read as a dip in the
  * chart, not get quietly compressed away.
  */
 export function bucketsFor(

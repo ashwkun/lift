@@ -15,7 +15,7 @@ import { EQUIPMENT } from './types.ts';
 const DAY = 86_400_000;
 const NOW = 1_700_000_000_000;
 
-/** One completed working set — the only shape most of these tests need. */
+/** One completed working set: the only shape most of these tests need. */
 function set(
   weightKg: number | null,
   reps: number | null,
@@ -85,7 +85,7 @@ test('under the range holds, rather than asking for more of a weight already too
     { workingIndex: 2, weightKg: 100, reps: 6 },
     { workingIndex: 3, weightKg: 100, reps: 6 },
   ]);
-  assert.equal(suggestion.reason, 'Short of 8 reps — repeat this weight');
+  assert.equal(suggestion.reason, 'Short of 8 reps: repeat this weight');
 });
 
 test('the weight only moves when every set cleared the top', () => {
@@ -136,9 +136,9 @@ test('assistance comes off, not on, when the range is cleared', () => {
   assert.deepEqual(
     suggestion.sets.map((entry) => entry.weightKg),
     [37.5, 37.5, 37.5],
-    'less help is harder work — adding assistance would make the exercise easier',
+    'less help is harder work. Adding assistance would make the exercise easier',
   );
-  assert.equal(suggestion.reason, 'Cleared 12 reps on every set — less help next time');
+  assert.equal(suggestion.reason, 'Cleared 12 reps on every set: less help next time');
 });
 
 test('assistance never goes negative', () => {
@@ -176,14 +176,14 @@ test('needing more help three sessions running backs off by adding help', () => 
     suggestion.sets.map((entry) => entry.weightKg),
     [50, 50, 50],
   );
-  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions — add 10% more help');
+  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions. Add 10% more help');
 });
 
 // ---------------------------------------------------------------------------
 // Stalling
 //
 // Every fixture here comes in *under* the band on purpose. A stall is not a
-// flat history — it is a history with no weight left to add and no rep left to
+// flat history. It is a history with no weight left to add and no rep left to
 // add, which is the only state a lifter cannot progress out of on their own.
 // ---------------------------------------------------------------------------
 
@@ -196,7 +196,7 @@ test('three sessions short of the range take load off', () => {
     { workingIndex: 2, weightKg: 90, reps: 8 },
     { workingIndex: 3, weightKg: 90, reps: 8 },
   ]);
-  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions — take 10% off');
+  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions. Take 10% off');
 });
 
 test('three flat sessions with room in the band ask for a rep, not a deload', () => {
@@ -218,7 +218,7 @@ test('a mixed session names how many sets fell short', () => {
   const suggestion = suggest(sessions(short, short, short));
 
   assert.equal(suggestion.kind, 'back_off');
-  assert.equal(suggestion.reason, 'Two of three sets short for three sessions — take 10% off');
+  assert.equal(suggestion.reason, 'Two of three sets short for three sessions. Take 10% off');
 });
 
 test('two sessions short of the range is a bad week, not a stall', () => {
@@ -230,7 +230,7 @@ test('two sessions short of the range is a bad week, not a stall', () => {
 test('a rep gained under the range still breaks the stall', () => {
   const suggestion = suggest(sessions(straight(100, 7), straight(100, 6), straight(100, 6)));
 
-  assert.equal(suggestion.kind, 'hold', 'they are climbing back already — leave the weight alone');
+  assert.equal(suggestion.kind, 'hold', 'they are climbing back already. Leave the weight alone');
 });
 
 test('a stall at the top of the range still gets the weight, not a back-off', () => {
@@ -247,7 +247,7 @@ test('a shorter stall window can be asked for', () => {
   });
 
   assert.equal(suggestion.kind, 'back_off');
-  assert.equal(suggestion.reason, 'Short of 8 reps for two sessions — take 10% off');
+  assert.equal(suggestion.reason, 'Short of 8 reps for two sessions. Take 10% off');
 });
 
 test('the back-off fraction is configurable and lands on a loadable weight', () => {
@@ -259,7 +259,7 @@ test('the back-off fraction is configurable and lands on a loadable weight', () 
     suggestion.sets.map((entry) => entry.weightKg),
     [80, 80, 80],
   );
-  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions — take 20% off');
+  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions. Take 20% off');
 });
 
 test('a back-off the rounding would swallow steps by one increment instead', () => {
@@ -292,7 +292,7 @@ test('sessions handed over oldest-first are read in the right order', () => {
 test('a descending run that moved on its back-off sets is not a stall', () => {
   // Only the top set held still. Comparing sessions by their heaviest set alone
   // saw three identical 100s and called it a stall, while sets two and three
-  // went up 2.5 and 5 kg — a lifter improving the whole time, told to deload.
+  // went up 2.5 and 5 kg: a lifter improving the whole time, told to deload.
   const suggestion = suggest(
     sessions(
       [set(100, 6), set(97.5, 6), set(95, 6)],
@@ -301,7 +301,7 @@ test('a descending run that moved on its back-off sets is not a stall', () => {
     ),
   );
 
-  assert.equal(suggestion.kind, 'hold', 'two of three sets improved — nothing is stuck');
+  assert.equal(suggestion.kind, 'hold', 'two of three sets improved. Nothing is stuck');
 });
 
 test('adding a working set counts as beating the session before', () => {
@@ -431,7 +431,7 @@ test('bodyweight work climbs past the top of the range instead of adding weight'
     { workingIndex: 2, weightKg: null, reps: 21 },
     { workingIndex: 3, weightKg: null, reps: 21 },
   ]);
-  assert.equal(suggestion.reason, 'No load to add — climb past 12 reps instead');
+  assert.equal(suggestion.reason, 'No load to add: climb past 12 reps instead');
 });
 
 test('bodyweight work is never told to take 10% off nothing', () => {

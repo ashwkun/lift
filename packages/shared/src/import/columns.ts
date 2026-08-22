@@ -1,8 +1,8 @@
 /**
  * Working out what each column of a workout export means.
  *
- * Every app spells the same twelve ideas differently — `weight_kg`,
- * `Weight (lbs)`, `weightKg`, `Load` — so rather than a parser per app there is
+ * Every app spells the same twelve ideas differently: `weight_kg`,
+ * `Weight (lbs)`, `weightKg`, `Load`, so rather than a parser per app there is
  * one alias table and a header is matched against it. That is the approach
  * LiftShift takes (github.com/aree6/LiftShift), and it is why an export from an
  * app nobody has heard of still imports: the columns are recognised, not the
@@ -46,8 +46,8 @@ export type ImportField =
  * - `setDuration` vs `workoutDuration`. Hevy's `duration_seconds` and Lift's
  *   own `Duration (s)` are per *set*; a bare "duration" therefore belongs to
  *   the set. A session length has to say so in its name.
- * - `exerciseNotes` vs `workoutNotes`. Hevy carries both — `exercise_notes`
- *   and `description` — on every row. An unqualified "notes" goes to the
+ * - `exerciseNotes` vs `workoutNotes`. Hevy carries both: `exercise_notes`
+ *   and `description`: on every row. An unqualified "notes" goes to the
  *   exercise, which is where per-row text belongs.
  */
 const ALIASES: Record<ImportField, string[]> = {
@@ -151,7 +151,7 @@ export interface ResolvedColumns {
    * The unit the weight column names in its own header, if it names one.
    *
    * `weight_kg` is a promise about the values underneath it and outranks
-   * anything the user picked in the UI — a Hevy export is kilograms even when
+   * anything the user picked in the UI. A Hevy export is kilograms even when
    * the app displays pounds.
    */
   weightUnit: WeightUnit | null;
@@ -165,7 +165,7 @@ export interface ResolvedColumns {
  *
  * Greedy over the best matches: every plausible (column, field) pairing is
  * scored, sorted, and taken in order while both sides are still free. That
- * settles the collisions that a per-field scan gets wrong — a file with both
+ * settles the collisions that a per-field scan gets wrong: a file with both
  * `Set` and `Set Type` gives `Set Type` to `setType` on the exact match, which
  * leaves `Set` to `setIndex` rather than both fields fighting over one column.
  */
@@ -195,7 +195,7 @@ export function resolveColumns(header: readonly string[]): ResolvedColumns {
     }
   });
 
-  // Sorted by score, then by column so equal scores resolve left to right —
+  // Sorted by score, then by column so equal scores resolve left to right,
   // which is stable across runs and matches the order a person reads the file.
   candidates.sort((a, b) => b.score - a.score || a.column - b.column);
 
@@ -301,8 +301,8 @@ export const IMPORT_SOURCE_LABELS: Record<ImportSource, string> = {
 /**
  * Names the app a file came from, for the confirmation screen only.
  *
- * Nothing downstream branches on the answer — the column map does all the real
- * work — so a wrong guess costs a sentence, and an unrecognised file still
+ * Nothing downstream branches on the answer. The column map does all the real
+ * work, so a wrong guess costs a sentence, and an unrecognised file still
  * imports. That is the point of guessing here rather than asking the user to
  * declare the format and then failing them when they pick wrong.
  */

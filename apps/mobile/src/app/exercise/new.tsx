@@ -45,7 +45,7 @@ const TRACKING_LABELS: Record<TrackingType, string> = {
  *
  * The library is ~6,800 rows deep, so "Incline Press" already exists and the
  * user cannot know that from a text field. This used to insert first and report
- * the collision in an `Alert` afterwards — a modal that names a problem you
+ * the collision in an `Alert` afterwards. A modal that names a problem you
  * cannot see, dismissed onto a form you then have to re-read. The check runs on
  * blur and again before saving, and the reason is printed under the field it is
  * about, which is where the fix has to happen anyway.
@@ -109,7 +109,7 @@ export default function NewExerciseScreen() {
       await createCustomExercise({ name, equipment, primaryMuscle, trackingType });
       router.back();
     } catch (error) {
-      // Only a write that actually failed reaches here — a full disk, a locked
+      // Only a write that actually failed reaches here: a full disk, a locked
       // database. There is no field to hang that on, so it stays a dialog.
       void showAlert('Could not save', (error as Error).message);
       setSaving(false);
@@ -122,7 +122,7 @@ export default function NewExerciseScreen() {
         options={{
           title: 'New exercise',
           // Filled: this screen exists to produce one exercise, and Save is the
-          // only way to leave it having done that — everything else on it is a
+          // only way to leave it having done that. Everything else on it is a
           // field or a chip. It is also the only action in this header, so the
           // pill has nothing to shout over.
           headerRight: () => (

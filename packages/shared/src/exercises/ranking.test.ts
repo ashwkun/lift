@@ -136,8 +136,8 @@ describe('suggestExercises', () => {
       now: NOW,
     });
 
-    // Chest and triceps work, ranked above everything the session doesn't touch
-    // — and there is nothing else in the list, because a zero score is dropped.
+    // Chest and triceps work, ranked above everything the session doesn't touch,
+    // and there is nothing else in the list, because a zero score is dropped.
     assert.deepEqual(
       suggested.map((row) => row.id),
       ['dips', 'flyes'],

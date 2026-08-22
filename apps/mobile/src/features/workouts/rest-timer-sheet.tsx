@@ -31,7 +31,7 @@ import {
  * The ring, in viewBox units rather than points.
  *
  * The SVG is laid out at `width="100%"` inside a square box, so every number
- * below is a proportion of whatever width the sheet ends up with — the ring and
+ * below is a proportion of whatever width the sheet ends up with: the ring and
  * its stroke scale together from a 320pt phone to a tablet without a second set
  * of measurements. A fixed pixel size would have to be either too small on the
  * large screens or wider than the small ones.
@@ -66,7 +66,7 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 export interface RestTimerSheetProps {
   visible: boolean;
   onClose: () => void;
-  /** The resting exercise's configured rest — the chip, and the idle duration. */
+  /** The resting exercise's configured rest: the chip, and the idle duration. */
   targetSeconds?: number | null;
   onEditRest?: () => void;
 }
@@ -76,7 +76,7 @@ export interface RestTimerSheetProps {
  *
  * The docked bar is what the countdown looks like while the user is logging the
  * next set: one row, four controls, gone the moment rest ends. This is what it
- * looks like when the timer itself is the thing being attended to — pausing,
+ * looks like when the timer itself is the thing being attended to: pausing,
  * changing how long rest should be, or starting one by hand between exercises.
  *
  * It reads the same clock and drives it through the same actions as the bar (see
@@ -111,7 +111,7 @@ export function RestTimerSheet({
    * The duration offered when there is no rest to show.
    *
    * Re-seeded during render each time the sheet opens, against the values it was
-   * last seeded from — the pattern `rest-duration-sheet` uses, and for the same
+   * last seeded from. The pattern `rest-duration-sheet` uses, and for the same
    * reason: an effect would land a commit later and show the previous number for
    * a frame. A rest that starts while the sheet is open takes over from the
    * draft on its own, because `rest` stops being null.
@@ -131,7 +131,7 @@ export function RestTimerSheet({
     // `strokeDasharray` is one circumference of dash followed by one of gap, so
     // the offset alone decides how much of the ring is drawn: none of it at a
     // full circumference, all of it at zero. Animating the offset keeps the
-    // whole sweep on the UI thread — the alternative, re-rendering an arc path
+    // whole sweep on the UI thread: the alternative, re-rendering an arc path
     // from JS, is a new `d` string per frame on the thread this app can least
     // afford to load.
     strokeDashoffset: RING_CIRCUMFERENCE * (1 - remaining.value),
@@ -170,7 +170,7 @@ export function RestTimerSheet({
         `accessible={false}` on both Pressables, deliberately.
 
         Pressable defaults to `accessible`, which collapses everything under it
-        into one element — the backdrop would announce the whole sheet as a
+        into one element. The backdrop would announce the whole sheet as a
         single button reading "Rest 1:30 minus 15 plus 15 Skip Pause", and none
         of the controls inside it could be reached. Tap-outside-to-dismiss has no
         screen reader equivalent here on purpose: the ghost button is one swipe
@@ -207,7 +207,7 @@ export function RestTimerSheet({
 
               It goes when the card stops touching that edge. A grabber on a
               floating dialog is a handle for a drag that is not offered, in the
-              middle of a window, pointing at nothing — the affordance it exists
+              middle of a window, pointing at nothing. The affordance it exists
               to supply is the one thing a centred dialog does not need. */}
           {!sheetLayout.sheet && (
             <View
@@ -234,7 +234,7 @@ export function RestTimerSheet({
                 icon="timer-outline"
                 onPress={onEditRest}
                 // A chip is 36 tall, and it is the only pressable thing in this
-                // row — nothing for its slop to contest, and the ring's controls
+                // row: nothing for its slop to contest, and the ring's controls
                 // are a full `spacing.lg` below.
                 hitSlop={HIT_SLOP}
                 accessibilityLabel={`Rest duration, ${spokenDuration(targetSeconds)}. Edit`}
@@ -285,7 +285,7 @@ export function RestTimerSheet({
                    * begins anywhere but the top is a dial nobody can read at a
                    * glance. Stated in SVG's own transform syntax with the centre
                    * named explicitly: a `transform` in the React Native `style`
-                   * of the `Svg` element looks equivalent and is not — the
+                   * of the `Svg` element looks equivalent and is not: the
                    * library lifts it out of the style and re-applies it in SVG
                    * space, where the default origin is the corner of the viewBox
                    * rather than the middle of the shape.
@@ -296,7 +296,7 @@ export function RestTimerSheet({
               </Svg>
 
               <View style={styles.ringCenter} pointerEvents="none">
-                {/* The second of the app's two deliberately large figures — the
+                {/* The second of the app's two deliberately large figures: the
                     same argument as the docked bar's readout, one step further
                     up because here the number is the entire content of the
                     surface rather than one item in a row. */}
@@ -304,7 +304,7 @@ export function RestTimerSheet({
                   variant="numericLarge"
                   numberOfLines={1}
                   // The ring is sized from whatever width the row leaves, so on
-                  // a narrow phone it lands near 150pt — and a 40px "+1:05"
+                  // a narrow phone it lands near 150pt, and a 40px "+1:05"
                   // needs more than that. The figure gives way rather than the
                   // ring, which is the shape that carries the state.
                   adjustsFontSizeToFit
@@ -338,8 +338,8 @@ export function RestTimerSheet({
 
           {/*
             Two buttons, in the same two places whatever the timer is doing. The
-            pair changes what it says — Close/Start before a rest, Skip/Pause
-            during one, Close/Done after the bell — but a control that appears
+            pair changes what it says: Close/Start before a rest, Skip/Pause
+            during one, Close/Done after the bell, but a control that appears
             and disappears under a thumb is the mis-tap this whole rebuild was
             about.
 
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   /**
    * `flex: 1` with a square aspect, so the ring takes whatever the two controls
-   * leave and its height follows — the one measurement the sheet does not have
+   * leave and its height follows. The one measurement the sheet does not have
    * to state, and therefore the one that cannot be wrong on a screen size nobody
    * tested.
    */

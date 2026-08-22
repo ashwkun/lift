@@ -3,7 +3,7 @@
  *
  * Everything here is a read. The document itself is assembled by
  * `buildCoachPrompt` in `@lift/shared`, which is pure and tested; this half is
- * the queries, and it exists to answer one awkward requirement — the summary
+ * the queries, and it exists to answer one awkward requirement. The summary
  * has to describe the *whole* window even when the session log printed inside
  * it is capped. So the sets are read once and used twice: the tallies see every
  * row, the log sees the most recent sessions those rows belong to.
@@ -47,7 +47,7 @@ import { useSettings } from '@/store/settings';
  * How many sessions the log is allowed to print.
  *
  * A year of four-day weeks is over two hundred sessions and roughly a quarter
- * of a million characters — past what most chat windows accept in one message,
+ * of a million characters: past what most chat windows accept in one message,
  * and well past the point where a model reads the middle of it carefully. Forty
  * is about three months of serious training, which is the span a review of
  * *recent* work is actually about; the totals and the volume table keep
@@ -66,7 +66,7 @@ export interface CoachReportOptions {
   now?: Date;
 }
 
-/** Reads everything a review needs. Pure reads — nothing here writes. */
+/** Reads everything a review needs. Pure reads. Nothing here writes. */
 export async function buildCoachReport(options: CoachReportOptions): Promise<CoachReport> {
   const now = options.now ?? new Date();
   const window = statWindow(options.range, now);
@@ -193,7 +193,7 @@ interface SetRow {
  * Every completed set in the window, in the order it was performed.
  *
  * Completed only. An unticked set is work that was planned and not done, and it
- * is not in the log the app shows either — putting it in front of a reviewer
+ * is not in the log the app shows either: putting it in front of a reviewer
  * invites a critique of a failed set that never happened.
  */
 async function loadSets(from: Date | null, to: Date): Promise<SetRow[]> {
@@ -404,7 +404,7 @@ function tallyMuscles(
   for (const entry of tallies) entry.setsPerWeek = entry.sets / weeks;
 
   // Busiest first, so the muscles a reviewer has most to say about are the ones
-  // it reads first — and the neglected ones are the short tail at the bottom,
+  // it reads first, and the neglected ones are the short tail at the bottom,
   // which is itself the finding.
   return tallies.sort((a, b) => b.sets - a.sets);
 }
@@ -522,8 +522,8 @@ async function loadRoutines(): Promise<CoachRoutine[]> {
 /**
  * Current bests for the exercises trained in the window.
  *
- * All-time rather than window-bounded — a best set two years ago is still the
- * number the current sets are moving toward — but narrowed to the exercises the
+ * All-time rather than window-bounded. A best set two years ago is still the
+ * number the current sets are moving toward, but narrowed to the exercises the
  * window actually contains, because a review of the last month has nothing to
  * say about a lift that was not in it.
  *
@@ -589,7 +589,7 @@ async function loadMeasurements(): Promise<MeasurementRow[]> {
  * The newest entry of each kind. The rows arrive newest first.
  *
  * Ordered by the declared kind order rather than by date, so the table reads
- * top-down as a body does — composition, torso, arms, legs — instead of
+ * top-down as a body does (composition, torso, arms, legs) instead of
  * reshuffling itself every time one limb is measured.
  */
 function latestPerKind(rows: MeasurementRow[]): CoachMeasurement[] {
@@ -605,7 +605,7 @@ function latestPerKind(rows: MeasurementRow[]): CoachMeasurement[] {
   );
 }
 
-/** Bodyweight inside the window, oldest first — the trend line's input. */
+/** Bodyweight inside the window, oldest first: the trend line's input. */
 function bodyweightIn(rows: MeasurementRow[], from: Date | null, to: Date): CoachMeasurement[] {
   return rows
     .filter(

@@ -6,7 +6,7 @@
  * it. That was the whole design, and on native nothing here has changed.
  *
  * In a browser it is a round trip to a worker that has to fetch and instantiate
- * ~750KB of WebAssembly before it can answer anything — and `openDatabaseSync`
+ * ~750KB of WebAssembly before it can answer anything, and `openDatabaseSync`
  * cannot wait that long. expo-sqlite's synchronous bridge busy-waits on a
  * SharedArrayBuffer, and its escape hatch is a spin budget:
  *
@@ -16,7 +16,7 @@
  *     }
  *
  * A million `Atomics.pause()` spins is a few tens of milliseconds on a modern
- * CPU. A cold worker misses that every time, so the open throws — from module
+ * CPU. A cold worker misses that every time, so the open throws: from module
  * scope, before a single screen has rendered, which takes the whole app down at
  * import. (The older fallback loop, on engines without `Atomics.pause`, runs a
  * thousand times as many iterations and usually squeaks through, which is why
@@ -24,8 +24,8 @@
  *
  * So on web the database is opened **asynchronously**. That boots the same
  * worker over `postMessage`, with no deadline at all, and `databaseReady` is
- * what the root layout holds the splash on. Every synchronous call after it —
- * which is most of what Drizzle does — is answered by a worker that is already
+ * what the root layout holds the splash on. Every synchronous call after it,
+ * which is most of what Drizzle does. Is answered by a worker that is already
  * warm and comes back in well under a millisecond, so the budget stops being
  * something anyone has to think about.
  *
@@ -45,7 +45,7 @@ import * as schema from './schema';
  * Deliberately still `ironlog.db`, the name used before the app was renamed.
  *
  * Nothing reads this but SQLite. Renaming it would not open the existing file
- * under a new name — it would open a new, empty database and leave every logged
+ * under a new name. It would open a new, empty database and leave every logged
  * workout stranded in a file the app no longer looks at. The cosmetic win is not
  * worth silently wiping someone's training history; migrating would mean copying
  * the file on first launch, which is a real change and not a rename.
@@ -80,7 +80,7 @@ const PRAGMAS = `
 /**
  * The browser's subset, and the omission is the point: **no WAL**.
  *
- * WAL needs shared memory — `xShmMap`, `xShmLock`, `xShmBarrier` — and the VFS
+ * WAL needs shared memory (`xShmMap`, `xShmLock`, `xShmBarrier`) and the VFS
  * the web build runs on, wa-sqlite's `AccessHandlePoolVFS`, implements none of
  * them. Asking for it does not fail politely and fall back to the journal it
  * already had: SQLite calls through a function pointer that was never filled
@@ -89,11 +89,11 @@ const PRAGMAS = `
  *
  * That is worth spelling out because of how it presents. The next call into
  * that worker is a *synchronous* one, and the synchronous bridge reports a dead
- * worker as `Sync operation timeout` — so a pragma that cannot work reads as a
+ * worker as `Sync operation timeout`, so a pragma that cannot work reads as a
  * performance problem, on a line that never appears in the stack trace.
  *
  * Nothing is lost. WAL buys concurrent readers across connections, and on a
- * phone there are several — the sync engine writes while the logging screen
+ * phone there are several. The sync engine writes while the logging screen
  * reads. A browser tab has one worker holding one connection.
  *
  * `busy_timeout` stays, and is not vestigial here: two tabs are two workers on
@@ -131,7 +131,7 @@ function adopt(instance: SQLiteDatabase): void {
  * happened during this module's evaluation.
  *
  * A rejection here is a startup failure like a failed migration, and is
- * reported the same way — see `Bootstrap`.
+ * reported the same way: see `Bootstrap`.
  */
 export const databaseReady: Promise<void> = openDatabase();
 
@@ -147,7 +147,7 @@ function openDatabase(): Promise<void> {
     const instance = await openDatabaseAsync(DATABASE_NAME, OPTIONS);
     // Asynchronously, so a pragma that the browser's VFS refuses comes back as
     // the error it is. Run through the synchronous bridge it would arrive as a
-    // timeout instead, which names the transport rather than the problem — and
+    // timeout instead, which names the transport rather than the problem, and
     // that is precisely how the WAL trap above spent a deploy hiding.
     await instance.execAsync(WEB_PRAGMAS);
     adopt(instance);

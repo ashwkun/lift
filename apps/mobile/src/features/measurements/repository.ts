@@ -1,8 +1,8 @@
 /**
  * Body measurement tracking.
  *
- * Values are stored canonically — kilograms for bodyweight, percent for body
- * fat, centimetres for every circumference — so switching display units never
+ * Values are stored canonically: kilograms for bodyweight, percent for body
+ * fat, centimetres for every circumference, so switching display units never
  * rewrites history. What each kind *is*, and the arithmetic over a series of
  * them, lives in `@lift/shared`'s `measurements` module; this file is only the
  * table.
@@ -54,7 +54,7 @@ export async function recordBodyweight(kg: number): Promise<BodyMeasurement> {
  * Corrects an entry already filed.
  *
  * A tape read wrong, or a weigh-in filed on the wrong day, used to be
- * uncorrectable — the log was append-only from the UI's point of view, so the
+ * uncorrectable. The log was append-only from the UI's point of view, so the
  * only way out was to delete the row and lose its date. The oplog entry is
  * coalesced because editing the same reading twice before a sync is one
  * correction, not two.
@@ -87,7 +87,7 @@ export async function updateMeasurement(
  * Copies the newest bodyweight into the settings store.
  *
  * Volume for push-ups, pull-ups and dips is computed from
- * `settings.bodyweightKg`, and until this existed nothing ever wrote it — a
+ * `settings.bodyweightKg`, and until this existed nothing ever wrote it: a
  * calisthenics session logged 0 kg and Home read 0 with no explanation. Mirrored
  * here rather than at the call site so logging a bodyweight *anywhere* is
  * enough, and re-read from the table rather than taken from the row just
@@ -121,7 +121,7 @@ export type MeasurementLog = Map<MeasurementKind, BodyMeasurement[]>;
  *
  * The overview screen shows a figure, a delta and a sparkline for fifteen
  * kinds. Fetching that per kind is fifteen round trips to open one screen, and
- * this replaces a query that returned only each kind's newest row — which is
+ * this replaces a query that returned only each kind's newest row, which is
  * why the trend used to be hidden behind a tap. The table is small (one row per
  * reading per kind, so hundreds after years of use), so reading it whole and
  * grouping in memory is both simpler and faster than any arrangement of

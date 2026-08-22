@@ -54,7 +54,7 @@ export interface StartSessionOptions {
  * Three branches, in the order a person would reason about them: this *is* the
  * session you asked for; the open one holds no work and can go; the open one
  * holds work and only you can decide what happens to it. There is deliberately
- * no one-tap "discard and start" — that button deletes sets someone performed.
+ * no one-tap "discard and start". That button deletes sets someone performed.
  */
 export async function startSession(options: StartSessionOptions): Promise<StartOutcome> {
   try {
@@ -77,7 +77,7 @@ async function resolveConflict(
   const logged = await countCompletedSets(open.id);
 
   if (logged > 0) {
-    // Not awaited: `blocked` is the outcome whichever button is pressed — the
+    // Not awaited: `blocked` is the outcome whichever button is pressed. The
     // caller's job is to stay put, and `openExisting` navigates on its own.
     void showDialog({
       title: 'A workout is in progress',
@@ -97,8 +97,8 @@ async function resolveConflict(
   try {
     await discardWorkout(open.id);
     // Rest state carries no workoutId, but the session just deleted was by
-    // definition the only open one, so any rest still running belonged to it —
-    // left alone it counts down over the new session under the old exercise's
+    // definition the only open one, so any rest still running belonged to it.
+    // Left alone it counts down over the new session under the old exercise's
     // name, and its bell rings for work that no longer exists. The ongoing
     // workout notification needs nothing here: it is driven from the open
     // session by the live query at the app root.

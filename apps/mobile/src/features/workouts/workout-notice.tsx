@@ -11,7 +11,7 @@
  * Everything below the `describe` call is one of two ways to draw the same
  * thing. `modules/workout-live` is a native foreground service: it takes the
  * absolute epochs this component derives and hands them to Android, which ticks
- * them in SystemUI — so the countdown is live in the shade and on the lock
+ * them in SystemUI, so the countdown is live in the shade and on the lock
  * screen, there are buttons, and none of it costs a render. Where that module is
  * not in the binary (iOS, the web, Expo Go) `features/notifications/workout`
  * posts the same description as a plain `expo-notifications` body, which cannot
@@ -19,7 +19,7 @@
  *
  * That is the only reason `useTicker` is still here, and it is switched off
  * wherever the native renderer exists. The polling loop is not a fallback
- * detail — it *is* the fallback.
+ * detail: it *is* the fallback.
  *
  * Renders nothing.
  */
@@ -54,8 +54,8 @@ import { ADJUST_SECONDS, syncRestNotification } from './rest-controls';
  * How often the fallback body is recomputed.
  *
  * Only reached where `workoutLiveAvailable` is false. The native renderer needs
- * no interval at all: the two things that move — the rest countdown and the
- * elapsed clock — are absolute epochs that Android renders itself, so a change
+ * no interval at all: the two things that move: the rest countdown and the
+ * elapsed clock. Are absolute epochs that Android renders itself, so a change
  * to the *description* is the only thing worth a push, and there are about
  * twenty of those in a session.
  */
@@ -113,7 +113,7 @@ export function WorkoutNotice() {
   const accent = useColors().accent;
 
   const running = Boolean(workout);
-  // Off entirely under the native renderer — see `REFRESH_MS`.
+  // Off entirely under the native renderer: see `REFRESH_MS`.
   const now = useTicker(REFRESH_MS, running && !workoutLiveAvailable);
 
   // -------------------------------------------------------------------------
@@ -125,7 +125,7 @@ export function WorkoutNotice() {
    *
    * Only the fallback needs this. The native notification carries a
    * `lift://workout/active` deep link as its content intent, so the tap is
-   * routed by the OS into `MainActivity` — which is `singleTask` — and handled
+   * routed by the OS into `MainActivity` (which is `singleTask`) and handled
    * by expo-router without any listener here.
    */
   useEffect(() => {
@@ -201,8 +201,8 @@ export function WorkoutNotice() {
       restPausedSeconds,
       restTotalSeconds,
       // A warm-up rest is capped short on purpose, and forty-five seconds where
-      // two minutes was expected reads as a bug unless the shade says why —
-      // the same reasoning `describeRest` applies to the on-screen bar.
+      // two minutes was expected reads as a bug unless the shade says why.
+      // The same reasoning `describeRest` applies to the on-screen bar.
       restLabel: restKind === 'warmup' ? 'Warm-up rest' : restExerciseName,
       adjustSeconds: ADJUST_SECONDS,
       canCompleteSet: hasUnchecked,
@@ -224,7 +224,7 @@ export function WorkoutNotice() {
   useEffect(() => {
     // "Not answered yet" is not "no session". Every cold start renders one
     // frame with drizzle's seeded empty result, and clearing on that frame
-    // tore down a notification that had survived the process — the shade
+    // tore down a notification that had survived the process: the shade
     // blinked, and the OS re-posted it as new a tick later, which on Android
     // means the sound and the heads-up banner again.
     if (!loaded) return;
@@ -246,7 +246,7 @@ export function WorkoutNotice() {
   }, [loaded, live, now]);
 
   // No unmount cleanup: a workout still open when this unmounts should keep its
-  // notification — that is the whole point. Finishing and discarding clear it.
+  // notification. That is the whole point. Finishing and discarding clear it.
 
   return null;
 }
@@ -254,8 +254,8 @@ export function WorkoutNotice() {
 /**
  * The one line `expo-notifications` gets.
  *
- * Everything the native renderer expresses structurally — a countdown, a
- * progress bar, an elapsed clock — has to collapse into text here, and text in
+ * Everything the native renderer expresses structurally: a countdown, a
+ * progress bar, an elapsed clock. Has to collapse into text here, and text in
  * a notification body does not move. So the countdown is rounded to the refresh
  * interval rather than shown to the second: a number that is visibly ten seconds
  * stale is worse than one that was never precise.

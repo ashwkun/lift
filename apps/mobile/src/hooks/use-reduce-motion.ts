@@ -4,7 +4,7 @@ import { AccessibilityInfo } from 'react-native';
 /**
  * Whether the OS "reduce motion" accessibility setting is on.
  *
- * Decorative animation — confetti, spring entrances — must be skipped when this
+ * Decorative animation (confetti, spring entrances) must be skipped when this
  * is true. The information the animation decorates still has to be shown, so
  * callers drop the motion rather than the content.
  */

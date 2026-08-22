@@ -17,7 +17,7 @@ import {
  *
  * The document stamps a session with the day the user had, so a UTC literal
  * would put these assertions a day out for anyone running the suite west of
- * Greenwich — which is exactly the bug the local stamping exists to avoid.
+ * Greenwich, which is exactly the bug the local stamping exists to avoid.
  */
 function localDay(year: number, month: number, day: number, hour = 18): number {
   return new Date(year, month - 1, day, hour, 30).getTime();
@@ -270,12 +270,13 @@ describe('buildCoachPrompt', () => {
   it('judges each muscle against its own landmarks, and says when it has none', () => {
     const text = buildCoachPrompt(report());
 
-    // Chest at 10 sets a week is exactly its MEV — the first rate that counts
+    // Chest at 10 sets a week is exactly its MEV. The first rate that counts
     // as growing rather than maintaining.
     assert.match(text, /\| Chest \| 10 \| 40 \| 4 \| 10 \| 20 \| 22 \| Growing \|/);
     // Cardio is not a muscle and has no thresholds to be judged against. A row
     // of real-looking numbers here would tell someone their running is past its
     // maximum recoverable volume.
+    // The three em dashes are the table's empty-cell glyph, not prose.
     assert.match(text, /\| Cardio \| 1 \| 4 \| 1 \| — \| — \| — \| no landmark \|/);
   });
 
@@ -353,7 +354,7 @@ describe('buildCoachPrompt', () => {
       }),
     );
     assert.match(without, /contributes zero volume/);
-    assert.match(without, /treat any bodyweight exercise below as unloaded reps/);
+    assert.match(without, /not recorded\. Treat any bodyweight exercise below as unloaded reps/);
   });
 
   it('reads a bodyweight trend as a direction, not a column', () => {

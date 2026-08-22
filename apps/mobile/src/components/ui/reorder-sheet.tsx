@@ -47,20 +47,20 @@ const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 /** How much of the screen the list may take before it scrolls. */
 const MAX_LIST_FRACTION = 0.55;
 
-/** Lift on the row under the finger. Small — it is a card, not a balloon. */
+/** Lift on the row under the finger. Small. It is a card, not a balloon. */
 const DRAG_SCALE = 1.03;
 
 /**
  * Drag-to-reorder, on a surface built for it.
  *
- * The lists this reorders — exercises in a session, exercises in a routine —
- * are not draggable where they live. Each entry there is a block a few hundred
+ * The lists this reorders: exercises in a session, exercises in a routine.
+ * Are not draggable where they live. Each entry there is a block a few hundred
  * points tall containing text fields and swipe-to-delete rows: a vertical pan
  * on one of those has to be told apart from a scroll, from a swipe, and from a
  * caret drag inside a weight field, and the block being moved is usually taller
  * than the screen it is being moved across. Reordering by dragging *names*
  * instead makes every row the same known height, leaves nothing else on the
- * surface competing for the gesture, and shows the whole list at once — which
+ * surface competing for the gesture, and shows the whole list at once, which
  * is the thing you actually need to see to know where a block should go.
  *
  * The order is applied on Done rather than per drop. A drag is a rehearsal
@@ -77,7 +77,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
 
   // Re-seeded whenever the sheet opens, or the list behind it changes while it
   // is closed. Adjusted during render against what it was last seeded from, the
-  // same shape `PromptModal` and the rest timer bar use — an effect would paint
+  // same shape `PromptModal` and the rest timer bar use. An effect would paint
   // the previous session's exercises for a frame first.
   const [seed, setSeed] = useState({ visible, items });
 
@@ -87,7 +87,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
   }
 
   // -1 when nothing is being dragged. Both are read on the UI thread by every
-  // row's style, so they are shared values rather than state — a 60fps drag
+  // row's style, so they are shared values rather than state: a 60fps drag
   // cannot be a React render per frame while a live query is also running.
   const activeIndex = useSharedValue(-1);
   const dragY = useSharedValue(0);
@@ -100,7 +100,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
    * scrollable is for, so the two compete for the drag. RNGH's own answer to
    * that is `blocksExternalGesture(ref)`, which cannot be used here: it wants
    * the ref read while the gesture is built, the gestures are built during
-   * render, and the React Compiler — on for this app — refuses a ref read
+   * render, and the React Compiler (on for this app) refuses a ref read
    * during render. Turning the scroll off for the length of the drag settles
    * the same argument with a prop.
    */
@@ -125,7 +125,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
    *
    * A row that received them as props and assigned to `.value` is a component
    * mutating its own props as far as the React Compiler is concerned, and this
-   * app compiles with it on (`experiments.reactCompiler` in `app.json`) — so
+   * app compiles with it on (`experiments.reactCompiler` in `app.json`), so
    * that is a lint error, and the rule is right about the general case even
    * though a shared value is mutable by design. Rows still *read* both, which
    * is what `useAnimatedStyle` needs and what the rule permits.
@@ -145,8 +145,8 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
         const to = landing(index, dragY.value, count);
         if (to !== index) runOnJS(move)(index, to);
       })
-      // Runs after `onEnd`, and also on the paths that have no `onEnd` at all —
-      // a call arriving, the sheet being dismissed mid-drag. Clearing here
+      // Runs after `onEnd`, and also on the paths that have no `onEnd` at all.
+      // A call arriving, the sheet being dismissed mid-drag. Clearing here
       // rather than there means a cancelled gesture puts the row back instead
       // of committing wherever the finger happened to be. Not animated back to
       // zero: on a real drop the row is about to re-render at its new index,
@@ -165,7 +165,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
         it.
 
         `GestureHandlerRootView` is not a context provider with a native view
-        attached — on Android it *is* the native view, and it installs the touch
+        attached: on Android it *is* the native view, and it installs the touch
         recogniser that feeds every handler beneath it. A React Native `Modal`
         mounts its children into a separate native window, so the app's root view
         in `app/_layout.tsx` is nowhere above this content in the native tree and
@@ -177,7 +177,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
         absent: no warning, no error, and a pan that silently never activates.
         That is what this looked like in Expo Go.
 
-        Every other gesture in the app — the swipe-to-delete on a set row — sits
+        Every other gesture in the app (the swipe-to-delete on a set row) sits
         in the ordinary tree under the root view, which is why this is the first
         place it has come up.
       */}
@@ -211,7 +211,7 @@ export function ReorderSheet({ visible, title, items, onClose, onCommit }: Reord
           {/* The list scrolls past its cap, and the drag deliberately does not
               auto-scroll with it: a finger that reaches the edge stops there.
               Ten exercises is a long session and fits without scrolling on any
-              phone this runs on, so the case is rare — and the accessibility
+              phone this runs on, so the case is rare, and the accessibility
               actions below move a row any distance regardless. */}
           <ScrollView
             scrollEnabled={!dragging}
@@ -252,7 +252,7 @@ interface RowProps {
   item: ReorderItem;
   index: number;
   count: number;
-  /** Read-only here. Only `ReorderSheet` writes them — see `dragGesture`. */
+  /** Read-only here. Only `ReorderSheet` writes them: see `dragGesture`. */
   activeIndex: SharedValue<number>;
   dragY: SharedValue<number>;
   gesture: PanGesture;
@@ -302,7 +302,7 @@ function Row({ item, index, count, activeIndex, dragY, gesture, onMove }: RowPro
           { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
         ]}
         // One element per row for the screen reader, carrying both lines and the
-        // two actions below — the label alone is what a swipe lands on, and the
+        // two actions below. The label alone is what a swipe lands on, and the
         // drag it describes is not something a screen reader can perform.
         accessible
         accessibilityLabel={
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1 },
   // The handle is the target, so it is a full-height column rather than a glyph
-  // with slop — slop on a row this dense would reach into its neighbours.
+  // with slop: slop on a row this dense would reach into its neighbours.
   handle: {
     width: controlHeight.md,
     height: '100%',

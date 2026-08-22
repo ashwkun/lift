@@ -28,7 +28,7 @@ const PENDING = '—';
 export default function MuscleDistributionScreen() {
   const scrollEdge = useScrollEdge();
 
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
 
@@ -51,7 +51,7 @@ export default function MuscleDistributionScreen() {
   );
 
   // Figures from the range the user just left are still figures, and nothing on
-  // this screen is labelled by range — so they are dropped the instant the
+  // this screen is labelled by range, so they are dropped the instant the
   // picker moves rather than sitting under the wrong heading.
   const ranged = report?.range === range ? report : null;
 
@@ -112,7 +112,7 @@ export default function MuscleDistributionScreen() {
 
         {ranged && ranged.unplottedSets > 0 && (
           <Text variant="caption" color="textTertiary" style={styles.footnote}>
-            {pluralSets(ranged.unplottedSets)} fell outside the six groups above — cardio,
+            {pluralSets(ranged.unplottedSets)} fell outside the six groups above: cardio,
             full-body and neck work have no axis on the chart, but they are still counted in the
             set total.
           </Text>
@@ -120,7 +120,7 @@ export default function MuscleDistributionScreen() {
 
         <Text variant="caption" color="textTertiary" style={styles.footnote}>
           Each axis counts sets whose target muscle belongs to that group. Both shapes share one
-          scale, so a heavier block draws a bigger shape rather than the same one rescaled — which
+          scale, so a heavier block draws a bigger shape rather than the same one rescaled, which
           is what makes a deload visible here at all.
         </Text>
       </ScrollView>

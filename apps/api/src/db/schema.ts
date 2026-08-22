@@ -4,7 +4,7 @@
  * Mirrors the on-device SQLite schema, with two additions that only matter
  * server-side:
  *
- * 1. **`userId`** on every row — SQLite has one user per database, Postgres has
+ * 1. **`userId`** on every row. SQLite has one user per database, Postgres has
  *    all of them, and every query is scoped by it.
  *
  * 2. **`seq`**, drawn from a single global sequence. This is the pull cursor.
@@ -49,7 +49,7 @@ const syncColumns = {
 // ---------------------------------------------------------------------------
 // better-auth tables
 // ---------------------------------------------------------------------------
-// Shapes are dictated by better-auth's Drizzle adapter — column names must
+// Shapes are dictated by better-auth's Drizzle adapter. Column names must
 // match what it expects.
 
 export const user = pgTable('user', {
@@ -138,7 +138,7 @@ export const exercises = pgTable(
      * "follow whatever that device's app-wide setting says".
      *
      * The server stores them and never interprets them: nothing here converts a
-     * weight, because nothing here displays one — weights replicate in kilos
+     * weight, because nothing here displays one. Weights replicate in kilos
      * exactly as they are stored on device. `sanitize` drops any payload key
      * that is not a column, so without these two the client's choice would be
      * silently discarded on the way through rather than rejected.

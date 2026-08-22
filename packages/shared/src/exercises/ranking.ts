@@ -2,9 +2,9 @@
  * Which exercises a screen shows, in what order, and what it offers first.
  *
  * Pure, and in the shared package rather than in the app, for two reasons: it
- * is the part of the exercise feature that is a judgement rather than a lookup
- * — the part worth running over a fixture and checking, see `ranking.test.ts`
- * — and it is domain logic the API can reach for too. The app's
+ * is the part of the exercise feature that is a judgement rather than a lookup:
+ * the part worth running over a fixture and checking, see `ranking.test.ts`,
+ * and it is domain logic the API can reach for too. The app's
  * `features/exercises/repository.ts` owns the queries that feed it.
  */
 
@@ -22,7 +22,7 @@ export interface TrainingHistoryRow {
 }
 
 export interface ExerciseUsage {
-  /** Sessions this exercise appeared in — not sets, and not rows. */
+  /** Sessions this exercise appeared in: not sets, and not rows. */
   uses: number;
   /** Epoch ms of the most recent session containing it. */
   lastUsedAt: number;
@@ -63,7 +63,7 @@ export interface FilterableExercise extends RankableExercise {
 export interface ExerciseFilters {
   search?: string;
   /**
-   * Any of these muscles, as primary or secondary. Empty means no constraint —
+   * Any of these muscles, as primary or secondary. Empty means no constraint.
    * "shoulders or triceps" is one training decision, and a single-value filter
    * made the user run the search twice and hold the first half in their head.
    */
@@ -78,13 +78,13 @@ export interface ExerciseFilters {
  * Filters and orders an already-loaded library.
  *
  * Kept pure and separate from the query so screens can drive it from
- * `useLiveQuery` — the list then re-filters reactively as rows change, without
+ * `useLiveQuery`: the list then re-filters reactively as rows change, without
  * a database round-trip per keystroke.
  *
  * Everything per-query is hoisted out of the per-row loop: the matcher compiles
  * the search once, the filter values become Sets before iterating rather than
  * being re-scanned 6,800 times. Callers should hand this a *deferred* search
- * value — even at this cost it is too much work to run synchronously between
+ * value. Even at this cost it is too much work to run synchronously between
  * two keystrokes.
  *
  * `usage` is what stops a browse from being 6,800 rows in alphabetical order,
@@ -197,8 +197,8 @@ const EMPTY_INDEX: TrainingIndex = { usage: new Map(), sessionsByExercise: new M
  * co-occurrence score needs the identities: "how many of the sessions that
  * contained a bench press also contained this" cannot be answered from a
  * number. `uses` then falls out as the set's size, which also makes it immune
- * to an exercise added twice in one session — a superset, or a lift revisited
- * at the end — where counting rows would have called it two sessions.
+ * to an exercise added twice in one session: a superset, or a lift revisited
+ * at the end. Where counting rows would have called it two sessions.
  */
 export function buildTrainingIndex(rows: readonly TrainingHistoryRow[]): TrainingIndex {
   if (rows.length === 0) return EMPTY_INDEX;
@@ -245,7 +245,7 @@ function recencyScore(lastUsedAt: number, now: number): number {
 }
 
 export interface SuggestionInput<T extends RankableExercise> {
-  /** The library to draw from — already loaded by the calling screen. */
+  /** The library to draw from: already loaded by the calling screen. */
   catalog: readonly T[];
   index: TrainingIndex;
   /** Exercises already in the session or routine being built. */
@@ -264,18 +264,18 @@ export interface SuggestionInput<T extends RankableExercise> {
  *
  * Four signals, weighted:
  *
- * - **Co-occurrence** (0.45) — of the past sessions that contained something
+ * - **Co-occurrence** (0.45): of the past sessions that contained something
  *   already in this workout, how many also contained this. This is the one that
  *   makes the block feel like it knows the programme: add a bench press and the
  *   rows, flyes and triceps work you actually pair it with come up, in the order
  *   you actually pair them.
- * - **Frequency** (0.25) — sessions containing it, over the most any exercise
+ * - **Frequency** (0.25): sessions containing it, over the most any exercise
  *   has. Your staples should not fall off the list on a day whose context is
  *   thin.
- * - **Muscle overlap** (0.15) — carries the block on day one, before there is
+ * - **Muscle overlap** (0.15). Carries the block on day one, before there is
  *   any history to co-occur with. Without it a first-time user gets an empty
  *   suggestion section, which is exactly when the catalog is most daunting.
- * - **Recency** (0.15) — separates the current block from lifts that were
+ * - **Recency** (0.15): separates the current block from lifts that were
  *   staples a year ago.
  *
  * Anything already in the workout is excluded: it is the one set of exercises
@@ -290,7 +290,7 @@ export function suggestExercises<T extends RankableExercise>({
 }: SuggestionInput<T>): T[] {
   const excluded = new Set(context);
 
-  // Sessions that contained anything already in this workout — the denominator
+  // Sessions that contained anything already in this workout: the denominator
   // for co-occurrence, and the reason an unrelated staple can't crowd it out.
   const contextSessions = new Set<string>();
   for (const id of context) {
@@ -327,7 +327,7 @@ export function suggestExercises<T extends RankableExercise>({
     let shared = 0;
     if (sessions && contextSessions.size > 0) {
       // Iterating the exercise's own sessions, which is the smaller side by a
-      // wide margin — a lift appears in tens of sessions, the context union in
+      // wide margin: a lift appears in tens of sessions, the context union in
       // hundreds.
       for (const session of sessions) {
         if (contextSessions.has(session)) shared += 1;
@@ -344,7 +344,7 @@ export function suggestExercises<T extends RankableExercise>({
   }
 
   // Name breaks the remaining ties so the block is stable between two opens of
-  // the picker within one session — nothing moves under a thumb already on its
+  // the picker within one session. Nothing moves under a thumb already on its
   // way to a row.
   scored.sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name));
 

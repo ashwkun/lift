@@ -20,7 +20,7 @@ import { and, eq, getTableColumns, gt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { syncReceipts, SYNC_TABLES, type SyncTableName } from '../db/schema.js';
 
-/** Columns the client must never dictate — the server owns these. */
+/** Columns the client must never dictate. The server owns these. */
 const SERVER_OWNED = new Set(['userId', 'seq']);
 
 @Injectable()
@@ -31,8 +31,8 @@ export class SyncService {
    * Applies a batch of client mutations.
    *
    * Mutations are applied in `clientSeq` order inside a single transaction, so
-   * causality is preserved — a set can never land before the workout it belongs
-   * to — and a failure part-way leaves nothing half-applied.
+   * causality is preserved. A set can never land before the workout it belongs
+   * to, and a failure part-way leaves nothing half-applied.
    */
   async push(
     userId: string,
@@ -116,7 +116,7 @@ export class SyncService {
                 })
                 .where(eq(table.id, mutation.rowId));
             }
-            // Deleting a row we've never seen is a no-op, not an error — the
+            // Deleting a row we've never seen is a no-op, not an error. The
             // client may have created and deleted it while offline.
           } else {
             const values = this.sanitize(table, mutation.payload ?? {}, userId);
@@ -125,7 +125,7 @@ export class SyncService {
              * Drizzle types inserts per-table, but the target here is picked at
              * runtime from a heterogeneous map, so the row shape is genuinely
              * not inferable. `sanitize()` is the runtime guarantee that only
-             * real columns — never `userId` or `seq` — reach this call.
+             * real columns (never `userId` or `seq`) reach this call.
              */
             const writer = tx.insert(table) as unknown as {
               values: (row: Record<string, unknown>) => {
@@ -172,7 +172,7 @@ export class SyncService {
    * Returns everything that changed after `cursor`.
    *
    * Because `seq` is a single global sequence, the merged result can be cut at
-   * any point and the cursor advanced to that row's seq — the next page resumes
+   * any point and the cursor advanced to that row's seq: the next page resumes
    * exactly where this one stopped, with no gap and no repeat.
    */
   async pull(userId: string, cursor: string | null, limit: number): Promise<SyncPullResponse> {

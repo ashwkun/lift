@@ -8,7 +8,7 @@
  * never fired, so nothing was added.
  *
  * A store sidesteps the race entirely, and keeps the property that made the
- * original design right — the picker still doesn't know or care whether it was
+ * original design right. The picker still doesn't know or care whether it was
  * opened by a routine editor or a live workout.
  *
  * That ignorance is why the delivery is addressed on the *opener's* side rather
@@ -24,7 +24,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 
 /**
- * Who asked. Free-form on purpose — a screen with instances (a routine editor
+ * Who asked. Free-form on purpose: a screen with instances (a routine editor
  * per routine id) addresses itself as `routine:${id}` so returning to a
  * *different* routine can't collect a delivery meant for the one you left.
  */

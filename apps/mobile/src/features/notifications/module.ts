@@ -2,7 +2,7 @@
  * Guarded access to `expo-notifications`.
  *
  * Since SDK 53 the Android build of Expo Go throws from this module's own
- * initialiser — not from the push APIs, which this app never calls. A static
+ * initialiser: not from the push APIs, which this app never calls. A static
  * `import` is therefore enough to fail every module above it in the graph, and
  * because `_layout.tsx` reaches two of them the whole route tree collapses into
  * "missing the required default export" rather than degrading one feature.
@@ -25,7 +25,7 @@ type NotificationsModule = typeof import('expo-notifications');
  * working module, so the platform half of this is not redundant.
  *
  * The web case is a different failure with the same handling. `expo-notifications`
- * does load in a browser, so nothing throws at import — but the API this app
+ * does load in a browser, so nothing throws at import, but the API this app
  * actually uses is `scheduleNotificationAsync`, and scheduling a *local* alert
  * for a future time has no web implementation at all: the browser equivalent
  * needs a service worker and a push subscription, neither of which a static
@@ -37,7 +37,7 @@ type NotificationsModule = typeof import('expo-notifications');
  * handles. Nothing is silently lost: the rest countdown, its bell (`RestCues`,
  * which is `expo-audio` and works fine in a tab) and the docked timer bar are
  * all on-screen anyway. The one thing a browser cannot do is tell you rest is
- * over once the tab is in the background — and on a machine where the user is
+ * over once the tab is in the background, and on a machine where the user is
  * reading and planning rather than lifting, that is the least load-bearing
  * feature in the app.
  */

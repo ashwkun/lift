@@ -36,7 +36,7 @@ export interface ExerciseSetListProps {
   thumbnailUrl?: string | null;
   /**
    * Links the title through to the exercise's own screen. Omitted when the list
-   * is already *on* that screen — a row that navigates to where you are is a
+   * is already *on* that screen: a row that navigates to where you are is a
    * dead tap that still looks live.
    */
   exerciseId?: string;
@@ -51,13 +51,13 @@ export interface ExerciseSetListProps {
  * This replaces a `Card` per exercise. A session is a stack of these, and a
  * stack of boxes is a stack of edges: twelve rounded outlines down a screen
  * whose actual content is two columns of figures. What reads instead is the
- * table — a round thumbnail and the name over a `SET / WEIGHT & REPS` header,
+ * table. A round thumbnail and the name over a `SET / WEIGHT & REPS` header,
  * then the rows.
  *
  * Rows run the full width of the screen and stripe alternately, which is the
  * whole reason the card had to go. Zebra striping is what makes a long column
  * of numbers scannable without rules between every pair, and it only works if
- * the stripe reaches both edges — inset inside a card it reads as a highlighted
+ * the stripe reaches both edges. Inset inside a card it reads as a highlighted
  * row rather than as the grain of a table. Callers must therefore give this
  * component a container with no horizontal padding; the rows carry the screen
  * margin themselves.
@@ -153,7 +153,7 @@ export function ExerciseSetList({
 }
 
 /**
- * The working-set ordinal of the row at `index` — warm-ups are skipped, so a
+ * The working-set ordinal of the row at `index`. Warm-ups are skipped, so a
  * block of two warm-ups and three working sets numbers W, W, 1, 2, 3.
  *
  * Counted from the top on each row rather than carried in a mutable counter
@@ -172,8 +172,8 @@ function countWorkingUpTo(sets: readonly WorkoutSet[], index: number): number {
 /**
  * "17.5 kg × 6", "45m", "5.2 km × 1".
  *
- * The load is whichever measure the set actually carries — a plank has seconds
- * and no weight, a row on the erg has distance — and reps are appended when
+ * The load is whichever measure the set actually carries. A plank has seconds
+ * and no weight, a row on the erg has distance, and reps are appended when
  * there are any. A set with none of the three prints an em dash rather than a
  * zero, because an untouched row is not a set of nothing.
  */

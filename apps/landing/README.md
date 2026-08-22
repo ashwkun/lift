@@ -21,7 +21,7 @@ rather than restarting; the Dockerfile refuses to build without it.
 
 `apps/landing/Dockerfile` builds it, and the `landing` service in both compose
 files uses that. In Dokploy it wants **its own domain, routed to `landing` on
-port 3000** — the same number the API uses, which is fine because they are
+port 3000**. The same number the API uses, which is fine because they are
 separate containers.
 
 To check the built image before it goes anywhere:
@@ -38,7 +38,7 @@ the bug the hardcoded version constant used to have.
 
 The version is **not** read from `package.json`, and that is deliberate. A
 release exists once a `v*` tag is pushed and the Android workflow attaches an
-APK to it, which happens after the version bump — in between, `package.json`
+APK to it, which happens after the version bump: in between, `package.json`
 names a version nobody can download. See the header of `lib/release.ts`.
 
 ## Where the design comes from

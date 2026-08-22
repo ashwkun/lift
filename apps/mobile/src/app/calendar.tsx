@@ -31,7 +31,7 @@ import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
 import { spacing, stroke, useColors, useContentWidth } from '@/theme';
 
-/** What a figure reads before its query has answered. Never a zero — see Profile. */
+/** What a figure reads before its query has answered. Never a zero: see Profile. */
 const PENDING = '—';
 
 /**
@@ -47,7 +47,7 @@ export default function CalendarScreen() {
   const scrollEdge = useScrollEdge();
 
   const colors = useColors();
-  // The column this screen is drawn in, not the window — see `useContentWidth`.
+  // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
@@ -76,7 +76,7 @@ export default function CalendarScreen() {
 
         // Refreshed on focus rather than frozen at mount, so an app left open
         // overnight doesn't ring yesterday. Compared by day so the common case
-        // — same day, new object — doesn't cost a render.
+        // (same day, new object) doesn't cost a render.
         setToday((previous) => (dayKey(previous) === dayKey(now) ? previous : startOfDay(now)));
         setCalendar(next);
       })();
@@ -116,8 +116,8 @@ export default function CalendarScreen() {
 
   // Screen padding, then the grid card's own, then the card's outline. The card
   // is unpadded so the grid can sit closer to the edges than a standard card's
-  // 16 would allow — seven columns is the one layout in the app that genuinely
-  // wants the width — and the two points of border have to come off as well or
+  // 16 would allow. Seven columns is the one layout in the app that genuinely
+  // wants the width, and the two points of border have to come off as well or
   // the outer columns are clipped by the radius they sit inside.
   const available = width - spacing.lg * 2 - spacing.md * 2 - stroke.outline * 2;
 
@@ -222,7 +222,7 @@ export default function CalendarScreen() {
             onSelect={(date) => {
               haptics.selection();
               // Tapping the open day closes it, the same toggle the muscle rows
-              // on History use — and the only way back to the month list that
+              // on History use, and the only way back to the month list that
               // doesn't require finding the button above.
               setSelected((previous) =>
                 previous && dayKey(previous) === dayKey(date) ? null : date,
@@ -232,7 +232,7 @@ export default function CalendarScreen() {
           />
 
           {/* The scale in the grid's own colours, and one line saying what it
-              is a scale *of* — without which the shading is decoration. The
+              is a scale *of*: without which the shading is decoration. The
               swatch row is one accessibility element with a label rather than
               four unlabelled views, the same treatment the body map's legend
               gets. */}
