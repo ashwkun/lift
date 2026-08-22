@@ -430,6 +430,7 @@ export default function HomeScreen() {
               selectedKey={selectedWeek}
               onSelect={(datum) => setSelectedWeek(datum?.key ?? null)}
               formatValue={(value) => config.axis(value, weightUnit)}
+              describeValue={(value) => config.format(value, weightUnit)}
               emptyLabel="No data yet"
             />
           </View>

@@ -29,6 +29,16 @@ export interface ColumnChartProps {
   height?: number;
   /** Formats the y-axis ticks. Keep it short. The gutter is 44px. */
   formatValue?: (value: number) => string;
+  /**
+   * Formats a column's value for a screen reader. Defaults to `formatValue`.
+   *
+   * Separate because the two have opposite constraints. A tick is abbreviated
+   * to survive a 44px gutter, which is a visual budget a screen reader does not
+   * have: read aloud, "21k" throws away the figure the chart exists to report,
+   * and it is the only way a non-sighted user reaches that number at all. Pass
+   * the readout formatter here and the terse one above.
+   */
+  describeValue?: (value: number) => string;
   selectedKey?: number | null;
   /** Tapping the selected column again passes null, clearing the selection. */
   onSelect?: (datum: ColumnDatum | null) => void;
@@ -52,6 +62,22 @@ const AXIS_GUTTER = 44;
 const TOP_PAD = spacing.md;
 /** The strip below the baseline that the x-axis labels are drawn into. */
 const LABEL_ROW = spacing.lg;
+/**
+ * How much room one x-axis label is given, in px.
+ *
+ * Wider than a column deliberately. The library draws its own labels in a box
+ * one slot across, and at twelve weeks a slot is about 25px, so "15 Jun" came
+ * out as "15 ..." and the month, the only part that places the column in the
+ * year, was the part that got dropped. Widening the library's box is not the
+ * fix: it offsets that box by a fixed half-gap, so a wider one is no longer
+ * centred on its column and every label drifts right.
+ *
+ * 52 holds every label `bucketLabel` produces: "15 Jun" and "27 Sep" at week
+ * granularity, and the shorter month, "Q3 26" and "2026" forms above it.
+ * Overlap is not a risk because only every nth column is labelled, and n is
+ * chosen so the labelled ones are at least a slot apart.
+ */
+const LABEL_SLOT = 52;
 /** Three ticks (zero, half, ceiling) which is two gaps between them. */
 const SECTIONS = 2;
 /** Floor for a column's height, in px. See the note on empty buckets below. */
@@ -78,6 +104,7 @@ export function ColumnChart({
   width,
   height = 190,
   formatValue = (value) => String(Math.round(value)),
+  describeValue,
   selectedKey = null,
   onSelect,
   color,
@@ -120,26 +147,52 @@ export function ColumnChart({
     // which is the one the user is actually training in.
     const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
 
-    const bars: barDataItem[] = data.map((item, index) => ({
+    const bars: barDataItem[] = data.map((item) => ({
       value: item.value,
-      label: item.label,
       // An empty bucket still gets a bar, painted in nothing: `minHeight` would
       // otherwise draw a rest week and a light week as the same 2px sliver.
       frontColor: item.value > 0 ? (item.color ?? fill) : 'transparent',
-      // The library's own label is a bare `Text`, which inherits none of the
-      // app's font stack. Thinned-out buckets render nothing rather than being
-      // dropped, so the label slots stay aligned to the columns.
-      labelComponent:
-        (data.length - 1 - index) % labelStep === 0
-          ? () => (
-              <Text variant="caption" color="textTertiary" align="center" numberOfLines={1}>
-                {item.label}
-              </Text>
-            )
-          : () => null,
+      // No label and no `labelComponent`: the x-axis strip is drawn below
+      // instead. See the note on `ticks`/`labels` for why.
+      labelComponent: () => null,
     }));
 
-    return { bars, barWidth, gap, maxValue };
+    // Where each labelled column sits, measured from the left edge of the plot.
+    // `initialSpacing` is half a gap, then one slot per column, then half a bar
+    // to reach its middle. The same arithmetic the library lays the bars out
+    // with, which is what keeps a label under its own column. `slot` above is
+    // that same pitch: `gap` is defined as the remainder of it.
+    const candidates = data
+      .map((item, index) => ({ item, index }))
+      .filter(({ index }) => (data.length - 1 - index) % labelStep === 0)
+      .map(({ item, index }) => ({
+        key: item.key,
+        text: item.label,
+        // Clamped so the run's first and last labels stay inside the plot. They
+        // stop being centred on their column at the edges, which is the usual
+        // compromise for an axis and much the better one: the alternative is
+        // "17 Aug" half outside the card.
+        left: clamp(gap / 2 + index * slot + barWidth / 2 - LABEL_SLOT / 2, 0, plotWidth - LABEL_SLOT),
+      }));
+
+    // Walked from the end so a collision drops the older label, never the
+    // newest one: the last bucket is the week being trained in and the one the
+    // figure above the chart refers to.
+    //
+    // Thinning by `labelStep` alone is not enough, and the gap it leaves is
+    // exactly what the clamp above spends. On a narrow board the final label
+    // slides left to stay inside the plot and lands on its neighbour, so the
+    // two are only guaranteed apart once separation is checked after clamping
+    // rather than assumed from the step.
+    const labels: typeof candidates = [];
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      const candidate = candidates[index];
+      const placed = labels[labels.length - 1];
+      if (!placed || candidate.left + LABEL_SLOT <= placed.left) labels.push(candidate);
+    }
+    labels.reverse();
+
+    return { bars, barWidth, gap, maxValue, labels };
   }, [data, plotWidth, maxLabels, fill]);
 
   const selectedIndex = useMemo(
@@ -166,7 +219,12 @@ export function ColumnChart({
   }
 
   return (
-    <View style={{ width }}>
+    // Sized rather than left to its content. The library gives its own box a
+    // `marginBottom` of `xAxisLabelsHeight - 55`, which is negative at every
+    // sensible label height and would drag anything laid out after it back over
+    // the plot. Everything below is positioned against this box instead, and
+    // the box is exactly the height the caller asked for.
+    <View style={{ width, height }}>
       <BarChart
         data={chart.bars}
         width={plotWidth}
@@ -219,6 +277,35 @@ export function ColumnChart({
       />
 
       {/*
+        The x-axis, drawn here rather than by the library.
+
+        Each of its label boxes is one column wide and pinned half a gap left of
+        the column, which at twelve weeks is 25px of room for "15 Jun" and no
+        way to widen it without also pushing it off centre. Positioning them
+        against the plot instead costs the arithmetic above and buys a label
+        that fits, an edge that can be clamped, and the app's own type.
+      */}
+      <View
+        style={[
+          styles.labelRow,
+          { top: TOP_PAD + plotHeight, left: AXIS_GUTTER, width: plotWidth },
+        ]}
+      >
+        {chart.labels.map((label) => (
+          <Text
+            key={label.key}
+            variant="caption"
+            color="textTertiary"
+            align="center"
+            numberOfLines={1}
+            style={[styles.label, { left: label.left }]}
+          >
+            {label.text}
+          </Text>
+        ))}
+      </View>
+
+      {/*
         A full-height target per bucket, laid over the plot.
 
         The library sizes each column's `TouchableOpacity` to the column, which
@@ -239,7 +326,7 @@ export function ColumnChart({
               onPress={() => onSelect(item.key === selectedKey ? null : item)}
               accessibilityRole="button"
               accessibilityState={{ selected: item.key === selectedKey }}
-              accessibilityLabel={`${item.label}, ${formatValue(item.value)}`}
+              accessibilityLabel={`${item.label}, ${(describeValue ?? formatValue)(item.value)}`}
             />
           ))}
         </View>
@@ -264,9 +351,18 @@ function niceCeiling(value: number): number {
   return step * magnitude;
 }
 
+/** Keeps a label inside the plot at either end of the run. */
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
   tick: { alignItems: 'flex-end', paddingRight: spacing.sm },
   hitRow: { position: 'absolute', top: 0, flexDirection: 'row' },
   hit: { flex: 1, height: '100%' },
+  // Pinned to the baseline rather than laid out after the plot, for the reason
+  // recorded on the outer box.
+  labelRow: { position: 'absolute', height: LABEL_ROW },
+  label: { position: 'absolute', top: 0, width: LABEL_SLOT },
 });

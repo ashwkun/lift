@@ -229,6 +229,7 @@ export default function HistoryScreen() {
                   selectedKey={selectedBucket}
                   onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
                   formatValue={(value) => METRIC[metric].axis(value, weightUnit)}
+                  describeValue={(value) => METRIC[metric].format(value, weightUnit)}
                 />
               </Card>
 

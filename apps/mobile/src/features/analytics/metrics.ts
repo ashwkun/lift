@@ -15,7 +15,7 @@
  * narrower than the string in every metric here except reps.
  */
 
-import { formatDurationShort, formatVolume, type WeightUnit } from '@lift/shared';
+import { formatDurationShort, formatVolume, toDisplayWeight, type WeightUnit } from '@lift/shared';
 
 export type TrendMetric = 'volume' | 'duration' | 'reps';
 
@@ -48,7 +48,12 @@ export const METRIC: Record<
     label: 'Volume',
     pick: (totals) => totals.volumeKg,
     format: (value, unit) => formatVolume(value, unit),
-    axis: (value, unit) => formatVolume(value, unit).replace(` ${unit}`, ''),
+    // Not `formatVolume` with the unit stripped, which is what this was. That
+    // gives "25,000" for an ordinary week's ceiling: six glyphs and two of them
+    // punctuation, in a gutter that fits four. It did not wrap, it truncated,
+    // so the axis read "25,00" and the chart was quietly labelled with a number
+    // that does not exist. Thousands are abbreviated instead.
+    axis: (value, unit) => compact(toDisplayWeight(value, unit)),
   },
   duration: {
     label: 'Duration',
@@ -63,10 +68,36 @@ export const METRIC: Record<
     label: 'Reps',
     pick: (totals) => totals.reps,
     format: (value) => `${Math.round(value).toLocaleString()} reps`,
-    axis: (value) =>
-      value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(Math.round(value)),
+    axis: (value) => compact(value),
   },
 };
+
+/**
+ * A count short enough for the axis gutter.
+ *
+ * Four glyphs is the budget, which is what 44pt holds at the caption size once
+ * the tick's own right padding is taken off. Anything under a thousand is
+ * printed whole; past that the thousands are abbreviated, with one decimal
+ * while that still fits ("12.5k") and none once it does not ("25k").
+ *
+ * Shared by volume and reps because they are the same problem: both are counts
+ * that reach five figures within a few weeks of ordinary training, and both
+ * were previously formatted for a readout rather than for a gutter. Duration
+ * keeps its own, since hours and minutes do not abbreviate this way.
+ */
+function compact(value: number): string {
+  const rounded = Math.round(value);
+  if (rounded < 1000) return String(rounded);
+
+  // One decimal, kept at every magnitude rather than dropped once the whole
+  // part is big enough to read on its own. That shortcut is wrong here, and
+  // wrong in the one place it would show: the ticks are a nice ceiling and its
+  // half, so a 25k axis has 12,500 in the middle, and rounding that to a whole
+  // number of thousands labels it "13k". A midpoint that is not half of the
+  // top is a worse fault than the clipping this function exists to fix.
+  if (rounded < 1_000_000) return `${Math.round(rounded / 100) / 10}k`;
+  return `${Math.round(rounded / 100_000) / 10}M`;
+}
 
 /**
  * The tab options, in the order the tabs draw them.
