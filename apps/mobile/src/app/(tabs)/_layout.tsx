@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Tabs } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { AppState, type ColorValue } from 'react-native';
+import { Tabs } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { type ColorValue } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -11,8 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderAction, HeaderHeading, tabHeaderOptions } from '@/components/ui';
-import { formatWeekRange, startOfWeek } from '@/features/analytics/windows';
+import { HeaderAction, tabHeaderOptions } from '@/components/ui';
 import { useOpenSession } from '@/features/workouts/use-open-session';
 import { font, fontSize, spacing, spring, stroke, timing, useColors, useLayout } from '@/theme';
 
@@ -71,51 +70,10 @@ function TabIcon({
   );
 }
 
-/**
- * The seven days Home's figures cover, as a line of text.
- *
- * Monday-based, and deliberately not the `firstDayOfWeek` preference: the number
- * this line sits under comes from `getWeeklyTotals`, which buckets on
- * `startOfWeek`'s Monday default, as does the week streak beside it. A label
- * that honoured the setting while the figure did not would be worse than no
- * label. It would put a wrong week under a right number. The preference reaches
- * the calendar grid and the two statistics screens that pass it through; if the
- * dashboard ever learns it, this call learns it at the same time.
- *
- * Recomputed when the app comes back to the foreground rather than on a timer.
- * The window it names only moves at one instant a week, and a phone is almost
- * never awake and in this app when it does, but it is very often *asleep* in
- * it, and coming back on Monday morning to last week's dates over this week's
- * reset figures is exactly the sort of thing a label like this exists to avoid.
- * A screen left open through the boundary is the case this does not cover, and
- * it is not worth a ticker on the app's most-mounted component to cover it.
- */
-function useThisWeek(): string {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-
-      // Same week returns the same object, so the common case: every
-      // foreground within the week: re-renders nothing.
-      setWeekStart((current) => {
-        const next = startOfWeek(new Date());
-        return next.getTime() === current.getTime() ? current : next;
-      });
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  return formatWeekRange(weekStart);
-}
-
 export default function TabLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isWide } = useLayout();
-  const thisWeek = useThisWeek();
 
   /**
    * Does a session exist: nothing else about it.
@@ -242,7 +200,7 @@ export default function TabLayout() {
            * watch the number. It also silently resets on a Monday, which reads
            * as data loss to anyone who does not know when the window turns.
            */
-          headerTitle: () => <HeaderHeading title="Home" subtitle={thisWeek} />,
+          headerTitle: 'Home',
           /*
            * History, pinned.
            *

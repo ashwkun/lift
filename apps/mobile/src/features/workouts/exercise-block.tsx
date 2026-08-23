@@ -49,6 +49,8 @@ export interface ExerciseBlockProps {
    * nothing left to progress into. That screen passes nothing and no line
    * renders. See `suggestion.ts`.
    */
+  /** Sets that took a personal record, marked with a trophy. */
+  recordSetIds?: ReadonlySet<string>;
   progression?: ProgressionInput;
   onAddSet: () => void;
   onUpdateSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -97,6 +99,7 @@ export function ExerciseBlock({
   detail,
   previousSets,
   previousNote,
+  recordSetIds,
   progression,
   onAddSet,
   onUpdateSet,
@@ -447,6 +450,7 @@ export function ExerciseBlock({
           key={set.id}
           set={set}
           workingIndex={workingIndex}
+          isPr={recordSetIds?.has(set.id)}
           trackingType={detail.exercise.trackingType}
           // Handed down rather than read from settings inside the row: the row
           // has to agree with the heading directly above it, and the heading is

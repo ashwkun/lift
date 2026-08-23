@@ -1433,7 +1433,7 @@ export async function discardWorkout(workoutId: string): Promise<void> {
  * `finishWorkout` leaves it out because for a session being closed *now* there
  * is no such thing as a later record.
  */
-async function getPreviousBests(exerciseId: string, before?: number) {
+export async function getPreviousBests(exerciseId: string, before?: number) {
   const rows = await db
     .select()
     .from(personalRecords)

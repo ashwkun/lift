@@ -50,6 +50,8 @@ export interface SetRowProps {
    */
   weightUnit: WeightUnit;
   distanceUnit: DistanceUnit;
+  /** Whether this set broke a personal record. */
+  isPr?: boolean;
   /** Same-position set from the previous session, shown as a ghost target. */
   previous?: WorkoutSet;
   onChange: (patch: Partial<WorkoutSet>) => void;
@@ -187,6 +189,7 @@ export const SetRow = memo(function SetRow({
   trackingType,
   weightUnit,
   distanceUnit,
+  isPr,
   previous,
   onChange,
   onToggleComplete,
@@ -526,17 +529,18 @@ export const SetRow = memo(function SetRow({
             <Animated.View
               style={[styles.checkCell, { backgroundColor: colors.surfaceMuted }, checkStyle]}
             >
-              {/* The green fills in over the resting grey, and the two glyphs
-                  cross-fade above it. A single glyph would have to swap colour
-                  on one frame while the plate underneath was still arriving. */}
               <Animated.View
-                style={[StyleSheet.absoluteFill, fillStyle, { backgroundColor: colors.success }]}
+                style={[StyleSheet.absoluteFill, fillStyle, { backgroundColor: isPr ? colors.record : colors.success }]}
               />
               <Animated.View style={[styles.glyph, idleGlyphStyle]}>
                 <Ionicons name="checkmark" size={18} color={colors.textTertiary} />
               </Animated.View>
               <Animated.View style={[styles.glyph, doneGlyphStyle]}>
-                <Ionicons name="checkmark" size={18} color={colors.textOnSuccess} />
+                {isPr ? (
+                  <Ionicons name="trophy" size={16} color={colors.surface} />
+                ) : (
+                  <Ionicons name="checkmark" size={18} color={colors.textOnSuccess} />
+                )}
               </Animated.View>
             </Animated.View>
           </Pressable>

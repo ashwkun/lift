@@ -4,6 +4,7 @@ import {
   isWorkingSet,
   reorder,
   TRACKING_FIELDS,
+  detectPrs,
   type PositionedRow,
   type SetType,
 } from '@lift/shared';
@@ -63,6 +64,7 @@ import {
   deleteSet,
   discardWorkout,
   getPreviousPerformance,
+  getPreviousBests,
   hasRestOverride,
   removeExerciseFromWorkout,
   resolveRestSeconds,
@@ -78,6 +80,7 @@ import type { ProgressionInput } from '@/features/workouts/suggestion';
 import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
@@ -89,6 +92,7 @@ const PICKER_ADDRESS = 'active-workout';
 
 export default function ActiveWorkoutScreen() {
   const scrollEdge = useScrollEdge();
+  const confettiRef = useRef<ConfettiCannon>(null);
 
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -204,6 +208,10 @@ export default function ActiveWorkoutScreen() {
   const [previousByExercise, setPreviousByExercise] = useState<Record<string, PreviousPerformance>>(
     {},
   );
+  
+  const [bestsByExercise, setBestsByExercise] = useState<
+    Record<string, Awaited<ReturnType<typeof getPreviousBests>>>
+  >({});
 
   const exerciseIdKey = details.map((detail) => detail.exercise.id).join(',');
 
@@ -212,22 +220,54 @@ export default function ActiveWorkoutScreen() {
     let cancelled = false;
 
     void (async () => {
-      const entries = await Promise.all(
-        exerciseIdKey
-          .split(',')
-          .filter(Boolean)
-          .map(
-            async (id) =>
-              [id, await getPreviousPerformance(id, { excludeWorkoutId: workoutId })] as const,
-          ),
+      const ids = exerciseIdKey.split(',').filter(Boolean);
+      const perfEntries = await Promise.all(
+        ids.map(
+          async (id) =>
+            [id, await getPreviousPerformance(id, { excludeWorkoutId: workoutId })] as const,
+        ),
       );
-      if (!cancelled) setPreviousByExercise(Object.fromEntries(entries));
+      const bestsEntries = await Promise.all(
+        ids.map(
+          async (id) => [id, await getPreviousBests(id)] as const,
+        ),
+      );
+      
+      if (!cancelled) {
+        setPreviousByExercise(Object.fromEntries(perfEntries));
+        setBestsByExercise(Object.fromEntries(bestsEntries));
+      }
     })();
 
     return () => {
       cancelled = true;
     };
   }, [exerciseIdKey, workoutId]);
+
+  const recordSetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const detail of details) {
+      const bests = bestsByExercise[detail.exercise.id];
+      if (!bests) continue;
+      
+      const ctx = {
+        trackingType: detail.exercise.trackingType,
+        bodyweightKg: settings.bodyweightKg ?? undefined,
+        formula: settings.oneRepMaxFormula,
+      };
+      
+      // `detectPrs` needs completed sets to find PRs.
+      // Uncompleted sets won't count.
+      const prs = detectPrs(detail.sets, ctx, bests);
+      for (const pr of prs) {
+        if (pr.setIndex !== null) {
+          const setId = detail.sets[pr.setIndex]?.id;
+          if (setId) ids.add(setId);
+        }
+      }
+    }
+    return ids;
+  }, [details, bestsByExercise, settings.bodyweightKg, settings.oneRepMaxFormula]);
 
   /*
    * What the routine asks for, when the session was started from one.
@@ -505,9 +545,28 @@ export default function ActiveWorkoutScreen() {
         }
       }
 
+      const bests = bestsByExercise[detail.exercise.id];
+      if (bests) {
+        const fakedSets = detail.sets.map((s) =>
+          s.id === set.id ? { ...s, isCompleted: true, ...fill } : s,
+        );
+        const prs = detectPrs(
+          fakedSets,
+          {
+            trackingType: detail.exercise.trackingType,
+            bodyweightKg: settings.bodyweightKg ?? undefined,
+            formula: settings.oneRepMaxFormula,
+          },
+          bests,
+        );
+        if (prs.some((pr) => pr.setIndex !== null && fakedSets[pr.setIndex].id === set.id)) {
+          confettiRef.current?.start();
+        }
+      }
+
       return guard(updateSet(set.id, patch, fill));
     },
-    [settings, startRest, previousByExercise, guard],
+    [settings, startRest, previousByExercise, bestsByExercise, guard],
   );
 
   /*
@@ -840,6 +899,7 @@ export default function ActiveWorkoutScreen() {
                 detail={detail}
                 previousSets={previousByExercise[detail.exercise.id]?.sets ?? []}
                 previousNote={previousByExercise[detail.exercise.id]?.note ?? null}
+                recordSetIds={recordSetIds}
                 progression={progressionByExercise[detail.exercise.id]}
                 onAddSet={() => {
                   // Carry the last set's load forward. The usual case is
@@ -943,6 +1003,14 @@ export default function ActiveWorkoutScreen() {
       {/* After the scroll, not before it: the bar is docked over the list now
           rather than sitting above it, so it has to paint last. */}
       <RestTimerBar onExpand={() => setTimerSheetOpen(true)} />
+
+      <ConfettiCannon
+        ref={confettiRef}
+        count={50}
+        origin={{ x: -10, y: 0 }}
+        autoStart={false}
+        fadeOut={true}
+      />
 
       <RestTimerSheet
         visible={timerSheetOpen}
