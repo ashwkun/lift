@@ -67,13 +67,16 @@ export default function HistoryScreen() {
   const [analytics, setAnalytics] = useState<HistoryAnalytics | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | null>(null);
+  const [limitVal, setLimitVal] = useState(25);
 
   const { rows: completed, loaded } = useRows(
     db
       .select()
       .from(workouts)
       .where(and(isNotNull(workouts.finishedAt), isNull(workouts.deletedAt)))
-      .orderBy(desc(workouts.startedAt)),
+      .orderBy(desc(workouts.startedAt))
+      .limit(limitVal),
+    [limitVal]
   );
 
   // Aggregates recompute on focus and on range change rather than live: they
@@ -190,6 +193,8 @@ export default function HistoryScreen() {
           {...scrollEdge.list}
           sections={sections}
           keyExtractor={(item) => item.id}
+          onEndReached={() => setLimitVal((l) => l + 25)}
+          onEndReachedThreshold={0.5}
           stickySectionHeadersEnabled={false}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
