@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Image, View, type ColorValue } from 'react-native';
+import { type ColorValue } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderAction, Text, tabHeaderOptions } from '@/components/ui';
+import { HeaderAction, tabHeaderOptions } from '@/components/ui';
 import { useOpenSession } from '@/features/workouts/use-open-session';
 import { font, fontSize, spacing, spring, stroke, timing, useColors, useLayout } from '@/theme';
 
@@ -200,15 +200,7 @@ export default function TabLayout() {
            * watch the number. It also silently resets on a Monday, which reads
            * as data loss to anyone who does not know when the window turns.
            */
-          headerTitle: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Image 
-                source={require('../../../assets/images/icon.png')} 
-                style={{ width: 28, height: 28, borderRadius: 6 }} 
-              />
-              <Text variant="heading" color="text">Home</Text>
-            </View>
-          ),
+          headerTitle: 'Home',
           /*
            * History, pinned.
            *
