@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.lift'
+version = '1.0.0'
+
+android {
+  namespace "com.lift.appicon"
+
+  // Both read back by `expo-module-gradle-plugin` when it configures
+  // publication, which fails the autolinking pass without them even for a local
+  // module that is never published. See `workout-live`, which says the same.
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+// No dependency block and no resources. Every icon this module switches between
+// is compiled into the app itself by `plugins/with-theme-launcher-icons.ts`;
+// this half only asks the package manager to change which one is showing.

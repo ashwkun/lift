@@ -15,6 +15,7 @@ import {
 
 import { useSettings } from '@/store/settings';
 
+import { useLauncherIcon } from './app-icon';
 import {
   catppuccinPalette,
   fitnessPalette,
@@ -34,6 +35,15 @@ export * from './tokens';
 
 export interface ThemeValue {
   colors: Palette;
+  /**
+   * Which theme this is, after 'system' has been resolved.
+   *
+   * Present for the one consumer that has to name a theme rather than read its
+   * colours: the launcher icon is a resource picked by name, not a palette (see
+   * `app-icon.ts`). The warning under `scheme` applies here with more force.
+   * Nothing that renders should branch on this.
+   */
+  name: ThemeName;
   /**
    * The light/dark side this theme sits on, not which theme it is.
    *
@@ -67,6 +77,7 @@ export const THEMES: Record<ThemeName, { colors: Palette; scheme: ColorScheme }>
 
 const ThemeContext = createContext<ThemeValue>({
   colors: darkPalette,
+  name: 'dark',
   scheme: 'dark',
   isDark: true,
 });
@@ -95,7 +106,16 @@ export function resolveTheme(
   const name: ThemeName = preference === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : preference;
   const theme = THEMES[name] ?? THEMES.dark;
 
-  return { colors: theme.colors, scheme: theme.scheme, isDark: theme.scheme === 'dark' };
+  // `name` is reported as 'dark' when the stored one is unknown, rather than
+  // echoed back. It names a palette, and after the fallback above the palette is
+  // the dark one: the launcher would otherwise be asked for an icon for a theme
+  // that no longer exists.
+  return {
+    colors: theme.colors,
+    name: THEMES[name] ? name : 'dark',
+    scheme: theme.scheme,
+    isDark: theme.scheme === 'dark',
+  };
 }
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
@@ -110,6 +130,10 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   // Paints the parts of a browser window that sit outside this tree: the
   // document background, the scrollbars, the focus ring. No-op off the web.
   useWebChrome(value.colors, value.scheme);
+
+  // The same job on the other side: the app's icon on the home screen, which is
+  // outside every tree there is. Android only.
+  useLauncherIcon(value.name, value.colors);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

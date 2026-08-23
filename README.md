@@ -375,3 +375,26 @@ re-running it, rather than hand-editing seven PNGs. Each output needs its own
 scale: Android crops the adaptive-icon layers to their central 66%, so the
 foreground is drawn smaller than the iOS icon to land at the same apparent
 size, and the script is where those ratios are recorded.
+
+### The launcher icon follows the theme
+
+On Android the home screen icon is drawn in the selected theme's colours: its
+`surface` behind the mark, its `accent` on the mark itself. An app icon is a
+compiled resource and cannot be recoloured at runtime, so one icon per theme is
+built into the APK, each behind an `<activity-alias>`, and the app enables one
+alias at a time. `apps/mobile/plugins/with-theme-launcher-icons.ts` generates
+all of it during prebuild from the table in `src/theme/launcher-icons.ts`;
+`apps/mobile/modules/app-icon` is the switch. Adding a theme means adding a row
+to that table. The mark is not redrawn per theme: the generated icons tint the
+one foreground the script above produces, which is a flat colour on
+transparency.
+
+What it costs, which is inherent to the technique rather than to this
+implementation: switching the enabled component is how the icon changes, and
+some launchers respond to a component disappearing by dropping its home screen
+shortcut. The app stays in the drawer and can be dragged back out. Upgrading to
+a build that has this pays the same price once for a different reason, since the
+launcher entry moves off `MainActivity` and onto an alias. The app process
+itself is not restarted: the switch is made with `DONT_KILL_APP`, and the new
+alias is enabled before the old one is disabled so the package is never briefly
+without a launcher entry at all.

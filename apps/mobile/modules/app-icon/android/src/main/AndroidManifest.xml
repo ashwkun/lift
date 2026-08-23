@@ -1,0 +1,9 @@
+<!--
+  Deliberately empty. The aliases this module switches between are declared in
+  the *app's* manifest by `plugins/with-theme-launcher-icons.ts`, because each
+  one targets `MainActivity` and names an icon compiled into the app. A library
+  manifest that tried to declare them would be describing components it does not
+  own. Present at all because a `com.android.library` module without one leans on
+  AGP synthesising it from the namespace, and this is one file.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

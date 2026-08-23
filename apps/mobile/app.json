@@ -69,7 +69,8 @@
           ]
         }
       ],
-      "expo-image"
+      "expo-image",
+      "./plugins/with-theme-launcher-icons.ts"
     ],
     "experiments": {
       "typedRoutes": true,
