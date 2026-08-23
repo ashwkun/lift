@@ -43,6 +43,7 @@ export interface ScrollEdge {
   list: {
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     scrollEventThrottle: number;
+    showsVerticalScrollIndicator: boolean;
   };
   /** Pass to `Screen` as `scrolled`. 0 at rest, 1 once the page has moved. */
   progress: SharedValue<number>;
@@ -83,6 +84,7 @@ export function useScrollEdge(): ScrollEdge {
         progress.value = withTiming(next, timing.state);
       },
       scrollEventThrottle: 16,
+      showsVerticalScrollIndicator: false,
     },
     progress,
   };

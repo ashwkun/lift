@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     // icon-only button has no text to supply width: at 20pt plus one side's
     // 16pt of padding it measured 36pt, which is where the two Delete buttons
     // in this app's headers were.
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     minHeight: controlHeight.md,
     minWidth: MIN_TOUCH_SIZE,
     // Only ever seen on hover, where the frame is tinted. Without it the reveal

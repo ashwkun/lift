@@ -76,6 +76,11 @@ export interface Settings {
 
   /** Prompts the routine to update when sets change mid-workout. */
   promptRoutineUpdate: boolean;
+
+  /** Reminds the user to go to the gym at a specific time. */
+  gymReminderEnabled: boolean;
+  /** Format HH:mm, e.g. "17:30" */
+  gymReminderTime: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -105,6 +110,9 @@ export const DEFAULT_SETTINGS: Settings = {
   sex: null,
 
   promptRoutineUpdate: true,
+
+  gymReminderEnabled: false,
+  gymReminderTime: "17:00",
 };
 
 interface SettingsStore extends Settings {
@@ -263,6 +271,8 @@ async function persist(state: Settings): Promise<void> {
     heightCm: state.heightCm,
     sex: state.sex,
     promptRoutineUpdate: state.promptRoutineUpdate,
+    gymReminderEnabled: state.gymReminderEnabled,
+    gymReminderTime: state.gymReminderTime,
   };
 
   await db

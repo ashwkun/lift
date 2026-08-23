@@ -256,7 +256,8 @@ export default function TabLayout() {
           headerRight: () => (
             <HeaderAction
               label="Open workout history"
-              title="History"
+              icon="time-outline"
+              iconSize={24}
               onPress={() => router.push('/history')}
             />
           ),
@@ -375,7 +376,8 @@ export default function TabLayout() {
           headerRight: () => (
             <HeaderAction
               label="Open settings"
-              title="Settings"
+              icon="settings-outline"
+              iconSize={24}
               onPress={() => router.push('/settings')}
             />
           ),

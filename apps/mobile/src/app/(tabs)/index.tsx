@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DATE_SHORT, formatDateTime, formatDurationShort, formatVolume } from '@lift/shared';
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
@@ -93,6 +93,35 @@ export default function HomeScreen() {
    */
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
+  const [shownValue, setShownValue] = useState(0);
+  
+  const selectedIndex = weekly.findIndex((point) => point.weekStart === selectedWeek);
+  const shownIndex = selectedIndex >= 0 ? selectedIndex : weekly.length - 1;
+  const shown = weekly[shownIndex] ?? null;
+  const config = METRIC[metric];
+  const targetValue = shown ? config.pick(shown) : 0;
+
+  useEffect(() => {
+    let startTime = Date.now();
+    let animationFrame: ReturnType<typeof requestAnimationFrame>;
+
+    const animate = () => {
+      const time = Date.now();
+      const progress = Math.min((time - startTime) / 800, 1);
+      
+      // easeOutExpo
+      const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      setShownValue(targetValue * ease);
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [targetValue]);
+
   // Aggregates are recomputed on focus rather than live: they only change when
   // a workout is finished, and re-running them on every set write would be
   // wasteful.
@@ -140,30 +169,8 @@ export default function HomeScreen() {
    */
   if (!stats) return <Screen width="board" scrolled={scrollEdge.progress}>{null}</Screen>;
 
-  /*
-   * The week the masthead is reporting on, and the one before it.
-   *
-   * `shownIndex` is the tapped week if one is still in the window and the last
-   * week otherwise, so every figure below is written against one index and
-   * there is no second path through this block for the selected case.
-   *
-   * The headline used to come from `getDashboardStats` and the comparison from
-   * `weekly`, which was a delta whose two halves were counted by different
-   * queries. They agreed, because both bucket on the same `startOfWeek` over
-   * the same filter, but only by coincidence: nothing made them, and duration
-   * and reps would have needed two more fields on `DashboardStats` to keep the
-   * arrangement. One source, three metrics, any week, and the fields that
-   * supplied the old headline are gone from that query.
-   */
-  const selectedIndex = weekly.findIndex((point) => point.weekStart === selectedWeek);
-  const shownIndex = selectedIndex >= 0 ? selectedIndex : weekly.length - 1;
   const isThisWeek = shownIndex === weekly.length - 1;
-
-  const shown = weekly[shownIndex] ?? null;
   const before = shownIndex > 0 ? weekly[shownIndex - 1]! : null;
-
-  const config = METRIC[metric];
-  const shownValue = shown ? config.pick(shown) : 0;
   const beforeValue = before ? config.pick(before) : 0;
 
   const [weekFigure, weekUnit] = splitMeasure(config.format(shownValue, weightUnit));
@@ -223,7 +230,7 @@ export default function HomeScreen() {
    * better" but "this is the first week".
    */
   const deltaPercent =
-    beforeValue > 0 ? Math.round(((shownValue - beforeValue) / beforeValue) * 100) : null;
+    beforeValue > 0 ? Math.round(((targetValue - beforeValue) / beforeValue) * 100) : null;
 
   /*
    * The two supporting figures, as a sentence rather than a band.

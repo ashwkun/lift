@@ -98,7 +98,7 @@ const FIRST_DAY_OPTIONS: { value: FirstDayChoice; label: string }[] = [
 ];
 
 /** The numbers on this screen that are typed rather than chosen. */
-type NumberField = 'bodyweight' | 'barWeight' | 'height';
+type PromptField = 'bodyweight' | 'barWeight' | 'height' | 'gymTime';
 
 /** `null` is a real choice here, so it needs a value the picker can hold. */
 const UNSET = 'unset';
@@ -116,7 +116,7 @@ export default function SettingsScreen() {
   const update = useSettings((state) => state.update);
   const reset = useSettings((state) => state.reset);
 
-  const [editing, setEditing] = useState<NumberField | null>(null);
+  const [editing, setEditing] = useState<PromptField | null>(null);
 
   const weightUnit = settings.weightUnit;
   const measurementUnit = settings.measurementUnit;
@@ -140,7 +140,13 @@ export default function SettingsScreen() {
                   ? ''
                   : trimZeros(toDisplayMeasurement(settings.heightCm, measurementUnit).toFixed(1)),
             }
-          : null;
+          : editing === 'gymTime'
+            ? {
+                title: 'Gym Time',
+                unit: 'time (HH:mm)',
+                initialValue: settings.gymReminderTime,
+              }
+            : null;
 
   const restOff = !settings.restTimerEnabled;
 
@@ -340,6 +346,41 @@ export default function SettingsScreen() {
         </Reveal>
 
         <Reveal index={4}>
+          <SectionHeader title="Gym Reminder" />
+          <Card padded={false} style={styles.section}>
+            <SettingToggle
+              icon="calendar-outline"
+              label="Gym Reminder"
+              description="Notify me when it's time to lift."
+              value={settings.gymReminderEnabled}
+              onChange={async (value) => {
+                if (value) {
+                  // Wait for user to allow permission before setting it to true
+                  const { prepareReminderNotifications, scheduleGymReminder } = await import('@/features/notifications/reminder');
+                  const granted = await prepareReminderNotifications();
+                  if (granted) {
+                    update('gymReminderEnabled', true);
+                    void scheduleGymReminder(settings.gymReminderTime);
+                  }
+                } else {
+                  const { cancelGymReminder } = await import('@/features/notifications/reminder');
+                  update('gymReminderEnabled', false);
+                  void cancelGymReminder();
+                }
+              }}
+            />
+            <Divider inset={spacing.lg} />
+            <SettingValue
+              icon="time-outline"
+              label="Reminder Time"
+              value={settings.gymReminderTime}
+              hint="Opens a time picker for your gym reminder."
+              onPress={() => setEditing('gymTime' as any)}
+            />
+          </Card>
+        </Reveal>
+
+        <Reveal index={9}>
           <SectionHeader title="During workout" />
           <Card padded={false} style={styles.section}>
             <SettingToggle
@@ -364,7 +405,7 @@ export default function SettingsScreen() {
           </Card>
         </Reveal>
 
-        <Reveal index={5}>
+        <Reveal index={9}>
           <SectionHeader title="Body" />
           <Card padded={false} style={styles.section}>
             <SettingValue
@@ -412,7 +453,7 @@ export default function SettingsScreen() {
           </Footnote>
         </Reveal>
 
-        <Reveal index={6}>
+        <Reveal index={9}>
           <SectionHeader title="Calculations" />
           <Card padded={false} style={styles.section}>
             <SettingChoice
@@ -455,7 +496,7 @@ export default function SettingsScreen() {
          * card is worse than either a working row or no section.
          */}
         {UPDATES_SUPPORTED && (
-          <Reveal index={7}>
+          <Reveal index={9}>
             <SectionHeader title="Updates" />
             <Card padded={false} style={styles.section}>
               <UpdateRow />
@@ -478,7 +519,7 @@ export default function SettingsScreen() {
          * called it. The subtitle quotes `DEFAULT_SETTINGS` rather than naming
          * the values again, so it cannot drift from what the button does.
          */}
-        <Reveal index={8}>
+        <Reveal index={9}>
           <SectionHeader title="Reset" />
           <Card padded={false} style={styles.section}>
             <SettingAction
@@ -516,6 +557,19 @@ export default function SettingsScreen() {
           const field = editing;
           setEditing(null);
           if (!field) return;
+
+          if (field === 'gymTime') {
+            const time = raw.trim();
+            if (/^\d{1,2}:\d{2}$/.test(time)) {
+              update('gymReminderTime', time);
+              if (settings.gymReminderEnabled) {
+                import('@/features/notifications/reminder').then(({ scheduleGymReminder }) => {
+                  void scheduleGymReminder(time);
+                });
+              }
+            }
+            return;
+          }
 
           const parsed = Number(raw.replace(',', '.'));
           if (!Number.isFinite(parsed) || parsed <= 0) return;
