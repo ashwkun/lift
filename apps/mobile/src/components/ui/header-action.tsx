@@ -6,6 +6,7 @@ import {
   controlHeight,
   font,
   fontSize,
+  letterSpacing,
   MIN_TOUCH_SIZE,
   PRESS_SCALE_SMALL,
   radius,
@@ -212,8 +213,8 @@ export interface HeaderHeadingProps {
  * an inch high and never once says which seven days that is.
  *
  * Rendered through `headerTitle` rather than `headerTitleStyle`, so the type
- * here has to match `headerOptions` by hand: `heading` *is* that variant: 24 in
- * the display cut at -0.3, and the two are only the same because they are both
+ * here has to match `headerOptions` by hand: `display` *is* that variant: 38 in
+ * the display cut at -1.2, and the two are only the same because they are both
  * written down. Change one and change the other.
  *
  * The subtitle sits at `textSecondary` where a `ListRow`'s sits at
@@ -227,7 +228,7 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
     <View style={styles.heading}>
       {/* The role the platform's own header title carries, restated because
           replacing that component means replacing what it announced. */}
-      <Text variant="heading" numberOfLines={1} accessibilityRole="header">
+      <Text variant="display" numberOfLines={1} accessibilityRole="header">
         {title}
       </Text>
       {subtitle !== undefined && (
@@ -240,20 +241,29 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
 }
 
 /**
- * The masthead title: left at the margin, 24 in the display cut.
+ * The masthead title: left at the margin, 38 in the display cut.
  *
- * The size is the `heading` variant's, which is what the app sets a page title
- * at everywhere else, and that is the point: against the margin this *is* the
- * page's title rather than a label on a bar above it. At 17 it read as chrome
- * with the content's own headings shouting past it, which inverts the hierarchy
- * of the screen.
+ * The size is the `display` variant's, which is Nuvio's `pageDisplay` exactly:
+ * 38 at -1.2 in the heaviest face the family ships. Against the margin this
+ * *is* the page's title rather than a label on a bar above it. At 17 it read as
+ * chrome with the content's own headings shouting past it, and at the 24 it sat
+ * at before that it was merely the same size as an in-content heading, which
+ * says the page's name is worth no more than the sections inside it.
+ *
+ * **Weight is at the family ceiling here and cannot go further.** `display` is
+ * JetBrains Sans Bold, 700, and the family publishes nothing above it. If this
+ * still needs more presence the levers are size and tracking, not weight; see
+ * `fontFamily` in the tokens for why a heavier `fontWeight` would silently drop
+ * the whole title back to the system face on Android.
  *
  * It only works left-aligned. Centred, a title is sized by whatever is left
  * after *both* ends have taken their share, so at this size the longest names
  * ("Leaderboard exercises", a workout the user called "Upper Body Heavy" beside
  * a Finish pill) truncate immediately. Against the margin it starts where every
  * other first line on the screen starts and has the whole width up to the
- * actions.
+ * actions. That margin is what the jump from 24 to 38 spends, so the long names
+ * above are the ones to check: `numberOfLines={1}` means they clip rather than
+ * wrap, and the knob is this number.
  *
  * Exported because a stack screen with no back control opts back into it; see
  * `stackHeaderOptions`.
@@ -261,9 +271,9 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
 export function mastheadTitle(colors: Palette) {
   return {
     headerTitleStyle: {
-      fontSize: fontSize.xxl,
+      fontSize: fontSize.display,
       ...font('display'),
-      letterSpacing: -0.3,
+      letterSpacing: letterSpacing.pageDisplay,
       color: colors.text,
     },
     headerTitleAlign: 'left' as const,
@@ -306,9 +316,11 @@ export function headerOptions(colors: Palette) {
  *
  * The size comes down with the alignment, and it has to. See `mastheadTitle`:
  * a centred title is sized by what is left after both ends have taken their
- * share, and 24 in the display cut does not survive that next to a chevron and
- * an action. 20 in the semibold cut is the `subheading` variant, one step down
- * the same scale, and it still reads as the page's name rather than as chrome.
+ * share, and 38 in the display cut does not survive that next to a chevron and
+ * an action. 18 in the semibold cut is the `subheading` variant, and it still
+ * reads as the page's name rather than as chrome. The gap between the two is
+ * now much wider than it was, which is the point: a masthead is the page, a
+ * centred title is a label on a bar.
  *
  * Applied to the whole stack rather than per screen, because a back chevron is
  * something a stack screen has by default. The two that hide theirs (`sign-in`,
