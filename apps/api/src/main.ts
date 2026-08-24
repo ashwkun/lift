@@ -37,6 +37,13 @@ async function bootstrap() {
   // Auth first, on the raw stream…
   app.use('/api/auth/*splat', toNodeHandler(auth));
 
+  // Firefox strictly requires CORP when the web app uses COEP: credentialless
+  // and makes cross-origin requests with credentials (like sync).
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  });
+
   // …then JSON parsing for everything else. Sync batches can be large after a
   // long offline stretch, so the default 100kb limit is raised.
   app.use(express.json({ limit: '10mb' }));
