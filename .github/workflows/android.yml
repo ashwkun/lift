@@ -149,6 +149,79 @@ jobs:
             echo "kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g"
           } >> gradle.properties
 
+      # Two flags, ~22 MB. Both belong here for the reason the step above gives:
+      # gradle.properties after prebuild is a property of the build, so it costs
+      # no fingerprint movement, where expo-build-properties would.
+      #
+      # v0.8.0 shipped at 58.9 MB for arm64-v8a alone. Taken apart, that was
+      # 23.70 MB of native libraries, 20.33 MB of dex across *six* files, and a
+      # 7.56 MB Hermes bundle.
+      #
+      # Six dex files is what an unminified build looks like, and the dex
+      # confirmed it: every class name fully qualified, with Guava, Apache HTTP
+      # and the whole of BouncyCastle shipped as dead weight. The RN template
+      # defaults `android.enableMinifyInReleaseBuilds` to false and nothing had
+      # ever turned it on.
+      #
+      # The libraries were all STORED rather than deflated, which is what
+      # `expo.useLegacyPackaging=false` means: Android mmaps them straight out
+      # of the APK, so the install is smaller and startup is quicker, and the
+      # download carries them uncompressed. That is the right default for a Play
+      # Store app measured on install size and the wrong one here, where the APK
+      # is a file someone taps in a mobile browser. Native code deflates by
+      # roughly half. The trade is real and worth restating if it is ever
+      # revisited: on-device footprint goes up by about the uncompressed size,
+      # because the system extracts what it can no longer map.
+      #
+      # The Hermes bundle is left stored deliberately. It compresses about as
+      # well as the libraries do, and it is mmapped for the same reason, but it
+      # is read on the launch path rather than lazily, so the ~4 MB would be
+      # paid back as startup latency on every cold start.
+      #
+      # Next lever if this is not enough, in order: resource shrinking
+      # (`android.enableShrinkResourcesInReleaseBuilds`, worth part of the
+      # 2.19 MB resources.arsc, left off here so this change stays one testable
+      # thing), and the 2.64 MB of icon fonts, of which the app uses Ionicons
+      # and ships nineteen families.
+      - name: Shrink the release build
+        working-directory: apps/mobile/android
+        run: |
+          {
+            echo ""
+            echo "android.enableMinifyInReleaseBuilds=true"
+            echo "expo.useLegacyPackaging=true"
+          } >> gradle.properties
+
+      # R8 removes what nothing appears to reference, and a keep rule is how a
+      # library says "reflection reaches this". React Native, expo-modules-core,
+      # expo-updates, expo-notifications, expo-image and react-native-svg all
+      # declare `consumerProguardFiles`, so AGP merges theirs automatically and
+      # nothing is needed for them here.
+      #
+      # Reanimated and react-native-worklets ship a `proguard-rules.pro` each and
+      # wire neither, so theirs is merged by nobody. The prebuild template
+      # hand-copies the first two lines of reanimated's into app/proguard-rules.pro
+      # and stops there, which leaves the Fabric keep and the whole of worklets
+      # missing. This app is on the new architecture with reanimated 4, so both
+      # of those are load-bearing.
+      #
+      # The failure they prevent is a runtime one, not a build one: R8 succeeds,
+      # the APK installs, and the first screen that animates crashes on a class
+      # that is no longer there. Which is why this needs a build someone
+      # actually opens before it is tagged.
+      - name: Keep classes reached by reflection
+        working-directory: apps/mobile/android
+        run: |
+          {
+            echo ""
+            echo "# react-native-worklets and reanimated, neither of which wires"
+            echo "# its own consumerProguardFiles. See the workflow step above."
+            echo "-keep class com.swmansion.worklets.** { *; }"
+            echo "-keep class com.swmansion.reanimated.** { *; }"
+            echo "-keep class com.facebook.react.turbomodule.** { *; }"
+            echo "-keep class com.facebook.react.fabric.** { *; }"
+          } >> app/proguard-rules.pro
+
       # The fingerprint the APK embeds, pinned to the one resolved above.
       #
       # Without this the build computes its own, and it computes it wrong. The
