@@ -6,10 +6,36 @@
   <a href="https://github.com/pawan67/lift/actions/workflows/android.yml">
     <img src="https://github.com/pawan67/lift/actions/workflows/android.yml/badge.svg" alt="Android build status">
   </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
+  </a>
+  <a href="#self-hosting">
+    <img src="https://img.shields.io/badge/self--hostable-yes-success.svg" alt="Self-hostable">
+  </a>
 </p>
 
 A local-first workout tracker in the spirit of Hevy. Everything works offline;
-an account is optional and only adds backup and cross-device sync.
+an account is optional and only adds backup and cross-device sync — and the
+server behind that sync is this same repository, so you can run your own
+instead of trusting someone else's.
+
+## Features
+
+- **Local-first.** Every workout, PR and body-weight entry writes to a
+  database on the device first. No account, no server, no connectivity
+  required to use the app.
+- **Sync is optional, and self-hostable.** The API is a small NestJS +
+  Postgres service you can run yourself with Docker Compose — see
+  [Self-hosting](#self-hosting) — instead of depending on a hosted one.
+- **A rest timer that survives the app dying.** Backed by an Android
+  foreground service, so the countdown in the notification shade stays live
+  even if the app is killed mid-set.
+- **History, a workout calendar, and volume/PR analytics.**
+- **Body tracking**, with estimated 1RM, BMI and body-fat figures.
+- **Nine palettes** — Nord, Gruvbox, Catppuccin and Solarized among them —
+  each carried through to the Android launcher icon.
+- **Ships as an APK**, not a store listing, with over-the-air JavaScript
+  updates so most fixes reach the phone without a reinstall.
 
 ```
 lift/
@@ -40,6 +66,66 @@ Sync needs the API to be reachable from the phone. Set the `API_URL`
 repository variable before building. A release build has no Metro server to
 infer a host from, so it otherwise falls back to `localhost`, which on a phone
 means the phone itself.
+
+## Self-hosting
+
+Everything sync depends on — the API, the web build, the landing page — is
+in this repository and deploys with Docker. Nothing calls out to a service
+you don't control.
+
+`apps/api/Dockerfile` is a multi-stage build that runs unprivileged, applies
+pending migrations before it starts listening, and carries a healthcheck that
+round-trips to Postgres rather than returning a static 200.
+
+On Dokploy:
+
+1. Create a **Postgres** service and copy the connection URL it hands back.
+2. Create a **Compose** application from this repository and set the compose
+   path to `docker-compose.dokploy.yml`. That file defines the API, the web app
+   and the landing page. The database is the service from step 1, not a
+   container of its own.
+3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+   as the public `https://` address including scheme, `TRUSTED_ORIGINS`, which
+   has to list `lift://` or the app cannot complete an OAuth round trip,
+   `EXPO_PUBLIC_API_URL`, the API's public URL as the browser will call it, and
+   `NEXT_PUBLIC_SITE_URL`, the landing page's own public URL. All six are
+   required; the stack refuses to start without them rather than inventing
+   defaults.
+4. Add three domains, one per service:
+
+   | Service   | Port   | What it is             |
+   | --------- | ------ | ---------------------- |
+   | `api`     | `3000` | sync server            |
+   | `web`     | `80`   | the app in a browser   |
+   | `landing` | `3000` | the marketing page     |
+
+   `api` and `landing` both name port 3000 and do not clash: they are separate
+   containers, and the number is the port inside each one.
+5. Add the `web` domain's origin to `TRUSTED_ORIGINS`.
+   `lift://,https://app.example.com`. Without it the browser can load the app
+   and then fails every request it makes, which reads as a broken sign-in
+   rather than as a missing setting. The **landing page's origin does not go in
+   here**: it makes no request the API has to trust, and listing it widens what
+   the API accepts for nothing.
+
+`EXPO_PUBLIC_API_URL` is baked into the web bundle at build time, so moving the
+API means redeploying the web app, not restarting it. `NEXT_PUBLIC_SITE_URL` is
+the same kind of value for the landing page. It is what the social card's image
+URL is resolved against, so a wrong one leaves the page looking perfect while
+every share preview comes back blank. The phone builds are unaffected by any of
+this; they carry their own copy, set when the APK is built.
+
+The schema is created on first boot. A migration that fails takes the container
+down with it instead of serving against a half-applied schema, so a broken
+deploy is reported as broken rather than quietly answering 500s.
+
+`TRUSTED_PROXIES` defaults to Docker's private ranges, which is what Traefik
+sits in. It only needs setting if something else (a CDN, another proxy) ends
+up in front, in which case rate limiting counts that hop as the caller until
+its ranges are added.
+
+Two things worth doing on day one: turn on scheduled database backups, and
+verify a restore. This app holds people's multi-year training history.
 
 ## Over-the-air updates
 
@@ -305,62 +391,6 @@ so the notification's buttons reach a live store: not to count anything.
 go infinite at 37 reps and negative beyond; past 30 they hand off to Epley,
 which stays finite and monotonic.
 
-## Deployment
-
-`apps/api/Dockerfile` is a multi-stage build that runs unprivileged, applies
-pending migrations before it starts listening, and carries a healthcheck that
-round-trips to Postgres rather than returning a static 200.
-
-On Dokploy:
-
-1. Create a **Postgres** service and copy the connection URL it hands back.
-2. Create a **Compose** application from this repository and set the compose
-   path to `docker-compose.dokploy.yml`. That file defines the API, the web app
-   and the landing page. The database is the service from step 1, not a
-   container of its own.
-3. Supply `DATABASE_URL` from step 1, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
-   as the public `https://` address including scheme, `TRUSTED_ORIGINS`, which
-   has to list `lift://` or the app cannot complete an OAuth round trip,
-   `EXPO_PUBLIC_API_URL`, the API's public URL as the browser will call it, and
-   `NEXT_PUBLIC_SITE_URL`, the landing page's own public URL. All six are
-   required; the stack refuses to start without them rather than inventing
-   defaults.
-4. Add three domains, one per service:
-
-   | Service   | Port   | What it is             |
-   | --------- | ------ | ---------------------- |
-   | `api`     | `3000` | sync server            |
-   | `web`     | `80`   | the app in a browser   |
-   | `landing` | `3000` | the marketing page     |
-
-   `api` and `landing` both name port 3000 and do not clash: they are separate
-   containers, and the number is the port inside each one.
-5. Add the `web` domain's origin to `TRUSTED_ORIGINS`.
-   `lift://,https://app.example.com`. Without it the browser can load the app
-   and then fails every request it makes, which reads as a broken sign-in
-   rather than as a missing setting. The **landing page's origin does not go in
-   here**: it makes no request the API has to trust, and listing it widens what
-   the API accepts for nothing.
-
-`EXPO_PUBLIC_API_URL` is baked into the web bundle at build time, so moving the
-API means redeploying the web app, not restarting it. `NEXT_PUBLIC_SITE_URL` is
-the same kind of value for the landing page. It is what the social card's image
-URL is resolved against, so a wrong one leaves the page looking perfect while
-every share preview comes back blank. The phone builds are unaffected by any of
-this; they carry their own copy, set when the APK is built.
-
-The schema is created on first boot. A migration that fails takes the container
-down with it instead of serving against a half-applied schema, so a broken
-deploy is reported as broken rather than quietly answering 500s.
-
-`TRUSTED_PROXIES` defaults to Docker's private ranges, which is what Traefik
-sits in. It only needs setting if something else (a CDN, another proxy) ends
-up in front, in which case rate limiting counts that hop as the caller until
-its ranges are added.
-
-Two things worth doing on day one: turn on scheduled database backups, and
-verify a restore. This app holds people's multi-year training history.
-
 ## Brand assets
 
 Every icon, the splash image, the favicon and the banner above are generated
@@ -398,3 +428,9 @@ launcher entry moves off `MainActivity` and onto an alias. The app process
 itself is not restarted: the switch is made with `DONT_KILL_APP`, and the new
 alias is enabled before the old one is disabled so the package is never briefly
 without a launcher entry at all.
+
+## License
+
+[AGPL-3.0](LICENSE). Running a modified version of the API as a network
+service still requires publishing your changes — the copyleft follows the
+server, not just the app.
