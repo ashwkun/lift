@@ -66,6 +66,12 @@ export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+/** The inverse of `dayKey`: local midnight of the day it names. */
+export function parseDayKey(key: string): Date {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 /** The first of `date`'s month, at local midnight. Identity for a month. */
 export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -198,6 +204,41 @@ export function weekdayHeadings(firstDayOfWeek: 0 | 1): { narrow: string; long: 
       long: date.toLocaleDateString(undefined, { weekday: 'long' }),
     };
   });
+}
+
+/**
+ * `weeks` whole weeks ending in the week that contains `today`, oldest first.
+ *
+ * Unlike `monthCells` this pads at neither end: every week is exactly seven
+ * days, including the trailing ones that have not happened yet. The grid this
+ * feeds is read as one continuous strip rather than a labelled month, so a
+ * ragged last column would be the odd one out rather than the honest shape of
+ * "this week isn't over" that `monthCells`' padding gives a calendar page.
+ */
+export function contributionColumns(today: Date, weeks: number, firstDayOfWeek: 0 | 1): Date[][] {
+  const start = startOfDay(today);
+  const offsetIntoWeek = (start.getDay() - firstDayOfWeek + 7) % 7;
+  // The last day of the grid: the end of today's week, in the configured week
+  // start, which may fall after today.
+  const gridEnd = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate() + (6 - offsetIntoWeek),
+  );
+  const totalDays = weeks * 7;
+
+  const columns: Date[][] = [];
+  for (let week = 0; week < weeks; week++) {
+    const column: Date[] = [];
+    for (let day = 0; day < 7; day++) {
+      const daysBeforeEnd = totalDays - 1 - (week * 7 + day);
+      column.push(
+        new Date(gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate() - daysBeforeEnd),
+      );
+    }
+    columns.push(column);
+  }
+  return columns;
 }
 
 // ---------------------------------------------------------------------------

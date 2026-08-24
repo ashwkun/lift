@@ -1,4 +1,5 @@
 import {
+  dayKey,
   formatDurationShort,
   formatVolume,
   landmarksFor,
@@ -31,6 +32,8 @@ import {
 import { db } from '@/db/client';
 import { workouts, type Workout } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
+import { getWorkoutCalendar, type WorkoutCalendar } from '@/features/analytics/calendar';
+import { ContributionGraph } from '@/features/analytics/contribution-graph';
 import {
   getHistoryAnalytics,
   HISTORY_RANGES,
@@ -61,6 +64,7 @@ export default function HistoryScreen() {
   // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
+  const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
   const [range, setRange] = useState<HistoryRange>('3m');
   const [metric, setMetric] = useState<TrendMetric>('volume');
@@ -68,6 +72,7 @@ export default function HistoryScreen() {
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | null>(null);
   const [limitVal, setLimitVal] = useState(25);
+  const [calendar, setCalendar] = useState<WorkoutCalendar | null>(null);
 
   const { rows: completed, loaded } = useRows(
     db
@@ -95,6 +100,24 @@ export default function HistoryScreen() {
         cancelled = true;
       };
     }, [range]),
+  );
+
+  // Unlike `analytics` this doesn't depend on `range`: the graph always covers
+  // a year, so refetching it on every range change would be wasted work for a
+  // block that never changes shape.
+  useDeferredFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      void (async () => {
+        const next = await getWorkoutCalendar();
+        if (!cancelled) setCalendar(next);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, []),
   );
 
   // The query is asynchronous, so `analytics` still describes the range the user
@@ -281,6 +304,26 @@ export default function HistoryScreen() {
                   </Text>
                 )}
               </Card>
+
+              {/* Unscoped by the range control above: a year of squares reads
+                  as consistency, which is a different question from "how much
+                  in the last 3 months" and shouldn't move when that answer
+                  does. */}
+              <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
+                Activity
+              </Text>
+              <Card style={styles.card}>
+                <ContributionGraph
+                  days={calendar?.days ?? EMPTY_DAYS}
+                  typicalVolumeKg={calendar?.typicalVolumeKg ?? 0}
+                  firstDayOfWeek={firstDayOfWeek}
+                  today={new Date()}
+                  weightUnit={weightUnit}
+                  onSelectDay={(date) =>
+                    router.push({ pathname: '/calendar', params: { date: dayKey(date) } })
+                  }
+                />
+              </Card>
             </View>
           }
           renderSectionHeader={({ section }) => (
@@ -310,6 +353,9 @@ function muscleSetsPerWeek(analytics: HistoryAnalytics): Partial<Record<MuscleGr
  * wrong one every time they changed the range.
  */
 const PENDING = '—';
+
+/** Stable identity for the pre-load render, so the graph doesn't rebuild on each frame. */
+const EMPTY_DAYS: WorkoutCalendar['days'] = new Map();
 
 function RangeTotals({
   analytics,

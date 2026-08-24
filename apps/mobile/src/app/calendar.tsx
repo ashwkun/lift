@@ -1,5 +1,5 @@
 import { dayKey, formatDurationShort, formatVolume } from '@lift/shared';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -19,6 +19,7 @@ import {
   addMonths,
   getWorkoutCalendar,
   monthLabel,
+  parseDayKey,
   startOfDay,
   startOfMonth,
   summariseMonth,
@@ -52,8 +53,18 @@ export default function CalendarScreen() {
   const weightUnit = useSettings((state) => state.weightUnit);
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
+  /**
+   * The day this screen was opened onto, when it arrived from a tap on a
+   * square elsewhere (the contribution graph on Home) rather than from the
+   * tab bar. Read once: this screen owns paging and selection from here, and
+   * a param that kept overriding local state would fight every tap after the
+   * first.
+   */
+  const params = useLocalSearchParams<{ date?: string }>();
+  const initialDate = params.date ? parseDayKey(params.date) : null;
+
   const [calendar, setCalendar] = useState<WorkoutCalendar | null>(null);
-  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [month, setMonth] = useState(() => startOfMonth(initialDate ?? new Date()));
   const [today, setToday] = useState(() => startOfDay(new Date()));
 
   /**
@@ -61,9 +72,10 @@ export default function CalendarScreen() {
    *
    * Starts null rather than on today: opening the screen onto "rest day" would
    * spend the whole panel saying nothing on any day someone hasn't trained yet,
-   * where the month list always has something to show.
+   * where the month list always has something to show. A day arriving via
+   * `initialDate` is the one exception, since it was chosen deliberately.
    */
-  const [selected, setSelected] = useState<Date | null>(null);
+  const [selected, setSelected] = useState<Date | null>(initialDate);
 
   useDeferredFocusEffect(
     useCallback(() => {
