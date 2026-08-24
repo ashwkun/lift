@@ -1,0 +1,229 @@
+import { formatClockTime, formatDuration } from '@lift/shared';
+import { useState } from 'react';
+
+import { Card, Divider, Reveal, TimePickerModal } from '@/components/ui';
+import { Footnote, SettingsPage, settingsStyles } from '@/features/settings/page';
+import { SettingChoice, SettingToggle, SettingValue } from '@/features/settings/rows';
+import { showAlert } from '@/store/dialog';
+import { useSettings } from '@/store/settings';
+import { spacing } from '@/theme';
+
+/**
+ * Rest presets, in seconds.
+ *
+ * Labelled with `formatDuration` ("1:30") rather than `formatDurationShort`,
+ * which writes whole minutes and rendered 60 and 90 as the same "1m" and 120
+ * and 150 as the same "2m". Four presets, two labels, and no way to tell from
+ * the screen which of each pair was selected. Every other rest control in the
+ * app already uses the colon form; this one now agrees with them.
+ */
+const REST_PRESETS = [60, 90, 120, 150, 180, 240];
+
+/**
+ * Everything that changes what a session does, in the order it happens: the
+ * rest timer's master switch, its settings, when the reminder to come in fires,
+ * and what the phone itself does once you are here.
+ */
+export default function WorkoutSettingsScreen() {
+  const settings = useSettings();
+  const update = useSettings((state) => state.update);
+
+  const [editingTime, setEditingTime] = useState(false);
+
+  const restOff = !settings.restTimerEnabled;
+  /** The stored "HH:mm" as the device writes a clock: "5:00 pm" or "17:00". */
+  const reminderTime = formatClockTime(settings.gymReminderTime);
+
+  /**
+   * Turning the switch on is three things that can each fail, so the preference
+   * is only recorded once something is genuinely pending with the OS.
+   *
+   * Every failure now says which one it was. Before this the switch simply
+   * refused to move: no permission dialog, no explanation, and no way to tell a
+   * denied permission from a build that has no notification module at all.
+   */
+  const toggleReminder = async (enabled: boolean) => {
+    const reminder = await import('@/features/notifications/reminder');
+
+    if (!enabled) {
+      update('gymReminderEnabled', false);
+      await reminder.cancelGymReminder();
+      return;
+    }
+
+    const permission = await reminder.prepareReminderNotifications();
+
+    if (permission === 'unsupported') {
+      await showAlert(
+        'Reminders are not available here',
+        'Scheduling one needs a development or store build. Expo Go on Android and the browser build both run without a notification module.',
+      );
+      return;
+    }
+
+    if (permission === 'denied') {
+      await showAlert(
+        'Notifications are off',
+        'Lift needs permission to post notifications before it can remind you. Turn them on for Lift in your phone settings, then try again.',
+      );
+      return;
+    }
+
+    if (!(await reminder.scheduleGymReminder(settings.gymReminderTime))) {
+      await showAlert(
+        'Reminder not set',
+        'The daily reminder could not be scheduled. Check that notifications are still enabled for Lift in your phone settings.',
+      );
+      return;
+    }
+
+    update('gymReminderEnabled', true);
+  };
+
+  return (
+    <SettingsPage title="Workout">
+      <Reveal>
+        {/*
+         * The master switch, alone in its own card.
+         *
+         * Everything in the card below it is dead while this is off, and a
+         * disabled row sitting directly under the switch that disabled it is
+         * ambiguous about which way the dependency runs. Two cards state it:
+         * this is the thing, those are its settings.
+         */}
+        <Card padded={false} style={settingsStyles.first}>
+          <SettingToggle
+            icon="timer-outline"
+            label="Rest timer"
+            description="Counts down between sets."
+            value={settings.restTimerEnabled}
+            onChange={(value) => update('restTimerEnabled', value)}
+          />
+        </Card>
+
+        <Card padded={false} style={settingsStyles.sectionStacked}>
+          <SettingChoice
+            icon="hourglass-outline"
+            label="Default rest"
+            options={REST_PRESETS.map((seconds) => ({
+              value: String(seconds),
+              label: formatDuration(seconds),
+            }))}
+            value={String(settings.defaultRestSeconds)}
+            onChange={(value) => update('defaultRestSeconds', Number(value))}
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
+            icon="play-circle-outline"
+            label="Start automatically"
+            description="Begins the moment you check off a set."
+            value={settings.restTimerAutoStart}
+            onChange={(value) => update('restTimerAutoStart', value)}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
+            icon="notifications-outline"
+            label="Notify when finished"
+            description="Rings even with the app closed."
+            value={settings.restTimerNotifications}
+            onChange={(value) => update('restTimerNotifications', value)}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
+            icon="volume-medium-outline"
+            label="Alert sound"
+            description="Beeps through the last ten seconds, then the bell."
+            value={settings.soundEnabled}
+            onChange={(value) => update('soundEnabled', value)}
+            disabled={restOff}
+            disabledReason="The rest timer is off."
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
+            icon="pulse-outline"
+            label="Countdown buzz"
+            description="A tap on each of the last three seconds."
+            value={settings.restTimerCountdownCues}
+            onChange={(value) => update('restTimerCountdownCues', value)}
+            disabled={restOff || !settings.hapticsEnabled}
+            disabledReason={restOff ? 'The rest timer is off.' : 'Haptic feedback is off.'}
+          />
+        </Card>
+        <Footnote>
+          The default is only a fallback. Tap the timer next to an exercise while logging to set its
+          own rest, and every future workout containing that exercise will use it.
+        </Footnote>
+
+        <Card padded={false} style={settingsStyles.sectionStacked}>
+          <SettingToggle
+            icon="calendar-outline"
+            label="Gym reminder"
+            // Names the hour rather than describing the feature in the abstract.
+            // The row below already holds the time, but the switch is what the
+            // eye lands on, and "am I set for 5 or 6" is the question people
+            // open this page to answer.
+            description={`A daily nudge at ${reminderTime}.`}
+            value={settings.gymReminderEnabled}
+            onChange={(value) => void toggleReminder(value)}
+          />
+          <Divider inset={spacing.lg} />
+          <SettingValue
+            icon="time-outline"
+            label="Reminder time"
+            value={reminderTime}
+            hint="Opens the time picker"
+            onPress={() => setEditingTime(true)}
+          />
+        </Card>
+
+        <Card padded={false} style={settingsStyles.sectionStacked}>
+          <SettingToggle
+            icon="phone-portrait-outline"
+            label="Haptic feedback"
+            // Deliberately general. `features/feedback/haptics.ts` fires on
+            // sets, timers, deletions, reorders and refusals, across the whole
+            // app rather than only inside a workout: a description naming any
+            // one of those would be describing a fraction of the switch.
+            description="Short taps confirming what you just did."
+            value={settings.hapticsEnabled}
+            onChange={(value) => update('hapticsEnabled', value)}
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
+            icon="eye-outline"
+            label="Keep screen on"
+            description="Prevents the phone locking between sets."
+            value={settings.keepAwakeDuringWorkout}
+            onChange={(value) => update('keepAwakeDuringWorkout', value)}
+          />
+        </Card>
+      </Reveal>
+
+      <TimePickerModal
+        visible={editingTime}
+        title="Reminder time"
+        message="Repeats every day."
+        value={settings.gymReminderTime}
+        onCancel={() => setEditingTime(false)}
+        onConfirm={(time) => {
+          setEditingTime(false);
+          update('gymReminderTime', time);
+
+          // The only way to move a scheduled notification is to cancel it and
+          // post a new one, which is what `scheduleGymReminder` does. Skipped
+          // while the reminder is off: the switch schedules from the stored
+          // time when it is turned on.
+          if (settings.gymReminderEnabled) {
+            void import('@/features/notifications/reminder').then(({ scheduleGymReminder }) =>
+              scheduleGymReminder(time),
+            );
+          }
+        }}
+      />
+    </SettingsPage>
+  );
+}

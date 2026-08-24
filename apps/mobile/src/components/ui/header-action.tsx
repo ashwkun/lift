@@ -240,6 +240,37 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
 }
 
 /**
+ * The masthead title: left at the margin, 24 in the display cut.
+ *
+ * The size is the `heading` variant's, which is what the app sets a page title
+ * at everywhere else, and that is the point: against the margin this *is* the
+ * page's title rather than a label on a bar above it. At 17 it read as chrome
+ * with the content's own headings shouting past it, which inverts the hierarchy
+ * of the screen.
+ *
+ * It only works left-aligned. Centred, a title is sized by whatever is left
+ * after *both* ends have taken their share, so at this size the longest names
+ * ("Leaderboard exercises", a workout the user called "Upper Body Heavy" beside
+ * a Finish pill) truncate immediately. Against the margin it starts where every
+ * other first line on the screen starts and has the whole width up to the
+ * actions.
+ *
+ * Exported because a stack screen with no back control opts back into it; see
+ * `stackHeaderOptions`.
+ */
+export function mastheadTitle(colors: Palette) {
+  return {
+    headerTitleStyle: {
+      fontSize: fontSize.xxl,
+      ...font('display'),
+      letterSpacing: -0.3,
+      color: colors.text,
+    },
+    headerTitleAlign: 'left' as const,
+  };
+}
+
+/**
  * The header options every navigator in the app shares.
  *
  * Both navigators used to set these separately and disagreed: the stack titled
@@ -249,43 +280,58 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
  * left-aligned on Android, which meant the same screen looked like two
  * different apps depending on the phone.
  *
- * One title style, left-aligned on both platforms, and the back control reduced
- * to its chevron: iOS otherwise labels it with the previous screen's title, so
- * "Personal records" turned into a back button wider than the title it sat next
- * to. Stack-only options (`contentStyle`, gestures) stay at the call site. This
- * is the set both navigators can take.
- *
- * Left rather than centred, which is the iOS default and was the first thing
- * this function did. A centred title is sized by whatever is left after both
- * ends have taken their share, so it truncates soonest on the screens with the
- * longest names (a workout called "Upper Body) Heavy" beside a Finish pill,
- * and it moves when an action appears or disappears. Against the margin it
- * starts where every other first line on the screen starts, and it has the
- * whole width up to the actions.
- *
- * The size is the `heading` variant's: 24 in the display cut, which is what the
- * app sets a page title at everywhere else. That is the point: left-aligned at
- * the margin, this *is* the page's title, not a label on a bar above it, and at
- * 17 it read as chrome with the content's own headings shouting past it. The
- * two sizes below it (17, 20) both left the header quieter than the first
- * `SectionHeader` under it, which inverts the hierarchy of the screen.
- *
- * It costs width, and the screens with two actions and a long name are the ones
- * to check: the native stack ellipsises rather than wrapping, so the failure is
- * a truncated workout name and not a broken header.
+ * So the alignment is stated rather than inherited, on both platforms. What it
+ * is stated *as* now depends on the header: this base carries the masthead, and
+ * the tab navigator is its only direct caller. Stack-only options
+ * (`contentStyle`, gestures) stay at the call site.
  */
 export function headerOptions(colors: Palette) {
   return {
     headerStyle: { backgroundColor: colors.background },
     headerTintColor: colors.text,
+    ...mastheadTitle(colors),
+    headerShadowVisible: false,
+  };
+}
+
+/**
+ * `headerOptions`, titled for a screen you can back out of.
+ *
+ * The split is the back chevron. A tab root is somewhere you *are*: its title is
+ * the page's own heading, sitting on the same left margin as the content under
+ * it, with a second line for context. A pushed screen is somewhere you went, and
+ * its header is a bar with a way back in it. Centring the title over that
+ * chevron is what tells the two apart at a glance, and it is the arrangement
+ * both platforms use for the same distinction.
+ *
+ * The size comes down with the alignment, and it has to. See `mastheadTitle`:
+ * a centred title is sized by what is left after both ends have taken their
+ * share, and 24 in the display cut does not survive that next to a chevron and
+ * an action. 20 in the semibold cut is the `subheading` variant, one step down
+ * the same scale, and it still reads as the page's name rather than as chrome.
+ *
+ * Applied to the whole stack rather than per screen, because a back chevron is
+ * something a stack screen has by default. The two that hide theirs (`sign-in`,
+ * the post-workout summary: both are screens with no way back on purpose) spread
+ * `mastheadTitle` in their own options to opt out, and each says why there.
+ *
+ * The failure mode to check when adding a screen is a truncated title: the
+ * native stack ellipsises rather than wrapping, and a centred title is clipped
+ * to the width left over once the wider of the two ends is mirrored on both
+ * sides. `workout/active` is the tightest header in the app and the one to
+ * measure against: a user-named workout between a chevron and a stopwatch glyph
+ * plus a filled Finish pill leaves it roughly a third of the bar.
+ */
+export function stackHeaderOptions(colors: Palette) {
+  return {
+    ...headerOptions(colors),
     headerTitleStyle: {
-      fontSize: fontSize.xxl,
-      ...font('display'),
-      letterSpacing: -0.3,
+      fontSize: fontSize.xl,
+      ...font('semibold'),
+      letterSpacing: -0.2,
       color: colors.text,
     },
-    headerTitleAlign: 'left' as const,
-    headerShadowVisible: false,
+    headerTitleAlign: 'center' as const,
   };
 }
 
@@ -322,6 +368,10 @@ const TAB_HEADER_MAX_SCALE = 1.6;
 
 /**
  * `headerOptions`, sized and inset for the tab navigator.
+ *
+ * Built on the base rather than on `stackHeaderOptions`, which is the whole
+ * point of the split: a tab has no back chevron to centre a title over, and the
+ * masthead is what the extra height and the subtitle line below exist for.
  *
  * Two things the stack gets from the platform and this header does not.
  *

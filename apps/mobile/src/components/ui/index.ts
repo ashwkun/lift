@@ -13,6 +13,8 @@ export {
   HeaderAction,
   HeaderHeading,
   headerOptions,
+  mastheadTitle,
+  stackHeaderOptions,
   tabHeaderOptions,
   type HeaderActionProps,
   type HeaderActionTone,
@@ -68,3 +70,4 @@ export {
 } from './input';
 export { PromptModal, type PromptModalProps } from './prompt-modal';
 export { ReorderSheet, type ReorderItem, type ReorderSheetProps } from './reorder-sheet';
+export { TimePickerModal, type TimePickerModalProps } from './time-picker';

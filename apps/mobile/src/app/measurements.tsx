@@ -296,8 +296,12 @@ export default function MeasurementsScreen() {
                   {figures.length > 0 && <Divider inset={spacing.lg} />}
                   <Pressable
                     onPress={() =>
+                      // Straight to the page holding height and sex, not to the
+                      // settings hub: the hint names the figure that is
+                      // missing, and landing a level above it makes the reader
+                      // go looking for what they were just sent to fix.
                       hint.action === 'settings'
-                        ? router.push('/settings')
+                        ? router.push('/settings/body')
                         : setSheet({ mode: 'single', kind: hint.kind })
                     }
                     accessibilityRole="button"

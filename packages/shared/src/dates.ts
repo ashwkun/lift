@@ -46,6 +46,91 @@ export function formatTimeOfDay(date: Date): string {
 }
 
 /**
+ * A time of day with no date attached.
+ *
+ * Stored as `"HH:mm"` on a 24-hour clock, which is the one form that is
+ * unambiguous, sorts as text, and does not carry a timezone the user never
+ * chose. What the *user* sees is `formatClockTime`, which is the device's own
+ * convention: the two are deliberately not the same string.
+ */
+export interface ClockTime {
+  hour: number;
+  minute: number;
+}
+
+/**
+ * `"17:30"` to its parts, or `null` if it is not a time.
+ *
+ * Every field is range-checked rather than merely parsed. The one consumer that
+ * matters is a daily notification trigger, and `expo-notifications` throws a
+ * `RangeError` from inside `scheduleNotificationAsync` for an hour of 24 or a
+ * minute of 60. A returned `null` is a value the caller can decline to use; an
+ * exception raised three layers down inside a fire-and-forget call is not.
+ */
+export function parseClockTime(value: string): ClockTime | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return { hour, minute };
+}
+
+/** The parts back to `"HH:mm"`. Always two digits, so the strings sort. */
+export function toClockTime({ hour, minute }: ClockTime): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+/**
+ * `"17:30"` as the device would write it: "5:30 pm" here, "17:30" elsewhere.
+ *
+ * Goes through the same `TIME_OF_DAY` shape as every other clock in the app, so
+ * a reminder time in Settings and the time on a logged workout read alike.
+ * Anchored to an arbitrary date because only the hour and minute are printed.
+ *
+ * Unparseable input is returned as it came. This formats a stored preference,
+ * and a settings row showing a raw value is a better failure than one showing
+ * "Invalid Date".
+ */
+export function formatClockTime(value: string): string {
+  const time = parseClockTime(value);
+  if (!time) return value;
+
+  return formatTimeOfDay(new Date(2000, 0, 1, time.hour, time.minute));
+}
+
+/**
+ * Whether the device writes 1 pm or 13:00.
+ *
+ * Needed by anything that has to *offer* hours rather than print them: a picker
+ * showing 0–23 to someone whose phone says "5:30 pm" everywhere else is asking
+ * them to convert. Formatting alone cannot answer it, because the answer has to
+ * be known before the choices exist.
+ *
+ * Three attempts, narrowest first. `hourCycle` is the direct answer and is only
+ * populated when `hour` is among the requested options, which is why it is
+ * asked for. `hour12` is what older engines resolve instead. The printed-digit
+ * fallback exists because Hermes' Intl is backed by the platform's own
+ * formatter and neither field is guaranteed; it is last because a locale using
+ * Arabic-Indic digits prints neither "13" nor "1" in ASCII, and would fall
+ * through it to the wrong answer.
+ */
+export function prefersTwelveHourClock(): boolean {
+  try {
+    const resolved = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions();
+    if (resolved.hourCycle) return resolved.hourCycle === 'h11' || resolved.hourCycle === 'h12';
+    if (typeof resolved.hour12 === 'boolean') return resolved.hour12;
+  } catch {
+    // Fall through to the printed form.
+  }
+
+  return !new Date(2000, 0, 1, 13, 0).toLocaleTimeString(undefined, { hour: 'numeric' }).includes('13');
+}
+
+/**
  * A date and the clock, joined by the app's separator: "Sat, 12 Apr · 6:30 pm".
  *
  * The date half is whatever shape the caller asks for; omitting it gives the

@@ -12,7 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import migrations from '../../drizzle/migrations';
 
-import { Button, DialogHost, headerOptions, SideRail, Text } from '@/components/ui';
+import { Button, DialogHost, SideRail, stackHeaderOptions, Text } from '@/components/ui';
 import { databaseReady, db, isDatabaseOpen } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
@@ -179,6 +179,23 @@ function Startup({ onRetry }: { onRetry: () => void }) {
         if (!cancelled) setSeeded(true);
       } catch (error) {
         if (!cancelled) setSeedError(error as Error);
+        // Nothing below may run on a failed hydrate: the store is still holding
+        // defaults, and reading `gymReminderEnabled: false` off it would cancel
+        // a reminder the user has switched on.
+        return;
+      }
+
+      // Deliberately after the splash is released rather than inside the try
+      // above: a reminder that fails to re-arm is not a startup failure, and
+      // nothing on the first frame depends on it. See `syncGymReminder` for
+      // which cases this repairs and why it never prompts.
+      try {
+        const { gymReminderEnabled, gymReminderTime } = useSettings.getState();
+        const { syncGymReminder } = await import('@/features/notifications/reminder');
+        await syncGymReminder(gymReminderEnabled, gymReminderTime);
+      } catch {
+        // No notification module, or the OS refused. The preference is intact
+        // and the switch on the settings screen still reschedules by hand.
       }
     })();
 
@@ -257,7 +274,11 @@ function AppNavigator() {
               // The shared set, spread rather than restated. This stack and the tab
               // navigator each used to declare their own and drifted apart: see
               // `headerOptions` for what that cost and what it now fixes.
-              ...headerOptions(colors),
+              //
+              // The stack's variant, because every screen in it is one you
+              // arrived at from somewhere else: the title is centred over the
+              // back chevron the option below leaves in place.
+              ...stackHeaderOptions(colors),
               /*
                * The stack half of the same decision, and it can only live here: a
                * back button exists on pushed screens and nowhere else, so this is

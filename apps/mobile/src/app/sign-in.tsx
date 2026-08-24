@@ -9,7 +9,15 @@ import {
   View,
 } from 'react-native';
 
-import { Button, HeaderAction, Screen, Text, TextField, useScrollEdge } from '@/components/ui';
+import {
+  Button,
+  HeaderAction,
+  mastheadTitle,
+  Screen,
+  Text,
+  TextField,
+  useScrollEdge,
+} from '@/components/ui';
 import { haptics } from '@/features/feedback/haptics';
 import { authClient } from '@/features/sync/auth-client';
 import { useSync } from '@/store/sync';
@@ -131,19 +139,28 @@ export default function SignInScreen() {
            * a gate in front of everything else.
            *
            * It sits at the far end rather than in the chevron's own place, which
-           * is the one thing this header got wrong. Every title in this app is
-           * left-aligned (see `headerOptions`), so a control on the left is not
-           * standing where the back button stood. It is standing in front of
-           * the title, shunting "Create account" inwards and leaving the two
-           * words crowded against each other with the whole right half of the
-           * header empty. Opposite ends is also where the pair belongs by
-           * meaning: the title names the screen, "Not now" leaves it.
+           * is the one thing this header got wrong. This title is left-aligned
+           * (see below), so a control on the left is not standing where the back
+           * button stood. It is standing in front of the title, shunting "Create
+           * account" inwards and leaving the two words crowded against each other
+           * with the whole right half of the header empty. Opposite ends is also
+           * where the pair belongs by meaning: the title names the screen, "Not
+           * now" leaves it.
            *
            * Leaving is still possible without it. The iOS back-swipe and
            * Android's system back are untouched by hiding the chevron. This is
            * the visible way out, not the only one.
            */
           headerBackVisible: false,
+          /*
+           * And with the chevron gone, so is the reason the stack centres its
+           * titles: there is nothing on the left for this one to be centred
+           * over. Centred anyway it would float in the middle of an otherwise
+           * empty bar, which reads as a dialog rather than as a screen, on the
+           * one screen a user must not mistake for a gate. Back to the masthead,
+           * where it starts on the same margin as the form below it.
+           */
+          ...mastheadTitle(colors),
           headerRight: () => (
             <HeaderAction label="Leave without an account" title="Not now" onPress={leave} />
           ),

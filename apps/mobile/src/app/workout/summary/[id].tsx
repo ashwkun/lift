@@ -14,7 +14,15 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Confetti } from '@/components/celebration/confetti';
-import { Button, Card, Screen, Text, splitMeasure, useScrollEdge } from '@/components/ui';
+import {
+  Button,
+  Card,
+  mastheadTitle,
+  Screen,
+  Text,
+  splitMeasure,
+  useScrollEdge,
+} from '@/components/ui';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
@@ -120,6 +128,12 @@ export default function WorkoutSummaryScreen() {
         // would be the same destination offered twice on one screen, and the
         // one in the content is the larger, more obvious target of the two.
         headerBackVisible: false,
+        // Which leaves a bar with nothing in it but the title, and the stack's
+        // centred title exists to sit over a back chevron that this screen has
+        // just removed. Alone in the middle of an empty bar it reads as a
+        // dialog's caption; on the margin it is the first line of the page,
+        // above the hero that follows it.
+        ...mastheadTitle(colors),
       }}
     />
   );

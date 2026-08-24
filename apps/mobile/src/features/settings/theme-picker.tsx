@@ -24,7 +24,8 @@ import { haptics } from '@/features/feedback/haptics';
 import { hoverFill, radius, spacing, stroke, THEMES, useColors, type Palette } from '@/theme';
 
 /**
- * Exported so the settings screen's summary band names the theme the same way.
+ * Exported so the settings hub's Appearance row names the theme the same way
+ * the tile under it does.
  *
  * Every key in `THEME_PREFERENCES` needs one; the `Record` makes a missing
  * label a type error rather than an `undefined` caption.
