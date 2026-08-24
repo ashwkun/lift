@@ -171,7 +171,18 @@ export default function HomeScreen() {
 
   const isThisWeek = shownIndex === weekly.length - 1;
   const before = shownIndex > 0 ? weekly[shownIndex - 1]! : null;
-  const beforeValue = before ? config.pick(before) : 0;
+  /*
+   * This week reads against the same number of days into last week, not last
+   * week's full total. Without this a Monday-morning visit always shows a
+   * double-digit decline: the current week has had one day to accumulate
+   * anything and the baseline has had seven, no matter how the week goes on to
+   * turn out. That is a fact about the calendar rather than about the
+   * training, and reading it as a decline is exactly backwards on the one day
+   * a streak most needs the app to be encouraging rather than not. A completed
+   * past week has no such asymmetry: both sides of that comparison are full
+   * weeks, so it keeps reading its own full total.
+   */
+  const beforeValue = before ? config.pick(isThisWeek ? toDateTotals(before) : before) : 0;
 
   const [weekFigure, weekUnit] = splitMeasure(config.format(shownValue, weightUnit));
 
@@ -559,6 +570,15 @@ export default function HomeScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** A week's totals truncated to its `*ToDate` fields, for `config.pick`. */
+function toDateTotals(point: WeeklyPoint) {
+  return {
+    volumeKg: point.volumeKgToDate,
+    durationSeconds: point.durationSecondsToDate,
+    reps: point.repsToDate,
+  };
 }
 
 const styles = StyleSheet.create({

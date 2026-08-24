@@ -24,7 +24,9 @@ import {
   bucketStart,
   granularityForMonths,
   monthsBetween,
+  MS_PER_DAY,
   MS_PER_WEEK,
+  startOfDay,
   startOfMonth,
   startOfWeek,
   type Granularity,
@@ -83,6 +85,19 @@ export interface WeeklyPoint {
   durationSeconds: number;
   reps: number;
   workouts: number;
+  /**
+   * The same three totals, but only counting the days up to and including
+   * today's day-of-week, whichever week this bucket is.
+   *
+   * Exists for one comparison: Home's "vs last week" delta, read on a week
+   * that is still running. Held on every bucket rather than computed only for
+   * the previous one, since the cost is the same `+=` the full totals already
+   * pay and a caller reading a bucket in isolation would otherwise have no way
+   * to ask for it.
+   */
+  volumeKgToDate: number;
+  durationSecondsToDate: number;
+  repsToDate: number;
 }
 
 /**
@@ -96,10 +111,15 @@ export interface WeeklyPoint {
  * cost a `+=` each, and Home switches between them without going back to the
  * database.
  */
-export async function getWeeklyTotals(weeks = 12): Promise<WeeklyPoint[]> {
-  const currentWeekStart = startOfWeek(new Date());
+export async function getWeeklyTotals(weeks = 12, now: Date = new Date()): Promise<WeeklyPoint[]> {
+  const currentWeekStart = startOfWeek(now);
   const windowStart = new Date(currentWeekStart);
   windowStart.setDate(windowStart.getDate() - (weeks - 1) * 7);
+
+  // How many days of *any* week count towards its "to date" totals: today is
+  // Monday means one (Monday itself), so this is never zero and a Monday
+  // reading isn't comparing against nothing.
+  const elapsedDays = Math.round((startOfDay(now).getTime() - currentWeekStart.getTime()) / MS_PER_DAY) + 1;
 
   const rows = await db
     .select({
@@ -127,19 +147,32 @@ export async function getWeeklyTotals(weeks = 12): Promise<WeeklyPoint[]> {
       durationSeconds: 0,
       reps: 0,
       workouts: 0,
+      volumeKgToDate: 0,
+      durationSecondsToDate: 0,
+      repsToDate: 0,
     });
   }
 
   for (const row of rows) {
-    const key = startOfWeek(row.startedAt).getTime();
-    const bucket = buckets.get(key);
+    const weekStart = startOfWeek(row.startedAt);
+    const bucket = buckets.get(weekStart.getTime());
     if (!bucket) continue;
+
     bucket.volumeKg += row.totalVolumeKg;
     // Nullable on the table: a session that was never finished properly has no
     // duration, and it counts as a workout with none rather than as a gap.
     bucket.durationSeconds += row.durationSeconds ?? 0;
     bucket.reps += row.totalReps;
     bucket.workouts += 1;
+
+    const dayIndex = Math.round(
+      (startOfDay(row.startedAt).getTime() - weekStart.getTime()) / MS_PER_DAY,
+    );
+    if (dayIndex < elapsedDays) {
+      bucket.volumeKgToDate += row.totalVolumeKg;
+      bucket.durationSecondsToDate += row.durationSeconds ?? 0;
+      bucket.repsToDate += row.totalReps;
+    }
   }
 
   return [...buckets.values()].sort((a, b) => a.weekStart - b.weekStart);
