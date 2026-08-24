@@ -1,6 +1,6 @@
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '@lift/shared';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { MuscleSelectMap, UNMAPPED_MUSCLES } from '@/components/charts/body-map';
 import {
@@ -8,6 +8,7 @@ import {
   Chip,
   FilterSheet,
   FilterTrigger,
+  SheetScrollView,
   Text,
   useSheetLayout,
 } from '@/components/ui';
@@ -68,8 +69,13 @@ export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
         label="Muscle"
         onClose={() => setOpen(false)}
         onClear={values.length > 0 ? () => onChange([]) : undefined}
+        footer={
+          <View style={styles.footer}>
+            <Button title="Done" fullWidth onPress={() => setOpen(false)} />
+          </View>
+        }
       >
-        <ScrollView contentContainerStyle={styles.content}>
+        <SheetScrollView contentContainerStyle={styles.content}>
           <MuscleSelectMap
             selected={selected}
             onToggle={toggle}
@@ -102,11 +108,7 @@ export function MuscleFilter({ values, onChange, counts }: MuscleFilterProps) {
               ? 'Tap a muscle to filter'
               : values.map((muscle) => MUSCLE_GROUP_LABELS[muscle]).join(' · ')}
           </Text>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <Button title="Done" fullWidth onPress={() => setOpen(false)} />
-        </View>
+        </SheetScrollView>
       </FilterSheet>
     </>
   );

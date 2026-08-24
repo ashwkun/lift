@@ -16,6 +16,7 @@
   "dependencies": {
     "@better-auth/expo": "^1.6.28",
     "@expo/vector-icons": "^15.1.1",
+    "@gorhom/bottom-sheet": "5.2.14",
     "@lift/shared": "workspace:*",
     "@shopify/flash-list": "2.0.2",
     "@tanstack/react-query": "^5.101.4",

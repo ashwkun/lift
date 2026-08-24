@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { controlHeight, radius, spacing, stroke, useColors } from '@/theme';
 
 import { FilterSheet } from './filter-select';
+import { SheetScrollView, useSheetLayout } from './sheet-layout';
 import { Divider } from './surfaces';
 import { Text } from './text';
 
@@ -50,9 +51,17 @@ export interface OptionListProps<T extends string> {
  */
 export function OptionList<T extends string>({ options, value, onChange }: OptionListProps<T>) {
   const colors = useColors();
+  // `bottomInset` rather than `useSafeAreaInsets` directly: it is already 0
+  // once `FilterSheet` renders as the wide dialog, which is nowhere near the
+  // bottom edge and would otherwise gain a band of dead space under its last
+  // row for no reason. See the note on `bottomInset` in `useSheetLayout`.
+  const { bottomInset } = useSheetLayout();
 
   return (
-    <ScrollView style={styles.list} contentContainerStyle={styles.options}>
+    <SheetScrollView
+      style={styles.list}
+      contentContainerStyle={[styles.options, { paddingBottom: spacing.sm + bottomInset }]}
+    >
       {options.map((option, index) => {
         const selected = option.value === value;
 
@@ -87,7 +96,7 @@ export function OptionList<T extends string>({ options, value, onChange }: Optio
           </View>
         );
       })}
-    </ScrollView>
+    </SheetScrollView>
   );
 }
 

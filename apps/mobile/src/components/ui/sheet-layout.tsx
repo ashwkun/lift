@@ -22,7 +22,9 @@
  * two style overrides slot into what is already there.
  */
 
-import { StyleSheet, type ViewStyle } from 'react-native';
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import type { ReactNode } from 'react';
+import { ScrollView, StyleSheet, type ScrollViewProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useLayout } from '@/theme';
@@ -109,4 +111,21 @@ export function useSheetLayout(): SheetLayout {
         // Docked, the sheet spans the screen, which is what the window is.
         width,
       };
+}
+
+/**
+ * The scroll container a sheet's content should use, on whichever of the two
+ * surfaces `useSheetLayout` is currently choosing between.
+ *
+ * `FilterSheet` renders into an RN `Modal` while wide and a `BottomSheetModal`
+ * while docked, and the two are not interchangeable for a scroll container:
+ * `BottomSheetScrollView` reads gesture-coordination context that only a
+ * mounted `BottomSheetModal` provides, and throws without it, so it cannot be
+ * used unconditionally inside the wide dialog. Callers that pass a scrollable
+ * straight into `FilterSheet`'s children switch on the same `isWide` the sheet
+ * itself switches on, so the two can never disagree about which is mounted.
+ */
+export function SheetScrollView(props: ScrollViewProps & { children: ReactNode }) {
+  const { isWide } = useLayout();
+  return isWide ? <ScrollView {...props} /> : <BottomSheetScrollView {...props} />;
 }

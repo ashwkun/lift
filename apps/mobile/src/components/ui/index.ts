@@ -28,7 +28,7 @@ export {
 } from './list-picker';
 export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
 export { Screen, useScrollEdge, type ScreenProps } from './screen';
-export { useSheetLayout, type SheetLayout } from './sheet-layout';
+export { SheetScrollView, useSheetLayout, type SheetLayout } from './sheet-layout';
 export { SideRail } from './side-rail';
 export {
   SegmentedControl,

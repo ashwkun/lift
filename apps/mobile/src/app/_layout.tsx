@@ -1,3 +1,4 @@
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts } from 'expo-font';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { Stack } from 'expo-router';
@@ -46,17 +47,25 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppThemeProvider>
-          <Bootstrap key={attempt} onRetry={() => setAttempt((n) => n + 1)} />
           {/*
-            Outside `Bootstrap`, not inside `AppNavigator`, and not keyed on
-            `attempt`. `StartupError` is rendered *instead of* the navigator and
-            still raises dialogs: its export button reports where the file went,
-            so a host mounted under the navigator would not exist on the one
-            screen with no other way to say anything. Sitting here it also
-            survives the remount a retry performs, which is what stops a dialog
-            raised by the failing attempt from being torn down mid-read.
+            Wraps everything below rather than just the screens that happen to
+            open a `BottomSheetModal` today: `isWide` (see `sheet-layout.tsx`) can
+            flip at runtime as a web window is resized, so there is no static
+            point in the tree that is "phone-only" to gate this on instead.
           */}
-          <DialogHost />
+          <BottomSheetModalProvider>
+            <Bootstrap key={attempt} onRetry={() => setAttempt((n) => n + 1)} />
+            {/*
+              Outside `Bootstrap`, not inside `AppNavigator`, and not keyed on
+              `attempt`. `StartupError` is rendered *instead of* the navigator and
+              still raises dialogs: its export button reports where the file went,
+              so a host mounted under the navigator would not exist on the one
+              screen with no other way to say anything. Sitting here it also
+              survives the remount a retry performs, which is what stops a dialog
+              raised by the failing attempt from being torn down mid-read.
+            */}
+            <DialogHost />
+          </BottomSheetModalProvider>
         </AppThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
