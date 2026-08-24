@@ -267,8 +267,14 @@ export default function SettingsScreen() {
           </Card>
         </Reveal>
 
+        {/*
+         * Workout, in the order it happens: the rest timer's master switch,
+         * its settings, when the reminder to come in fires, and what changes
+         * once you're actually here. Four cards rather than three sections,
+         * each of which was two rows paying for a header of its own.
+         */}
         <Reveal index={3}>
-          <SectionHeader title="Rest timer" />
+          <SectionHeader title="Workout" />
           {/*
            * The master switch, alone in its own card.
            *
@@ -343,11 +349,8 @@ export default function SettingsScreen() {
             The default is only a fallback. Tap the timer next to an exercise while logging to set
             its own rest, and every future workout containing that exercise will use it.
           </Footnote>
-        </Reveal>
 
-        <Reveal index={4}>
-          <SectionHeader title="Gym Reminder" />
-          <Card padded={false} style={styles.section}>
+          <Card padded={false} style={styles.sectionStacked}>
             <SettingToggle
               icon="calendar-outline"
               label="Gym Reminder"
@@ -378,11 +381,8 @@ export default function SettingsScreen() {
               onPress={() => setEditing('gymTime' as any)}
             />
           </Card>
-        </Reveal>
 
-        <Reveal index={9}>
-          <SectionHeader title="During workout" />
-          <Card padded={false} style={styles.section}>
+          <Card padded={false} style={styles.sectionStacked}>
             <SettingToggle
               icon="phone-portrait-outline"
               label="Haptic feedback"
