@@ -145,19 +145,18 @@ function Startup({ onRetry }: { onRetry: () => void }) {
 
   // The keys here are the names `fontFamily` in the tokens refers to: expo-font
   // registers each face under the key it is given, on both platforms, so these
-  // two lists have to agree and nothing else in the app names a font. Four
-  // upright cuts, which is every weight the theme asks for: see `fontFamily`
-  // for which role gets which, and why no italic is loaded.
+  // two lists have to agree and nothing else in the app names a font. Three
+  // upright cuts, which is every face the family ships; five theme roles share
+  // them, see `fontFamily` for which role gets which and why no italic loads.
   //
   // Required relatively rather than through the `@/assets` alias, matching the
   // app's other bundled assets (`notifications/sounds.ts`): the alias is
   // configured for module imports, and an asset `require` is not worth finding
   // out about at runtime.
   const [fontsLoaded, fontError] = useFonts({
-    'LiftSans-Regular': require('../../assets/fonts/LiftSans-Regular.ttf'),
-    'LiftSans-Medium': require('../../assets/fonts/LiftSans-Medium.ttf'),
-    'LiftSans-Bold': require('../../assets/fonts/LiftSans-Bold.ttf'),
-    'LiftSans-Extrabold': require('../../assets/fonts/LiftSans-Extrabold.ttf'),
+    'JetBrainsSans-Regular': require('../../assets/fonts/JetBrainsSans-Regular.ttf'),
+    'JetBrainsSans-SemiBold': require('../../assets/fonts/JetBrainsSans-SemiBold.ttf'),
+    'JetBrainsSans-Bold': require('../../assets/fonts/JetBrainsSans-Bold.ttf'),
   });
 
   const [seedError, setSeedError] = useState<Error | null>(null);

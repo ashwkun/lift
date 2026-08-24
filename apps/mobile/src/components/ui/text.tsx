@@ -1,6 +1,6 @@
 import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
 
-import { font, fontSize, useColors, type Palette } from '@/theme';
+import { font, fontSize, letterSpacing, lineHeight, useColors, type Palette } from '@/theme';
 
 export type TextVariant =
   | 'display'
@@ -41,47 +41,68 @@ export interface TextProps extends RNTextProps {
 }
 
 /**
- * Four weights across eleven roles, and the whole hierarchy is here: size, and
- * which cut. 400 for reading, 500 for a row that names something, 700 for
- * anything to be scanned rather than read, 800 for the three headline sizes.
+ * Three cuts across eleven roles, and the whole hierarchy is here: size, line
+ * height, and which face. Ported from Nuvio's `NuvioTypography`, which spends
+ * its weight the same way: Regular for reading, SemiBold for anything that
+ * names or labels something, Bold for the headline sizes and nowhere else.
+ *
+ * **The headline roles are Bold, not Extrabold.** That is the one deliberate
+ * step down from what this file had, and it is Nuvio's own choice — it sets
+ * `displayLarge` in Bold and everything under it in SemiBold. The family has no
+ * 800 to fall back on either way; see `fontFamily` in the tokens.
+ *
+ * The middle of the ladder went the other way. `bodyMedium` and `label` asked
+ * for a 500 the family does not have, and they now name SemiBold rather than
+ * collapse into `body` and `caption`. Same note in the tokens has the reasoning.
  *
  * Nothing is set below 400: see `fontFamily` in the tokens for why that floor
  * exists and what to reach for instead when something needs to recede.
  *
- * Negative tracking on the large sizes is deliberate: type spaced for running
- * text looks loose above ~20px, and Apple applies the same optical correction
- * to SF Pro's display cuts. These values are back near full strength. The
- * previous family was a display optical size that arrived with the correction
- * already drawn in, and this one does not.
+ * Every role now carries an explicit `lineHeight`, which none of them did
+ * before. Multi-line text was on whichever default the platform picked, and the
+ * two platforms do not pick the same one.
  *
- * Small text gets no tracking. This family is wide and its x-height is low, so
- * at 11px and 13px the space goes to fitting words into fixed columns rather
- * than to letterspacing. `overline` is the exception and keeps its positive
- * tracking, because uppercase needs the room. It is the app's label voice.
+ * Tracking is Nuvio's, which is a blunter rule than the four graded steps this
+ * file used: the optical correction that keeps large type from looking loose
+ * arrives at `display` and `title` only, and harder than before. `heading` and
+ * `subheading` now get none. `overline` keeps its positive tracking, because
+ * uppercase needs the room. It is the app's label voice.
  */
 const VARIANTS: Record<TextVariant, TextStyle> = {
-  display: { fontSize: fontSize.display, ...font('display'), letterSpacing: -0.6 },
-  title: { fontSize: fontSize.xxxl, ...font('display'), letterSpacing: -0.5 },
-  heading: { fontSize: fontSize.xxl, ...font('display'), letterSpacing: -0.3 },
-  subheading: { fontSize: fontSize.xl, ...font('semibold'), letterSpacing: -0.2 },
-  body: { fontSize: fontSize.md, ...font('regular') },
-  bodyMedium: { fontSize: fontSize.md, ...font('medium') },
-  label: { fontSize: fontSize.sm, ...font('medium') },
-  caption: { fontSize: fontSize.xs, ...font('regular') },
+  display: {
+    fontSize: fontSize.display,
+    lineHeight: lineHeight.display,
+    ...font('display'),
+    letterSpacing: letterSpacing.pageDisplay,
+  },
+  title: {
+    fontSize: fontSize.xxxl,
+    lineHeight: lineHeight.xxxl,
+    ...font('display'),
+    letterSpacing: letterSpacing.headline,
+  },
+  heading: { fontSize: fontSize.xxl, lineHeight: lineHeight.xxl, ...font('display') },
+  subheading: { fontSize: fontSize.xl, lineHeight: lineHeight.xl, ...font('semibold') },
+  body: { fontSize: fontSize.md, lineHeight: lineHeight.md, ...font('regular') },
+  bodyMedium: { fontSize: fontSize.md, lineHeight: lineHeight.md, ...font('medium') },
+  label: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, ...font('medium') },
+  caption: { fontSize: fontSize.xs, lineHeight: lineHeight.xs, ...font('regular') },
   overline: {
     fontSize: fontSize.xs,
+    lineHeight: lineHeight.xs,
     ...font('semibold'),
-    letterSpacing: 0.8,
+    letterSpacing: letterSpacing.label,
     textTransform: 'uppercase',
   },
   numeric: {
     fontSize: fontSize.md,
+    lineHeight: lineHeight.md,
     ...font('semibold'),
     fontVariant: ['tabular-nums'],
   },
   /**
-   * A figure that is being read rather than announced: 20px, which is one step
-   * above body and the same size as `subheading`.
+   * A figure that is being read rather than announced: one step above body and
+   * the same size as `subheading`, which the new ladder puts at 18px.
    *
    * It was 32px, and every stat surface in the app inherited that: the history
    * tiles, the workout summary, the monthly report, the muscle-set breakdown.
@@ -91,15 +112,15 @@ const VARIANTS: Record<TextVariant, TextStyle> = {
    * across a room; what needs that asks for a size explicitly, and there are
    * exactly two: the rest timer and the plate calculator.
    *
-   * Tracking comes back from -0.6 to -0.2 with the size. The negative values on
-   * the headline variants correct for type spaced for running text looking
-   * loose above ~20px, and at 20 that correction is nearly spent.
+   * Its tracking is now zero rather than -0.2, which is the same rule the
+   * headline variants above follow: the correction for type spaced for running
+   * text is Nuvio's two-step one, and at this size it is spent.
    */
   numericLarge: {
     fontSize: fontSize.xl,
+    lineHeight: lineHeight.xl,
     ...font('bold'),
     fontVariant: ['tabular-nums'],
-    letterSpacing: -0.2,
   },
 };
 

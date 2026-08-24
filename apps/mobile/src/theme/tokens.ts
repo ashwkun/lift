@@ -101,35 +101,68 @@ export interface Palette {
 }
 
 /**
- * AMOLED dark palette.
+ * AMOLED dark palette, with Nuvio's card ramp above it.
  *
  * `background` is true `#000000` so the panel leaves those pixels physically
  * unlit: deeper blacks, and less battery burnt on a screen that is mostly
- * background. Everything above it is a deliberate step on a single neutral
- * ramp (`#000` → `0C` → `16` → `1E` → `26`), which is what keeps a card, a
- * modal and a pressed row visibly distinct instead of three guesses at "dark
- * grey".
+ * background. That part is unchanged. What sits on top of it is now Nuvio's:
+ * `#1A1A1A` for a card and `#222222` for a modal, its `backgroundElevated` and
+ * `backgroundCard` taken directly, with the two rungs this app needs and that
+ * one does not have continued at the same `+08` step (`#2A2A2A`, `#323232`).
  *
- * Text is `#F5F5F7` rather than pure white: at 21:1 on black, white text
- * blooms on OLED and reads as if it is vibrating. This still clears WCAG AAA.
+ * So the ramp is `#000` → `1A` → `22` → `2A` → `32` where it used to be `#000`
+ * → `0C` → `16` → `1E` → `26`. It still steps evenly, which is what keeps a
+ * card, a modal and a pressed row visibly distinct instead of three guesses at
+ * "dark grey", but **it now starts much higher**: a card is 1A against 0C, so
+ * the jump off the black canvas is a real edge rather than a suggestion, and
+ * every role printed on one has less room than it did. See the note on
+ * `surfaceMuted` for the one that pays for it.
+ *
+ * One thing deliberately *not* ported. Nuvio's card (`#222222`) is lighter than
+ * its sheet (`#1A1A1A`); here the order is the other way round, because in this
+ * app `surface` is the card and `surfaceElevated` is what sits above one.
+ * Flipping to match would invert the ramp and make a modal recede behind the
+ * row that opened it.
+ *
+ * Text is Nuvio's three tiers (`#F5F7F8` / `#B8BEC5` / `#969CA3`), which are a
+ * touch cooler and, in the lower two, materially lighter than what they
+ * replace. That is what pays for the lifted surfaces. `text` is still not pure
+ * white: at 21:1 on black, white text blooms on OLED and reads as if it is
+ * vibrating. This still clears WCAG AAA.
  */
 export const darkPalette: Palette = {
   background: '#000000',
-  surface: '#0C0C0F',
-  surfaceElevated: '#16161A',
-  surfaceMuted: '#1E1E24',
-  surfacePressed: '#26262E',
-  border: '#22222A',
-  borderStrong: '#3A3A46',
+  surface: '#1A1A1A',
+  surfaceElevated: '#222222',
+  /*
+   * The binding surface in the palette, and the one the lift costs most.
+   *
+   * Every role has to clear AA printed on this, and it is the lightest fill any
+   * of them lands on: input backgrounds, chips, table stripes. At `#1E1E24` the
+   * roles had roughly a third of a stop more room than they do at `#2A2A2A`.
+   * They still pass — `scripts/audit-palette.mjs` is the check, and it is the
+   * first thing to run if any role colour moves — but the margin is thinner, so
+   * a role that wants to go *deeper* from here probably cannot.
+   */
+  surfaceMuted: '#2A2A2A',
+  surfacePressed: '#323232',
+  /*
+   * Nuvio's `borderDefault`, and it is nearly the same value as the modal it
+   * draws on (1.07:1 against `surfaceElevated`). That is Nuvio's look rather
+   * than an oversight — its own hairlines sit at the same near-invisible
+   * distance from its cards. Where a divider actually has to be *seen* rather
+   * than felt, that is what `borderStrong` is for.
+   */
+  border: '#252A2A',
+  borderStrong: '#3A4040',
 
-  text: '#F5F5F7',
-  textSecondary: '#A1A1AC',
-  // Lifted from #6E6E7A, which measured 4.17 on the canvas, 3.88 on `surface`
-  // and 3.30 inside a `surfaceMuted` input. Below AA everywhere it is actually
-  // printed, and this tier carries the previous-set column and the unchecked
-  // check glyph. It now reads 5.68 / 5.28 / 4.48 on those same three surfaces,
-  // so the third tier clears AA even on the darkest fill.
-  textTertiary: '#84848F',
+  text: '#F5F7F8',
+  textSecondary: '#B8BEC5',
+  // Nuvio's `textMuted`, and lighter than the #84848F it replaces, which is the
+  // only reason this tier survives the lifted surfaces. It carries the
+  // previous-set column and the unchecked check glyph, and it is printed on
+  // `surfaceMuted` as often as on the canvas.
+  textTertiary: '#969CA3',
 
   /*
    * Electric lime: the one saturated colour in the app, and the reason the
@@ -203,13 +236,28 @@ export const darkPalette: Palette = {
    * darkening the red either: white only reaches 4.5 around #B3282E, which is a
    * muddy brick on a true-black canvas.
    *
-   * So the foreground goes dark like every other role here, which reads at 5.52
-   * and lets the red stay bright enough to belong to this palette. Destructive
-   * *buttons* no longer fill at all (see `danger` in `ui/button.tsx`) so the
-   * fill that remains is the swipe-to-delete plate and the filled header pill,
-   * where an unmistakable red is the point.
+   * So the foreground goes dark like every other role here, which reads well
+   * clear of AA and lets the red stay bright enough to belong to this palette.
+   * Destructive *buttons* no longer fill at all (see `danger` in
+   * `ui/button.tsx`) so the fill that remains is the swipe-to-delete plate and
+   * the filled header pill, where an unmistakable red is the point.
+   *
+   * **It was #EC5A62 and had to lift when the surfaces did.** This is the one
+   * role the Nuvio card ramp broke. At the old depth it measured 4.24 printed
+   * on `surfaceMuted` and 4.21 on its own tint over a card: both below AA, both
+   * caused purely by the ground moving up under it, and it was the only role
+   * with too little headroom to absorb that. Every other one still passes
+   * untouched.
+   *
+   * The lift is four points of HSL lightness, 64% to 68%, at an unchanged
+   * 357° and 79% saturation. That is the smallest move that clears both — 4.84
+   * and 4.68 — and it deliberately stops there, because the note on the Fitness
+   * palette is right that a red climbing towards 0.40 luminance stops being a
+   * red and becomes a rose. This sits at 0.300, against a resting 0.260, and it
+   * is still the lowest-luminance role in the palette by a clear margin, which
+   * is what keeps `accent` reading as the accent.
    */
-  danger: '#EC5A62',
+  danger: '#EE6D74',
   /*
    * A shallower step down than the other roles take, and it is the dark
    * foreground that sets the floor.
@@ -218,12 +266,15 @@ export const darkPalette: Palette = {
    * brightens a control reads as a release, but `textOnDanger` is now dark, so
    * every step down also costs label contrast. #D13F48 was the natural depth
    * and took the label to 4.02, which is the same AA failure this palette just
-   * fixed, moved from the resting state to the held one. This is the darkest
-   * value that still clears it: 4.72 for the label, and a luminance of 0.215
-   * against the resting 0.260, which is a visible step.
+   * fixed, moved from the resting state to the held one.
+   *
+   * It is now exactly the red that used to be the resting value. When `danger`
+   * lifted a step, the step it vacated was already the right distance below:
+   * four points of lightness, a visible press, and a label that clears AA on it
+   * by more than it did on the old pressed value.
    */
-  dangerPressed: '#E04B54',
-  dangerSurface: 'rgba(236, 90, 98, 0.16)',
+  dangerPressed: '#EC5A62',
+  dangerSurface: 'rgba(238, 109, 116, 0.16)',
 
   /** Personal-record gold. Held at 43°; see `warning` for why it moved away. */
   record: '#F5C445',
@@ -236,7 +287,9 @@ export const darkPalette: Palette = {
   textOnDanger: '#2A0507',
 
   overlay: 'rgba(0, 0, 0, 0.72)',
-  skeleton: '#16161A',
+  // Tracks `surfaceElevated`, as it always has: a skeleton is a card that has
+  // not arrived yet, so it reads as one step above the card it will become.
+  skeleton: '#222222',
   // Softer than pure white: a full-white plate against a true-black canvas is
   // a glare source at 6am, and the artwork's dark ink stays legible well below
   // that brightness.
@@ -378,70 +431,153 @@ export const stroke = {
   outline: 1,
 } as const;
 
+/**
+ * The type ladder, ported wholesale from Nuvio's `NuvioTokens.Type`.
+ *
+ * The key names are this app's and the values are that ladder's, because the
+ * two scales disagree about how many steps there are between body and a page
+ * title. Nuvio spends thirteen sizes where this app spends eight, so each key
+ * below names the rung of theirs it now sits on rather than a number picked to
+ * sit near it:
+ *
+ *   xs 11  labelXs      sm 13  bodySm       md 15  bodyApp
+ *   lg 16  bodyLg       xl 18  titleSm      xxl 22 titleMd
+ *   xxxl 28 titleLg     display 38 pageDisplay
+ *
+ * Three of the eight are unchanged (`xs`, `sm`, `md`: the reading sizes). The
+ * other five all come *down*: 17→16, 20→18, 24→22, 32→28, 40→38. It is a
+ * tighter ladder than the one it replaces and the compression grows towards the
+ * top, so the fixed-width places are the ones to check: the list rows, the stat
+ * band, and the calendar cells. The family's taller x-height gives some of it
+ * back; see `fontFamily` below.
+ */
 export const fontSize = {
   xs: 11,
   sm: 13,
   md: 15,
-  lg: 17,
-  xl: 20,
-  xxl: 24,
+  lg: 16,
+  xl: 18,
+  xxl: 22,
+  xxxl: 28,
+  display: 38,
+} as const;
+
+/**
+ * Line heights, keyed to match `fontSize`, from Nuvio's `NuvioTokens.LineHeight`.
+ *
+ * New: this app set no line height at all before, which left every block of
+ * text on the platform default. That default is not the same number on the two
+ * platforms and it is not the same number as this, so multi-line text is the
+ * other thing to look at after the size change above.
+ *
+ * The ratios run loose at the bottom of the ladder and tighten towards the top
+ * (1.27 at `xs`, 1.47 at `md`, 1.11 at `display`), which is the ordinary shape
+ * for a scale that has to serve both a caption and a page title. Set on the
+ * variant rather than globally, so a call site that needs a single line to sit
+ * on a fixed row can still override it.
+ */
+export const lineHeight = {
+  xs: 14,
+  sm: 18,
+  md: 22,
+  lg: 22,
+  xl: 22,
+  xxl: 26,
   xxxl: 32,
-  display: 40,
+  display: 42,
+} as const;
+
+/**
+ * Tracking, from Nuvio's `NuvioTokens.LetterSpacing`.
+ *
+ * Three values and a zero, against the six this app had. The shape of the rule
+ * is the same one Apple applies to SF Pro's display cuts: type spaced for
+ * running text looks loose once it is large, so the correction arrives at the
+ * top of the ladder and nowhere else. What changes is where "the top" starts.
+ * This app was correcting from 20px up in four graded steps; Nuvio corrects
+ * only its two largest roles, and harder (-0.8 and -1.2 against -0.3 and -0.6).
+ *
+ * `label` is the one positive value, and it is for uppercase only. Small
+ * mixed-case text gets nothing: at 11px and 13px the room goes to fitting words
+ * into fixed columns rather than to letterspacing.
+ */
+export const letterSpacing = {
+  none: 0,
+  pageDisplay: -1.2,
+  headline: -0.8,
+  label: 0.8,
 } as const;
 
 /**
  * The app's typeface, bundled from `assets/fonts`.
  *
- * The files are named for the role they play here rather than for the family
- * they are, which is Spotify Mix: recorded once, in the one place a maintainer
- * would look, because the measurements below are only meaningful if you know
- * what was measured, and because it is not a family this project has a licence
- * to redistribute.
+ * The family is JetBrains Sans, taken from Nuvio, which bundles exactly these
+ * three cuts. The files keep the family's own names now rather than being
+ * renamed for the role they play: the family they replaced was Spotify Mix,
+ * shipped under a `LiftSans-*` alias because it was not a family this project
+ * had a licence to redistribute. That reason is gone and the alias went with
+ * it. **The licence here is not squarely established either** — the TTFs carry
+ * no licence record in their `name` table (IDs 13 and 14 are absent) and the
+ * family is JetBrains' brand face rather than their OFL-licensed Mono. Worth
+ * settling before this ships anywhere public.
  *
  * Naming a face per weight is not a stylistic preference. Weight is selected by
  * *which font is named*, because on Android asking a runtime-loaded family for
  * a weight it was not registered under does not fall back to the loaded face.
  * It falls back to the *system* one. `font()` below carries the mechanism and
- * the consequence in full; the short version is that these four names are the
- * only lever there is, and `fontWeight` is an iOS-side detail.
+ * the consequence in full; the short version is that these names are the only
+ * lever there is, and `fontWeight` is an iOS-side detail.
  *
  * The names below must match the keys `useFonts` is given in `app/_layout.tsx`;
  * nothing else in the app names a font.
  *
- * The archive ships eight upright cuts, 200 through 1000. Four are loaded, and
- * the floor is deliberate: **nothing in this app is set below 400.** The
- * family's Thin and Light are real and usable on paper, and on a true-black
- * canvas at 11px they are a hairline, which is what the previous family was,
- * and why it lasted one build. If a role ever needs to feel lighter, take the
- * colour down a tier (`textSecondary`, `textTertiary`) rather than the weight.
+ * **Five roles over three faces, so two pairs collapse**, and which way each
+ * one collapses is the decision worth knowing about:
  *
- * There is no 600 in the family (it steps 500 → 700) so `semibold` names
- * Bold. The role keeps its name because call sites read by intent.
+ * `medium` goes *up* to SemiBold rather than down to Regular. It is what
+ * `bodyMedium` and `label` are set in, and folding it downwards would leave
+ * those two indistinguishable from `body` and `caption` — a distinction erased
+ * at the body end of the ladder, where it is most visible. Nuvio sets its own
+ * labels in SemiBold for the same reason. The cost is that a 13px label is now
+ * a shade heavier than it was at 500.
  *
- * Two measured things worth knowing:
+ * `display` goes *down* to Bold, because the family has no 800 and because it
+ * is what Nuvio sets its own page titles in. The three headline roles were
+ * Extrabold and are now one step lighter.
  *
- * Its figures are proportional by default and the spread is wide: a 77% gap
- * between the narrowest and widest digit in Regular, but it ships a real
- * `tnum` feature, so the `numeric` and `numericLarge` variants switch tabular
- * figures on and columns of numbers align. That is what keeps a rest timer from
- * reflowing on every tick. Digits set through any *other* variant are
- * proportional and will shift as they change.
+ * Unlike the family it replaces, this one has a real 600, so `semibold` finally
+ * names a SemiBold instead of borrowing Bold.
  *
- * It is wide, and its x-height is low (0.495em) for how much room it takes: on
- * the row titles this app sets it runs 10–15% past the family it replaced, and
- * at the same pixel size it looks slightly smaller into the bargain. That is
- * roughly where Open Sans sat when titles were clamping, so the fixed-width
- * columns (list rows, the stat band, calendar cells) are the ones to check.
- * If they truncate, the knob is `fontSize` below, not narrower columns.
+ * Nothing is set below 400: no lighter cut is loaded, and on a true-black
+ * canvas at 11px a Light would be a hairline. If a role ever needs to feel
+ * lighter, take the colour down a tier (`textSecondary`, `textTertiary`)
+ * rather than the weight.
+ *
+ * Two measured things worth knowing, both re-measured off these files rather
+ * than carried over:
+ *
+ * Its figures are proportional by default and the spread is wide — a 61% gap
+ * between the narrowest and widest digit in Regular — but all three cuts ship a
+ * real `tnum` feature, so the `numeric` and `numericLarge` variants switch
+ * tabular figures on and columns of numbers align. That is what keeps a rest
+ * timer from reflowing on every tick. Digits set through any *other* variant
+ * are proportional and will shift as they change.
+ *
+ * Its x-height is 0.512em, against the 0.495em of the family it replaces. That
+ * is the one thing working against the smaller `fontSize` ladder above: text
+ * sits about 3% larger per point, so the sizes coming down by 1–2pt costs less
+ * apparent size than the numbers suggest. The fixed-width columns are still the
+ * ones to check (list rows, the stat band, calendar cells), and if they now
+ * look loose rather than tight, the knob is `fontSize`, not wider columns.
  */
 export const fontFamily = {
-  regular: 'LiftSans-Regular',
-  medium: 'LiftSans-Medium',
-  /** No 600 in the family; Bold is the next real cut above Medium. */
-  semibold: 'LiftSans-Bold',
-  bold: 'LiftSans-Bold',
-  /** Headlines: `display`, `title`, `heading`. Black (900) is one line away. */
-  display: 'LiftSans-Extrabold',
+  regular: 'JetBrainsSans-Regular',
+  /** No 500 in the family. Folds up, not down: see the note above. */
+  medium: 'JetBrainsSans-SemiBold',
+  semibold: 'JetBrainsSans-SemiBold',
+  bold: 'JetBrainsSans-Bold',
+  /** Headlines: `display`, `title`, `heading`. No 800 in the family. */
+  display: 'JetBrainsSans-Bold',
 } as const;
 
 /** The roles a call site can ask for, by intent rather than by number. */
@@ -449,17 +585,18 @@ export type FontWeightName = keyof typeof fontFamily;
 
 /**
  * Mirrors the *loaded* face rather than the name's nominal weight, so iOS is
- * never asked to synthesise a cut the file does not contain. `semibold` reads
- * 700 for exactly that reason. It is Bold, because the family has no 600.
+ * never asked to synthesise a cut the file does not contain. `medium` reads 600
+ * and `display` reads 700 for exactly that reason: they name a SemiBold and a
+ * Bold, because the family ships no 500 and no 800.
  *
  * Read on iOS only. See `font()` for why Android is never told a weight.
  */
 export const fontWeight = {
   regular: '400',
-  medium: '500',
-  semibold: '700',
+  medium: '600',
+  semibold: '600',
   bold: '700',
-  display: '800',
+  display: '700',
 } as const;
 
 /**
@@ -490,7 +627,7 @@ export const fontWeight = {
  * Dropping the weight leaves `nearestStyle` at NORMAL, which hits the
  * registered typeface, and the weight is not lost, because it never came from
  * this property in the first place. Each role names its own *face*
- * (`LiftSans-Bold`, `LiftSans-Extrabold`), which is the whole reason
+ * (`JetBrainsSans-SemiBold`, `JetBrainsSans-Bold`), which is the whole reason
  * `fontFamily` above is per weight rather than one family name.
  *
  * iOS keeps the weight. There it resolves within the family rather than
