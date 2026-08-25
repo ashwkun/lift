@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  See `widget_weight_info.xml` for why the sizes are stated twice and why there
+  is no polling interval.
+
+  `minResizeHeight` is two cells, which `RoutinesWidgetProvider.slots` resolves
+  to a single row. That is deliberately still useful: one routine and nothing
+  else is a legitimate way to keep this widget, and the ad-hoc start stays
+  reachable through the header.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_routines"
+    android:previewLayout="@layout/widget_routines"
+    android:description="@string/widget_routines_description"
+    android:widgetCategory="home_screen" />

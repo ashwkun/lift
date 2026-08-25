@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!--
+    From Android 12 the system publishes the radius its own widget frames use,
+    and it varies by device. Matching it is what stops a Lift widget from being
+    the one square-ish tile on a home screen of round ones — or the one with
+    visibly rounder corners than the frame it sits in.
+  -->
+  <dimen name="widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+  <dimen name="widget_row_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+</resources>

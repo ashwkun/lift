@@ -55,6 +55,10 @@ palettes, is in [`screenshots/`](screenshots).
 - **Supersets**, prescribed in a routine or paired mid-session: tap the link
   chip on an exercise to join it to the one above or below, and the grouping
   carries from the routine into every session started from it.
+- **Home screen widgets.** Two Android widgets: your routines, one tap from
+  starting the session, and your last weigh-in, one tap from logging the next.
+  Both follow the palette the app is on — see
+  [Home screen widgets](#home-screen-widgets).
 - **History, a workout calendar, and volume/PR analytics.**
 - **Body tracking**, with estimated 1RM, BMI and body-fat figures.
 - **Nine palettes** — Nord, Gruvbox, Catppuccin and Solarized among them —
@@ -270,9 +274,9 @@ cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8
 ```
 
 `android/` and `ios/` are gitignored: prebuild regenerates them, so nothing
-generated is committed. The one piece of hand-written native code lives in
-`apps/mobile/modules/workout-live`, a local Expo module that prebuild links
-rather than overwrites.
+generated is committed. The hand-written native code lives under
+`apps/mobile/modules` — `workout-live`, `app-icon` and `home-widgets` — as local
+Expo modules that prebuild links rather than overwrites.
 
 ### Desktop web
 
@@ -482,6 +486,45 @@ launcher entry moves off `MainActivity` and onto an alias. The app process
 itself is not restarted: the switch is made with `DONT_KILL_APP`, and the new
 alias is enabled before the old one is disabled so the package is never briefly
 without a launcher entry at all.
+
+## Home screen widgets
+
+Two Android widgets, both drawn in whichever of the nine palettes the app is
+currently on.
+
+**Routines.** Your routine list in the order you keep it, each row showing how
+long ago you last performed it, with an ad-hoc *Start empty workout* on the
+bottom row. Tapping a row starts that session and opens the app on the active
+workout — not the routine editor, and not a confirmation. While a session is
+open the header becomes a resume banner with a running clock, and tapping it
+goes straight back into the workout. The widget shows as many routines as it has
+height for and re-counts them when you resize it.
+
+**Bodyweight.** Your last weigh-in, the change since the one before it, and how
+long ago it was. Tapping it opens the entry sheet with the keypad up.
+
+There are no buttons on either widget, which is a decision rather than an
+omission. A widget cannot show a keyboard, so entering a weight on the home
+screen would mean a pair of steppers — and a real weigh-in moves by 0.5 to
+1.5 kg against a 0.1 kg step. Worse, committing a reading from the widget means
+writing to the database from the launcher's process: a second implementation of
+`recordMeasurement`, its oplog entry and its body-weight mirror, running
+concurrently with the app's own handle on the same file. So both widgets read,
+and the app writes.
+
+That division is the whole design. The launcher's process never opens the
+database and never formats anything. The app publishes a *description* — strings
+already rendered by `@lift/shared` in the user's own units, colours already
+resolved from the active palette, and the `lift://` link each row opens — and
+`apps/mobile/modules/home-widgets` paints it. A tap is an ordinary deep link, so
+starting a workout from the home screen runs the same `startSession` the Start
+button runs, and inherits the one-session rule, the resume case and the
+"a workout is in progress" dialog rather than re-deciding any of them.
+
+The one thing the description does not carry is an elapsed time. The resume
+banner's clock is a `Chronometer` handed the epoch the session started at and
+ticked by the launcher, for the same reason the ongoing notification's countdown
+is: a duration published as text is wrong within a second of being published.
 
 ## License
 

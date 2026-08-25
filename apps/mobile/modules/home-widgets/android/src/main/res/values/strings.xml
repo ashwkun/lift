@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged into the app's own string table, so every name is prefixed. A library
+  string that collides with an app string silently wins or loses depending on
+  merge order, and nothing reports it.
+
+  The `widget_sample_*` entries are never read by any code. They are the default
+  text in the layouts, which is what `previewLayout` renders in the widget
+  picker — see the note at the top of `widget_routines.xml`.
+-->
+<resources>
+  <string name="widget_brand">Lift</string>
+
+  <string name="widget_routines_title">Lift routines</string>
+  <string name="widget_routines_description">Start a routine straight from the home screen.</string>
+
+  <string name="widget_weight_title">Lift bodyweight</string>
+  <string name="widget_weight_description">Your last weigh-in, and one tap to log the next.</string>
+  <string name="widget_weight_label">Bodyweight</string>
+
+  <!-- TalkBack, for the header once a session is open. -->
+  <string name="widget_resume_label">Resume %1$s</string>
+
+  <string name="widget_sample_weight_value">82.4 kg</string>
+  <string name="widget_sample_weight_detail">−0.3 kg · 2 days ago</string>
+  <string name="widget_sample_routine_one">Push Day</string>
+  <string name="widget_sample_routine_one_meta">2 days ago</string>
+  <string name="widget_sample_routine_two">Pull Day</string>
+  <string name="widget_sample_routine_two_meta">6 exercises</string>
+  <string name="widget_sample_start">Start empty workout</string>
+</resources>

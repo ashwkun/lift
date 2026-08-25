@@ -1,0 +1,24 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.lift'
+version = '1.0.0'
+
+android {
+  namespace "com.lift.homewidgets"
+
+  // Read back by `expo-module-gradle-plugin` when it configures publication,
+  // which fails the autolinking pass without them even for a local module that
+  // is never published. `workout-live` and `app-icon` both say the same.
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+// No dependency block. Everything here is framework: `AppWidgetProvider`,
+// `RemoteViews` and `SharedPreferences` have been in the platform since long
+// before `minSdkVersion`, and `expo-module-gradle-plugin` already brings in
+// expo-modules-core for the bridge half.

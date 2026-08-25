@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One routine row, inflated per routine by `RoutinesWidgetProvider.row`.
+
+  48dp tall with 4dp of it padding: the plate is 44dp, which is `MIN_TOUCH_SIZE`
+  in `theme/layout.ts`, and the padding is the gap to the next row. Spacing done
+  as padding rather than a margin because `RemoteViews.addView` inflates this
+  file on its own and margins on a root view are the parent's business.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:paddingBottom="4dp">
+
+  <ImageView
+      android:id="@+id/row_backdrop"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:scaleType="fitXY"
+      android:src="@drawable/widget_row"
+      android:importantForAccessibility="no"
+      android:contentDescription="@null" />
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:paddingStart="12dp"
+      android:paddingEnd="12dp">
+
+    <TextView
+        android:id="@+id/row_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/widget_sample_routine_one"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="#F5F7F8" />
+
+    <TextView
+        android:id="@+id/row_meta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/widget_sample_routine_one_meta"
+        android:textSize="11sp"
+        android:textColor="#B8BEC5" />
+  </LinearLayout>
+</FrameLayout>

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DATE_MEDIUM, formatDateTime, formatDuration } from '@lift/shared';
 import { and, asc, desc, isNull } from 'drizzle-orm';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -21,6 +21,7 @@ import { routines as routinesTable, workouts } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
+import { useLaunchAction } from '@/hooks/use-launch-action';
 import { useTicker } from '@/hooks/use-ticker';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -29,6 +30,8 @@ const EMPTY_START = 'empty';
 
 export default function WorkoutScreen() {
   const scrollEdge = useScrollEdge();
+
+  const { start } = useLocalSearchParams<{ start?: string }>();
 
   const colors = useColors();
 
@@ -87,6 +90,22 @@ export default function WorkoutScreen() {
       setStarting(null);
     }
   };
+
+  /*
+   * `?start=<token>` starts an ad-hoc session on arrival.
+   *
+   * The last row of the routines widget on the home screen. A routine's row
+   * carries the same parameter to `/routine/[id]`; this is the same instruction
+   * with no routine behind it, so it runs the same `begin` the Start button on
+   * this screen runs and inherits every decision `startSession` makes.
+   *
+   * Placed above the loading gate on purpose: hooks cannot be conditional, and
+   * `begin` reads the database itself rather than the rows this screen is
+   * waiting on.
+   */
+  useLaunchAction(start, () => {
+    void begin();
+  });
 
   /*
    * Both queries seed `[]` and answer a tick later, and this tab is where a

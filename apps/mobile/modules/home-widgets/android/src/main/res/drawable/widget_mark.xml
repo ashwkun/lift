@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The barbell, tinted with the theme's accent at runtime.
+
+  The same five paths as `workout_live_icon.xml` in `modules/workout-live`, and
+  deliberately a second copy of them: resources do not cross between library
+  modules, and the alternative is a dependency edge between two modules that
+  otherwise share nothing at all. The two differ in what they are for — that one
+  is a status-bar mask and is flat white by requirement, this one is a normal
+  drawable whose fill is only the picker's preview colour.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Outer plate, left -->
+  <path android:fillColor="#FFD2F34B" android:pathData="M1.5,9.5h2.25v5h-2.25z" />
+  <!-- Inner plate, left -->
+  <path android:fillColor="#FFD2F34B" android:pathData="M5,7h2.75v10h-2.75z" />
+  <!-- Bar -->
+  <path android:fillColor="#FFD2F34B" android:pathData="M8.75,10.75h6.5v2.5h-6.5z" />
+  <!-- Inner plate, right -->
+  <path android:fillColor="#FFD2F34B" android:pathData="M16.25,7h2.75v10h-2.75z" />
+  <!-- Outer plate, right -->
+  <path android:fillColor="#FFD2F34B" android:pathData="M20.25,9.5h2.25v5h-2.25z" />
+</vector>

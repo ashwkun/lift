@@ -52,6 +52,7 @@ import {
 } from '@/features/workouts/superset';
 import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { useLaunchAction } from '@/hooks/use-launch-action';
 import { haptics } from '@/features/feedback/haptics';
 import { showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
@@ -67,7 +68,7 @@ const ADD_SET_SLOP = { top: 8, bottom: 8 };
 export default function RoutineEditorScreen() {
   const scrollEdge = useScrollEdge();
 
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, start } = useLocalSearchParams<{ id: string; start?: string }>();
 
   // Addressed per routine, not per screen: this editor has one instance per
   // routine id, and returning to a *different* routine must not collect a
@@ -286,6 +287,22 @@ export default function RoutineEditorScreen() {
       setStarting(false);
     }
   };
+
+  /*
+   * `?start=<token>` starts the session on arrival.
+   *
+   * How the routines widget on the home screen begins a workout: the row's link
+   * lands here and this runs the same `begin` the Start button runs. It is
+   * deliberately not a separate path — the one-session rule, the resume case and
+   * the "a workout is in progress" dialog are all decisions `startSession` makes
+   * once, and a widget that re-made any of them would be a second opinion about
+   * the most destructive question this app asks.
+   *
+   * The token, and why a flag would not do, are in `use-launch-action.ts`.
+   */
+  useLaunchAction(start, () => {
+    void begin();
+  });
 
   const confirmDelete = () => {
     void (async () => {

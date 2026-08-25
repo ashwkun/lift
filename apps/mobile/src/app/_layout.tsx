@@ -16,6 +16,7 @@ import { Button, DialogHost, SideRail, stackHeaderOptions, Text } from '@/compon
 import { databaseReady, db, isDatabaseOpen } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
+import { HomeWidgets } from '@/features/home-widgets/publisher';
 import { WeighInResponder } from '@/features/notifications/weigh-in-responder';
 import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
 import { RestCues } from '@/features/workouts/rest-cues';
@@ -267,6 +268,11 @@ function AppNavigator() {
           up, or while none is: see the file for the cold-start half. Renders
           nothing. */}
       <WeighInResponder />
+      {/* The Android home-screen widgets, which describe the routine list, the
+          newest weigh-in and the open session — all of which change from
+          screens all over the app. Renders nothing, and subscribes to nothing
+          off Android. */}
+      <HomeWidgets />
       {/*
         The desktop shell: rail beside the stack, rather than inside it.
 

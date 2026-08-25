@@ -1,0 +1,47 @@
+<!--
+  Merged into the app manifest by the Android manifest merger, which is why none
+  of this is in `app.json`. A clean prebuild regenerates `android/` from scratch;
+  a library manifest is regenerated with it.
+
+  No permissions. A widget needs none: the launcher asks for the `RemoteViews`
+  and the app answers, and every tap is an ordinary deep link into an activity
+  this app already exports.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      `exported="false"` on both, which reads wrong and is right. The only
+      sender of `APPWIDGET_UPDATE` is the system, which is exempt, and from
+      Android 12 a receiver with an intent filter must state the attribute
+      explicitly — so exporting these would be opening them to every app on the
+      device in exchange for nothing.
+
+      `android:label` is what the widget picker calls each one. Without it both
+      would be listed under the application label and there would be two
+      identically named entries under "Lift".
+    -->
+    <receiver
+        android:name=".WeightWidgetProvider"
+        android:label="@string/widget_weight_title"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_weight_info" />
+    </receiver>
+
+    <receiver
+        android:name=".RoutinesWidgetProvider"
+        android:label="@string/widget_routines_title"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_routines_info" />
+    </receiver>
+  </application>
+</manifest>

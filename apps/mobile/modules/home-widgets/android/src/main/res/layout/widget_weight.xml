@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The bodyweight tile.
+
+  Every colour written here is a *preview* colour. At runtime
+  `WeightWidgetProvider` repaints all of them from the active palette, and the
+  values below are `darkPalette` so the widget picker — which renders this file
+  as-is through `previewLayout` — shows the app's default theme rather than a
+  half-painted shell. The sample strings are there for the same reason.
+
+  No custom font. `RemoteViews` gained `setTypeface` only in API 31 and the app
+  ships its face as an asset rather than a font resource, so the choice is the
+  platform's sans or nothing. sans-serif-medium is the closest weight.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/weight_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <!--
+    The plate. An ImageView rather than a background, so the theme's colour can
+    arrive as a colour filter and leave the rounded corners intact — see the
+    note at the top of `WidgetSurface.kt`.
+  -->
+  <ImageView
+      android:id="@+id/weight_backdrop"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:scaleType="fitXY"
+      android:src="@drawable/widget_surface"
+      android:importantForAccessibility="no"
+      android:contentDescription="@null" />
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:gravity="center_vertical"
+      android:paddingStart="14dp"
+      android:paddingEnd="14dp"
+      android:paddingTop="12dp"
+      android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <ImageView
+          android:id="@+id/weight_mark"
+          android:layout_width="13dp"
+          android:layout_height="13dp"
+          android:src="@drawable/widget_mark"
+          android:importantForAccessibility="no"
+          android:contentDescription="@null" />
+
+      <TextView
+          android:id="@+id/weight_label"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="6dp"
+          android:text="@string/widget_weight_label"
+          android:textAllCaps="true"
+          android:textSize="10sp"
+          android:letterSpacing="0.09"
+          android:fontFamily="sans-serif-medium"
+          android:textColor="#B8BEC5" />
+    </LinearLayout>
+
+    <!--
+      One line, ellipsized. The size is set from Kotlin because it differs
+      between a reading and the prompt shown before there is one; this value is
+      the reading, and therefore the preview.
+    -->
+    <TextView
+        android:id="@+id/weight_value"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/widget_sample_weight_value"
+        android:textSize="26sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="#F5F7F8" />
+
+    <TextView
+        android:id="@+id/weight_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="@string/widget_sample_weight_detail"
+        android:textSize="12sp"
+        android:textColor="#B8BEC5" />
+  </LinearLayout>
+</FrameLayout>

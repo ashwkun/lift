@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!--
+    Widgets are not clipped for you: a launcher draws exactly the rectangle the
+    layout paints, so rounding the plate is the app's job. 16dp is a reasonable
+    guess for the launchers that predate the platform having an opinion; from
+    Android 12 there is a real answer and `values-v31` uses it instead.
+  -->
+  <dimen name="widget_radius">16dp</dimen>
+  <dimen name="widget_row_radius">12dp</dimen>
+</resources>

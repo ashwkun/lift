@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The routines tile.
+
+  As with `widget_weight.xml`, every colour and every string here is what the
+  widget picker renders through `previewLayout`; `RoutinesWidgetProvider`
+  repaints all of it from the active palette at runtime.
+
+  The three rows inside `routines_rows` are preview only, and they are the reason
+  `rows()` opens with `removeAllViews`. They carry no ids on purpose: nothing
+  addresses them, they are gone before the first real draw, and ids here would be
+  a second `row_root` in a file that already has one meaning for that name.
+
+  The heights are the constants `RoutinesWidgetProvider` divides by. If the
+  padding or the header changes, `PADDING_DP` and `HEADER_DP` change with it or
+  the widget starts clipping its last row.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/routines_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <ImageView
+      android:id="@+id/routines_backdrop"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:scaleType="fitXY"
+      android:src="@drawable/widget_surface"
+      android:importantForAccessibility="no"
+      android:contentDescription="@null" />
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:paddingStart="10dp"
+      android:paddingEnd="10dp"
+      android:paddingTop="10dp"
+      android:paddingBottom="10dp">
+
+    <!-- The brand line, or the open session. Tappable either way. -->
+    <LinearLayout
+        android:id="@+id/routines_header"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp">
+
+      <ImageView
+          android:id="@+id/routines_mark"
+          android:layout_width="13dp"
+          android:layout_height="13dp"
+          android:src="@drawable/widget_mark"
+          android:importantForAccessibility="no"
+          android:contentDescription="@null" />
+
+      <TextView
+          android:id="@+id/routines_title"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:layout_marginStart="7dp"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:text="@string/widget_brand"
+          android:textSize="13sp"
+          android:fontFamily="sans-serif-medium"
+          android:textColor="#B8BEC5" />
+
+      <!--
+        Ticked by the launcher, from the epoch the session started at. Gone
+        whenever there is no session, and stopped as well as gone — see
+        `header()`.
+      -->
+      <Chronometer
+          android:id="@+id/routines_clock"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:textSize="13sp"
+          android:fontFamily="sans-serif-medium"
+          android:textColor="#D2F34B"
+          android:visibility="gone" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/routines_rows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+      <FrameLayout
+          android:layout_width="match_parent"
+          android:layout_height="48dp"
+          android:paddingBottom="4dp">
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_row"
+            android:importantForAccessibility="no"
+            android:contentDescription="@null" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+          <TextView
+              android:layout_width="0dp"
+              android:layout_height="wrap_content"
+              android:layout_weight="1"
+              android:maxLines="1"
+              android:ellipsize="end"
+              android:text="@string/widget_sample_routine_one"
+              android:textSize="14sp"
+              android:fontFamily="sans-serif-medium"
+              android:textColor="#F5F7F8" />
+          <TextView
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginStart="8dp"
+              android:text="@string/widget_sample_routine_one_meta"
+              android:textSize="11sp"
+              android:textColor="#B8BEC5" />
+        </LinearLayout>
+      </FrameLayout>
+
+      <FrameLayout
+          android:layout_width="match_parent"
+          android:layout_height="48dp"
+          android:paddingBottom="4dp">
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_row"
+            android:importantForAccessibility="no"
+            android:contentDescription="@null" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+          <TextView
+              android:layout_width="0dp"
+              android:layout_height="wrap_content"
+              android:layout_weight="1"
+              android:maxLines="1"
+              android:ellipsize="end"
+              android:text="@string/widget_sample_routine_two"
+              android:textSize="14sp"
+              android:fontFamily="sans-serif-medium"
+              android:textColor="#F5F7F8" />
+          <TextView
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginStart="8dp"
+              android:text="@string/widget_sample_routine_two_meta"
+              android:textSize="11sp"
+              android:textColor="#B8BEC5" />
+        </LinearLayout>
+      </FrameLayout>
+
+      <FrameLayout
+          android:layout_width="match_parent"
+          android:layout_height="48dp"
+          android:paddingBottom="4dp">
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_row"
+            android:importantForAccessibility="no"
+            android:contentDescription="@null" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+          <TextView
+              android:layout_width="0dp"
+              android:layout_height="wrap_content"
+              android:layout_weight="1"
+              android:maxLines="1"
+              android:ellipsize="end"
+              android:text="@string/widget_sample_start"
+              android:textSize="14sp"
+              android:fontFamily="sans-serif-medium"
+              android:textColor="#D2F34B" />
+        </LinearLayout>
+      </FrameLayout>
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>
