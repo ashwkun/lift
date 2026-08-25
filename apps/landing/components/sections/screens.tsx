@@ -66,9 +66,25 @@ const RAIL: Screen[] = [
   screens.profile,
 ];
 
+/*
+ * `overflow-x-clip` on the section, and it is load-bearing. The `screen-cast`
+ * glow below is an absolutely positioned box inset by -35% of the device's
+ * width, which at every viewport under 1920 put its right edge past the
+ * document: 97px of sideways scroll on a 375pt phone, 214px at 768. A
+ * decorative gradient was widening the page and taking the whole layout with
+ * it.
+ *
+ * `clip` rather than `hidden` because hidden on one axis forces the other to
+ * scroll, and this section is tall enough that a nested scroll container is a
+ * real hazard. The hero clips the same glow with its own `overflow-hidden`,
+ * which is why only this one ever escaped.
+ */
 export function Screens() {
   return (
-    <section id="screens" className="border-b border-line py-24 sm:py-32">
+    <section
+      id="screens"
+      className="overflow-x-clip border-b border-line py-24 sm:py-32"
+    >
       <div className="shell">
         <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-24">
           <div>
@@ -117,7 +133,7 @@ export function Screens() {
           as="article"
           className="mt-24 border-t border-line pt-12 sm:mt-28 sm:pt-14"
         >
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-20">
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:gap-12 lg:gap-20">
             <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
               {TIMER.title}
             </h3>
@@ -130,7 +146,20 @@ export function Screens() {
             <Reveal
               as="article"
               key={feature.title}
-              className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16"
+              className={cn(
+                "grid items-center gap-10 md:gap-12 lg:grid-cols-2 lg:gap-16",
+                /*
+                  Between 768 and 1024 the device gets a track exactly its own
+                  width rather than half the row. Split down the middle at 768 a
+                  192px phone sits in a 328px column and the copy beside it is
+                  34ch, which is a newspaper column, not a paragraph; sized to
+                  the device it is 48ch. At `lg` there is room for the even
+                  split the alternation was drawn around, so it goes back to it.
+                */
+                i % 2 === 1
+                  ? "md:grid-cols-[minmax(0,1fr)_auto]"
+                  : "md:grid-cols-[auto_minmax(0,1fr)]",
+              )}
             >
               {/*
                 The device is pushed toward the copy rather than centred in its
@@ -142,18 +171,18 @@ export function Screens() {
                 className={cn(
                   "relative flex items-center justify-center",
                   i % 2 === 1
-                    ? "lg:order-2 lg:justify-start"
+                    ? "md:order-2 lg:justify-start"
                     : "lg:justify-end",
                 )}
               >
                 <Phone
                   screen={feature.screen}
                   size="md"
-                  sizes="(max-width: 1024px) 55vw, 248px"
+                  sizes="(max-width: 1024px) 40vw, 248px"
                 />
               </div>
 
-              <div className={cn(i % 2 === 1 && "lg:order-1")}>
+              <div className={cn(i % 2 === 1 && "md:order-1")}>
                 <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
                   {feature.title}
                 </h3>

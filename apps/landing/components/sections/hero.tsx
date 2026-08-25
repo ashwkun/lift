@@ -7,8 +7,19 @@ import { screens } from "@/lib/screens";
 import type { Release } from "@/lib/release";
 import { links } from "@/lib/site";
 
+/*
+ * Hidden below `sm`, because below `sm` there is no row for it to divide.
+ *
+ * The four facts are about 350px of tracked-out mono and a 375pt phone offers
+ * 335, so the row wrapped, and a flex row that wraps breaks wherever it runs
+ * out: the tick before "Self-hostable" ended the first line, leaving a rule
+ * hanging off the end of it with nothing on the other side. Below `sm` the
+ * facts are set as a 2x2 grid instead and divide themselves.
+ */
 function Tick() {
-  return <span aria-hidden className="h-3 w-px shrink-0 bg-line-strong" />;
+  return (
+    <span aria-hidden className="hidden h-3 w-px shrink-0 bg-line-strong sm:block" />
+  );
 }
 
 export function Hero({ release }: { release: Release | null }) {
@@ -18,7 +29,7 @@ export function Hero({ release }: { release: Release | null }) {
         <div className="grid items-center gap-16 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
           <div>
             <p
-              className="rise label flex flex-wrap items-center gap-3 text-fg-3"
+              className="rise label grid w-fit grid-cols-[auto_auto] gap-x-7 gap-y-2.5 text-fg-3 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3"
               style={{ animationDelay: "40ms" }}
             >
               {/* Dropped entirely when the release could not be read, rather

@@ -26,7 +26,7 @@ export function Portable() {
   return (
     <section className="border-b border-line py-24 sm:py-28">
       <div className="shell">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-end lg:gap-20">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:items-end md:gap-12 lg:gap-20">
           <h2 className="display text-[clamp(1.9rem,4vw,3.1rem)]">
             A training log you can carry out the door.
           </h2>
@@ -37,7 +37,7 @@ export function Portable() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-12 sm:mt-16 lg:grid-cols-2 lg:gap-20">
+        <div className="mt-14 grid gap-12 sm:mt-16 md:grid-cols-2 md:gap-12 lg:gap-20">
           {HALVES.map((half, i) => (
             <Reveal
               key={half.title}

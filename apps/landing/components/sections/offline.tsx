@@ -50,7 +50,7 @@ export function Offline() {
           opener on this page puts the lede under the headline; putting them
           in one row here is what stops the six sections opening identically.
         */}
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-end lg:gap-20">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] md:items-end md:gap-12 lg:gap-20">
           <h2 className="display text-[clamp(2rem,4.4vw,3.5rem)]">
             It all lives on your phone. Everything else follows from that
             <span className="text-volt">.</span>
