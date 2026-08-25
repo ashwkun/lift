@@ -1,21 +1,22 @@
-import { Phone } from "@/components/site/phone";
 import { Reveal } from "@/components/site/reveal";
-import { screens, type Screen } from "@/lib/screens";
 
 /*
  * Two doors, so two columns, and the headline sits between them rather than
- * above the pair. The devices are side by side at the same size because that is
- * the argument: in and out were built at the same time and neither is the
- * afterthought.
+ * above the pair.
+ *
+ * No devices here any more. The import and export screens are both a list of
+ * what a file holds, which is the one kind of screen a 232px phone frame turns
+ * into grey lines: they were the two shots on the page you had to already know
+ * to read. Set as text under a rule each, the pair still says what it was
+ * there to say, which is that in and out were built at the same time and
+ * neither is the afterthought.
  */
-const HALVES: { screen: Screen; title: string; body: string }[] = [
+const HALVES = [
   {
-    screen: screens.import,
     title: "Moving in",
     body: "Point it at a Hevy CSV, a Lyfta export, a backup from another phone, or any CSV at all that has a date, an exercise and a set in it. Nothing is written until you say so, and importing the same file twice adds nothing the second time.",
   },
   {
-    screen: screens.backup,
     title: "Moving out",
     body: "One file holding every workout, set, routine, record and measurement on the phone. Writing it only reads, so it still works on a day when something else is failing. There is a row-per-set spreadsheet export as well.",
   },
@@ -36,27 +37,19 @@ export function Portable() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-14 sm:mt-16 lg:grid-cols-2 lg:gap-20">
+        <div className="mt-14 grid gap-12 sm:mt-16 lg:grid-cols-2 lg:gap-20">
           {HALVES.map((half, i) => (
             <Reveal
               key={half.title}
               delay={i * 90}
-              className="flex flex-col items-start gap-9 sm:flex-row sm:items-center sm:gap-10 lg:flex-col lg:items-start"
+              className="border-t border-line pt-8"
             >
-              <Phone
-                screen={half.screen}
-                size="md"
-                className="shrink-0"
-                sizes="(max-width: 1024px) 45vw, 232px"
-              />
-              <div>
-                <h3 className="display text-[clamp(1.4rem,2.4vw,1.9rem)]">
-                  {half.title}
-                </h3>
-                <p className="mt-4 max-w-[48ch] leading-[1.7] text-fg-2">
-                  {half.body}
-                </p>
-              </div>
+              <h3 className="display text-[clamp(1.4rem,2.4vw,1.9rem)]">
+                {half.title}
+              </h3>
+              <p className="mt-4 max-w-[48ch] leading-[1.7] text-fg-2">
+                {half.body}
+              </p>
             </Reveal>
           ))}
         </div>

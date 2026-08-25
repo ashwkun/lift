@@ -13,9 +13,6 @@
  *   node scripts/screenshots/capture.mjs          # in another
  *
  * Flags:
- *   --landing          take the landing page's set instead: different geometry,
- *                      different shots, written to apps/landing/public/screens
- *                      as WebP. See `LANDING_SHOTS`.
  *   --url <origin>     where the dev server is (default http://localhost:8081)
  *   --out <dir>        where the PNGs go (default screenshots/)
  *   --only a,b,c       just these shots, by name
@@ -35,7 +32,6 @@
  * and found through PLAYWRIGHT_CHROMIUM if it lives somewhere unusual.
  */
 
-import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdir, rm } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
@@ -53,28 +49,12 @@ const ROOT = resolve(HERE, '../..');
 
 const args = parseArgs(process.argv.slice(2));
 
-const LANDING = args.landing === true;
-
 const URL = args.url ?? 'http://localhost:8081';
-const OUT = resolve(
-  ROOT,
-  args.out ?? (LANDING ? 'apps/landing/public/screens' : 'screenshots'),
-);
+const OUT = resolve(ROOT, args.out ?? 'screenshots');
 const PROFILE = resolve(ROOT, 'node_modules/.cache/lift-screenshots');
 
 /** A phone, at the size the app is designed against. */
 const PHONE = { width: 390, height: 844 };
-
-/**
- * The landing page's geometry, which is not this one.
- *
- * `apps/landing/lib/screens.ts` declares 1080x2340, the resolution of the phone
- * the set was originally shot on, and the page's frames are built around that
- * aspect. At two device pixels per CSS pixel that is 540x1170, which is also a
- * taller viewport than `PHONE`: the same screens show more rows, which is what
- * a marketing shot wants and a README figure does not.
- */
-const LANDING_PHONE = { width: 540, height: 1170 };
 
 /** Wide enough to cross the 840px line where the tab bar becomes a side rail. */
 const DESKTOP = { width: 1280, height: 860 };
@@ -91,6 +71,14 @@ const SCALE = 2;
  * photographing. `settle` is generous on purpose: several of these screens run
  * an analytics scan over three and a half thousand sets on focus, and a
  * screenshot taken mid-scan shows an empty card that the app would have filled.
+ *
+ * **This is the only set.** There was a second one for the landing page, shot
+ * at a taller geometry and written out as WebP, and keeping two photographs of
+ * the same screens honest turned out to be one job too many: the page's copy
+ * drifted from its own images the first time the app moved. `apps/landing`
+ * imports these PNGs directly now, so renaming a shot here renames it in
+ * `apps/landing/lib/screens.ts`, and a shot removed from this list is a device
+ * that has to come off the page.
  */
 const SHOTS = [
   { name: 'home', route: '/', settle: 3500, await: 'This week' },
@@ -123,42 +111,15 @@ const SHOTS = [
   { name: 'theme-solarized', route: '/calendar', theme: 'solarized', settle: 3000 },
 ];
 
-/** Taken last, at desktop width, from whatever state the run has reached. */
+/**
+ * Taken last, at desktop width, from whatever state the run has reached.
+ *
+ * Kept apart from `SHOTS` because the desktop layout is a claim the README
+ * makes and the landing page does not: the page's frames are phone-shaped, and
+ * a 1280pt screenshot inside one would be a picture of the wrong app.
+ */
 const DESKTOP_SHOTS = [
   { name: 'desktop', route: '/', theme: 'dark', settle: 3500 },
-];
-
-/**
- * The landing page's thirteen, named for the keys in `apps/landing/lib/screens.ts`.
- *
- * A separate list rather than a subset of `SHOTS`, because the two sets are
- * answering different questions. The README's figures are a tour of the app for
- * somebody reading the source; these are the ones the marketing page frames
- * inside a phone, and `lib/screens.ts` carries a sentence of alt text for each.
- * **Renaming one here means renaming it there**, and the file is the reason the
- * names are hyphenated rather than matching the camelCase keys.
- *
- * Two of them are not a route. A workout in progress and a running rest timer
- * are states rather than screens, and the only honest way to photograph a state
- * is to put the app into it.
- */
-const LANDING_SHOTS = [
-  { name: 'home', route: '/', settle: 3500, await: 'This week' },
-  { name: 'workout', route: '/workout', settle: 2500 },
-  { name: 'statistics', route: '/stats', settle: 3500 },
-  { name: 'calendar', route: '/calendar', settle: 3000 },
-  { name: 'history', settle: 3000, prepare: openAllTimeHistory },
-  { name: 'history-muscles', route: '/stats/muscle-sets', settle: 3500 },
-  { name: 'exercises', route: '/exercises', settle: 3000 },
-  { name: 'body', route: '/measurements', settle: 3000 },
-  { name: 'profile', route: '/profile', settle: 2500 },
-  { name: 'backup', route: '/export', settle: 3000 },
-  { name: 'import', route: '/import', settle: 2000 },
-
-  // Last two, and in this order: the session has to exist before the timer it
-  // is counting down can be opened, and both leave a workout open behind them.
-  { name: 'active-workout', route: null, settle: 3000, prepare: openActiveSession },
-  { name: 'rest-timer', settle: 2000, prepare: openRestTimer },
 ];
 
 // ---------------------------------------------------------------------------
@@ -175,7 +136,7 @@ const context = await chromium.launchPersistentContext(PROFILE, {
   executablePath: chromiumPath(),
   headless: !args.headed,
   args: ['--no-sandbox', '--hide-scrollbars'],
-  viewport: LANDING ? LANDING_PHONE : PHONE,
+  viewport: PHONE,
   deviceScaleFactor: SCALE,
   // Not `isMobile`: that turns on viewport-meta emulation, which rescales the
   // page. The app decides its layout from the window width alone, so a narrow
@@ -210,15 +171,12 @@ await discardOpenSession(page);
 
 const wanted = args.only ? new Set(args.only.split(',').map((name) => name.trim())) : null;
 
-for (const shot of LANDING ? LANDING_SHOTS : SHOTS) {
+for (const shot of SHOTS) {
   if (wanted && !wanted.has(shot.name)) continue;
   await capture(page, shot);
 }
 
-// The desktop layout is a claim the README makes and the landing page does not:
-// its frames are phone-shaped, and a 1280pt screenshot inside one would be a
-// picture of the wrong app.
-if (!LANDING && (!wanted || wanted.has('desktop'))) {
+if (!wanted || wanted.has('desktop')) {
   await page.setViewportSize(DESKTOP);
   for (const shot of DESKTOP_SHOTS) await capture(page, shot);
 }
@@ -496,32 +454,9 @@ async function capture(page, shot) {
   // a thing the phone does not draw.
   await page.evaluate(() => document.activeElement?.blur?.());
 
-  if (!LANDING) {
-    const file = `${OUT}/${shot.name}.png`;
-    await page.screenshot({ path: file });
-    console.log(`  ${shot.name}.png`);
-    return;
-  }
-
-  /*
-   * WebP, because that is what `lib/screens.ts` asks for and what a page
-   * shipping thirteen full-resolution phone screens can afford. Written through
-   * a PNG rather than straight out of Playwright, which only encodes PNG and
-   * JPEG: JPEG on a true-black canvas with 11px uppercase labels on it is
-   * exactly the image a lossy DCT is worst at.
-   *
-   * Quality 82 rather than lossless: these are flat fills and text at 2x, so
-   * lossless lands around 400 KB a screen and this lands near 60 without a
-   * visible difference at the size the page draws them.
-   */
-  const png = `${OUT}/${shot.name}.png`;
-  const webp = `${OUT}/${shot.name}.webp`;
-
-  await page.screenshot({ path: png });
-  execFileSync('magick', [png, '-quality', '82', '-define', 'webp:method=6', webp]);
-  await rm(png, { force: true });
-
-  console.log(`  ${shot.name}.webp`);
+  const file = `${OUT}/${shot.name}.png`;
+  await page.screenshot({ path: file });
+  console.log(`  ${shot.name}.png`);
 }
 
 /**
@@ -548,28 +483,6 @@ async function setTheme(page, theme) {
   await page.waitForTimeout(500);
 }
 
-/**
- * The history screen on its All time range rather than its default three months.
- *
- * The landing page's frame is the whole year the seed builds, and three months
- * of it under a caption reading "History" undersells the screen and disagrees
- * with the alt text beside it. The README's copy of this shot keeps the default,
- * because that is the screen the app actually opens on.
- */
-async function openAllTimeHistory(page) {
-  await navigate(page, '/history');
-  await page.waitForTimeout(2500);
-
-  const allTime = page.getByText('All time', { exact: true });
-
-  if ((await allTime.count()) === 0) {
-    console.warn('  ! history: no All time range control');
-    return;
-  }
-
-  await allTime.first().click();
-}
-
 /** Throws away a session left open by an earlier run. Silent when there is none. */
 async function discardOpenSession(page) {
   const discarded = await page.evaluate(async () => {
@@ -585,29 +498,6 @@ async function discardOpenSession(page) {
   });
 
   if (discarded) console.log('  discarded a session left open by an earlier run');
-}
-
-/**
- * Opens the rest timer sheet over the session `openActiveSession` left running.
- *
- * Through the header control rather than by setting the store, because the
- * sheet's own open state is local to the logging screen and there is no way in
- * from outside it. That is the right design for the app and it means this shot
- * is a real tap on a real button, which is the only way it could be wrong in
- * the same way a user's would be.
- */
-async function openRestTimer(page) {
-  await navigate(page, '/workout/active');
-  await page.waitForTimeout(2500);
-
-  const control = page.getByRole('button', { name: /^Rest timer/ });
-
-  if ((await control.count()) === 0) {
-    console.warn('  ! rest-timer: no timer control on the logging screen');
-    return;
-  }
-
-  await control.first().click();
 }
 
 /**

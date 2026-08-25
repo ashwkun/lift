@@ -2,7 +2,7 @@ import Image from "next/image";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
-import { SCREEN_HEIGHT, SCREEN_WIDTH, type Screen } from "@/lib/screens";
+import { type Screen } from "@/lib/screens";
 
 /*
  * A device frame, deliberately generic.
@@ -20,12 +20,6 @@ const frame = cva(
       size: {
         lg: "w-[clamp(14rem,30vw,21rem)] rounded-[2.35rem] p-[0.4rem]",
         md: "w-[clamp(12rem,24vw,15.5rem)] rounded-[2rem] p-[0.34rem]",
-        /*
-         * Two of these sit side by side in one feature row, so the width has to
-         * fall far enough for a pair plus a gap to clear a 360px phone. `md`
-         * bottoms out at 12rem, which two of would overflow by fifty pixels.
-         */
-        pair: "w-[clamp(8rem,19vw,13rem)] rounded-[1.75rem] p-[0.3rem]",
         sm: "w-[9.5rem] rounded-[1.5rem] p-[0.26rem]",
       },
     },
@@ -38,7 +32,6 @@ const inner = cva("block h-auto w-full bg-ink object-cover", {
     size: {
       lg: "rounded-[2rem]",
       md: "rounded-[1.7rem]",
-      pair: "rounded-[1.5rem]",
       sm: "rounded-[1.28rem]",
     },
   },
@@ -53,6 +46,12 @@ interface PhoneProps extends VariantProps<typeof frame> {
   sizes?: string;
 }
 
+/*
+ * `screen.src` is a static import, so its intrinsic width and height come off
+ * the file at build time. That is the whole reason the sizes are not declared
+ * anywhere here: the frames are built around whatever aspect the capture script
+ * produced, and there is no second number to keep in step with it.
+ */
 export function Phone({
   screen,
   size = "md",
@@ -65,8 +64,6 @@ export function Phone({
       <Image
         src={screen.src}
         alt={screen.alt}
-        width={SCREEN_WIDTH}
-        height={SCREEN_HEIGHT}
         sizes={sizes}
         priority={priority}
         quality={88}

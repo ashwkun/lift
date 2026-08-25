@@ -379,10 +379,10 @@ drives a real browser, hands it to the app's own importer, and photographs each
 screen, so every volume, estimated 1RM and personal record on display was
 computed by the app rather than written into the fixture.
 
-`--landing` takes the other set: the thirteen screens the marketing page frames
-inside a phone, at the 1080x2340 geometry `apps/landing/lib/screens.ts`
-documents, written there as WebP. Same harness, same generated year, different
-shot list and different output.
+There is no second set. The landing page frames eight of these same PNGs,
+imported straight out of `screenshots/` by `apps/landing/lib/screens.ts`, so one
+run of the script updates the README and the marketing page together and neither
+can be showing an older app than the other.
 
 Two things follow from being a screenshot tool rather than part of the app.
 Playwright is not a dependency here (`npm i -g playwright-core && npx playwright

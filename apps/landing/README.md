@@ -70,22 +70,37 @@ registered twice.
 
 ## Screenshots
 
-`public/screens` holds thirteen 1080x2340 captures of the app, converted to
-WebP. `lib/screens.ts` names them and carries their alt text. Replacing one
-means replacing the file and, if what it shows changed, the sentence next to it.
+The page frames eight PNGs out of [`screenshots/`](../../screenshots) at the
+repository root, the same set the root README shows. `lib/screens.ts` imports
+them by name and carries their alt text; the imports are static, so Next reads
+each file's real dimensions at build time and there is no declared geometry here
+to fall out of step with the images.
 
 They are retaken by script rather than off a phone by hand:
 
 ```bash
 cd apps/mobile && npx expo start --web        # in one terminal
-node scripts/screenshots/capture.mjs --landing --fresh   # in another
+node scripts/screenshots/capture.mjs --fresh  # in another
 ```
 
-`scripts/screenshots/` at the repository root is the same harness that takes the
-figures in the root README, pointed at this directory and at the phone geometry
-`lib/screens.ts` documents. The training log behind every figure is generated
-from a fixed seed, so the numbers are the app's own arithmetic over a year that
-belongs to nobody. The root README's Screenshots section has the rest.
+This directory used to keep its own `public/screens`, thirteen WebP captures at
+a taller geometry, taken by the same harness under a `--landing` flag. Both are
+gone. Two sets of photographs of the same screens is two sets to keep true, and
+the copy on this page drifted from its own images the first time the app moved.
+The cost of the merge is that `capture.mjs` no longer takes the rest timer, the
+muscle-sets breakdown, the exercise library, import or backup, so those sections
+are set as text with no device beside them. Adding a shot back to `SHOTS` is
+what it takes to give any of them a phone again.
+
+The training log behind every figure is generated from a fixed seed, so the
+numbers are the app's own arithmetic over a year that belongs to nobody. An alt
+text or a sentence here that quotes a figure has to be re-read off the new image
+when the set is retaken. The root README's Screenshots section has the rest.
+
+Because the images live outside this directory, `Dockerfile` copies
+`screenshots/` into the build stage alongside `apps/landing`. That is the same
+constraint the fonts note above describes, answered the other way: the fonts are
+small enough to keep a copy of, and a phone screenshot per screen is not.
 
 ## Social card and icons
 

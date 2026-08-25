@@ -4,7 +4,8 @@ import { screens, type Screen } from "@/lib/screens";
 import { cn } from "@/lib/utils";
 
 /*
- * An opening spread, then three rows, and no two of them the same shape.
+ * An opening spread, a band of text, then two rows, and no two of them the same
+ * shape.
  *
  * The spread is the fix for a specific failure: the logging screen deserves the
  * largest device on the page, but a 730px-tall phone beside two hundred pixels
@@ -14,10 +15,11 @@ import { cn } from "@/lib/utils";
  * measure honestly rather than by padding it, and the section opens on its best
  * screen instead of on a heading with a gap under it.
  *
- * The three rows below then alternate, with the statistics row pairing two
- * devices because the body map and the per-muscle breakdown are one idea shown
- * twice. Alternating is a fine rhythm and a fatal pattern; the pair is what
- * keeps it from becoming one.
+ * The band under it is the rest timer, and it has no device because there is no
+ * screenshot of one in `screenshots/`: the timer is a sheet over a running
+ * session rather than a screen the capture script can navigate to. Setting it as
+ * two columns of text rather than faking a device is the honest version, and it
+ * breaks up the alternation below, which is a fine rhythm and a fatal pattern.
  *
  * Two repeated devices came out of every row rather than went in: a mono
  * caption that restated the screen's own title, and a lime-dot footnote under
@@ -27,8 +29,6 @@ import { cn } from "@/lib/utils";
  */
 interface Feature {
   screen: Screen;
-  /** A second device beside the first. Changes the whole row. */
-  companion?: Screen;
   title: string;
   body: string;
 }
@@ -39,15 +39,14 @@ const OPENING: Feature = {
   body: "Weight, reps, done. Last session's numbers sit beside every row so you know what you are chasing, and checking a set off starts the rest timer without moving anything else on the screen. Nothing happens between the rep and the record.",
 };
 
+const TIMER = {
+  title: "Rest is a deadline, not a stopwatch.",
+  body: "The countdown carries on in your notification shade whether or not the app is open, and it stays right even if you swipe the app away. Adding fifteen seconds moves one number rather than nudging two clocks back into step.",
+};
+
 const FEATURES: Feature[] = [
   {
-    screen: screens.restTimer,
-    title: "Rest is a deadline, not a stopwatch.",
-    body: "The countdown carries on in your notification shade whether or not the app is open, and it stays right even if you swipe the app away. Adding fifteen seconds moves one number rather than nudging two clocks back into step.",
-  },
-  {
     screen: screens.statistics,
-    companion: screens.historyMuscles,
     title: "Where the volume actually went.",
     body: "Weekly sets per muscle, drawn on the figure instead of listed in a table, shaded against the range each one actually grows in. Warm-up sets are left out here and everywhere else, because counting them would inflate every number on the screen.",
   },
@@ -62,7 +61,6 @@ const FEATURES: Feature[] = [
    not shown yet. */
 const RAIL: Screen[] = [
   screens.workout,
-  screens.exercises,
   screens.history,
   screens.body,
   screens.profile,
@@ -79,7 +77,7 @@ export function Screens() {
             </h2>
             <p className="mt-7 max-w-[56ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
               Every screen below is the app itself, with a year of training
-              behind it: 179 sessions, 3,143 sets. None of it is a mockup, and
+              behind it: 179 sessions, 1,646,444 kg. None of it is a mockup, and
               every figure on them was computed by the app rather than typed
               into the picture.
             </p>
@@ -95,7 +93,7 @@ export function Screens() {
           </div>
 
           <div className="relative flex justify-center lg:justify-end">
-            {/* The one screen glow on the page. Applied to all eight devices it
+            {/* The one screen glow on the page. Applied to all the devices it
                 stopped reading as light and started reading as a filter. */}
             <div
               aria-hidden
@@ -110,17 +108,29 @@ export function Screens() {
           </div>
         </div>
 
+        {/*
+          Heading left, body right, both on one rule. The only row in the
+          section that is text the whole way across, which is what stops the two
+          device rows under it from reading as a template.
+        */}
+        <Reveal
+          as="article"
+          className="mt-24 border-t border-line pt-12 sm:mt-28 sm:pt-14"
+        >
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-20">
+            <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
+              {TIMER.title}
+            </h3>
+            <p className="max-w-[54ch] leading-[1.7] text-fg-2">{TIMER.body}</p>
+          </div>
+        </Reveal>
+
         <div className="mt-24 space-y-24 sm:mt-28 sm:space-y-28">
           {FEATURES.map((feature, i) => (
             <Reveal
               as="article"
               key={feature.title}
-              className={cn(
-                "grid items-center gap-12",
-                feature.companion
-                  ? "lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20"
-                  : "lg:grid-cols-2 lg:gap-16",
-              )}
+              className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16"
             >
               {/*
                 The device is pushed toward the copy rather than centred in its
@@ -130,36 +140,20 @@ export function Screens() {
               */}
               <div
                 className={cn(
-                  "relative flex items-center justify-center gap-4 sm:gap-6",
+                  "relative flex items-center justify-center",
                   i % 2 === 1
                     ? "lg:order-2 lg:justify-start"
                     : "lg:justify-end",
-                  feature.companion && "lg:order-2 lg:justify-start",
                 )}
               >
                 <Phone
                   screen={feature.screen}
-                  size={feature.companion ? "pair" : "md"}
-                  sizes={
-                    feature.companion
-                      ? "(max-width: 640px) 40vw, 208px"
-                      : "(max-width: 1024px) 55vw, 248px"
-                  }
+                  size="md"
+                  sizes="(max-width: 1024px) 55vw, 248px"
                 />
-                {feature.companion ? (
-                  <Phone
-                    screen={feature.companion}
-                    size="pair"
-                    sizes="(max-width: 640px) 40vw, 208px"
-                  />
-                ) : null}
               </div>
 
-              <div
-                className={cn(
-                  (i % 2 === 1 || feature.companion) && "lg:order-1",
-                )}
-              >
+              <div className={cn(i % 2 === 1 && "lg:order-1")}>
                 <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
                   {feature.title}
                 </h3>
@@ -173,8 +167,8 @@ export function Screens() {
 
         <Reveal className="mt-28 sm:mt-32">
           <p className="max-w-[46ch] text-fg-3">
-            The rest of it: routines, the exercise library, bodyweight and
-            measurements, and everything the profile tab reaches.
+            The rest of it: your routines, the history behind the charts,
+            bodyweight and measurements, and everything the profile tab reaches.
           </p>
 
           {/*
@@ -186,7 +180,7 @@ export function Screens() {
           */}
           <ul className="rail mt-8 -mx-5 flex snap-x snap-mandatory scroll-pl-5 gap-5 overflow-x-auto px-5 pb-5 sm:-mx-8 sm:scroll-pl-8 sm:px-8 lg:-mx-12 lg:scroll-pl-12 lg:px-12">
             {RAIL.map((screen) => (
-              <li key={screen.src} className="snap-start">
+              <li key={screen.caption} className="snap-start">
                 <Phone screen={screen} size="sm" sizes="152px" />
                 <p className="mt-3 text-sm text-fg-3">{screen.caption}</p>
               </li>

@@ -72,6 +72,14 @@ RUN test -n "$NEXT_PUBLIC_SITE_URL" || { \
 COPY tsconfig.base.json ./
 COPY apps/landing apps/landing
 
+# The screenshots the page frames, which live at the repository root because the
+# README shows the same set — see the note at the top of `lib/screens.ts`. They
+# are statically imported rather than served out of `public`, so the build reads
+# them off disk here and emits them into `.next/static`; leave this out and the
+# build fails on an unresolved import rather than shipping a page with holes in
+# it. Nothing needs them at runtime.
+COPY screenshots screenshots
+
 # The build prerenders the page, which includes one call to the GitHub releases
 # API. It is allowed to fail: `latestRelease` answers null and the page ships
 # without a version rather than with a guessed one, and the first revalidation
@@ -96,10 +104,11 @@ ENV HOSTNAME=0.0.0.0
 # there every revalidation fails silently and the page freezes at build time.
 COPY --from=build --chown=node:node /app/apps/landing/.next/standalone ./
 
-# The tracer deliberately excludes both of these — they are served, not
-# imported, so nothing in the graph points at them.
+# The tracer deliberately excludes this: it is served, not imported, so nothing
+# in the graph points at it. There is no `public` to copy alongside it any more.
+# It held the page's screenshots and nothing else, and those are now compiled in
+# from `screenshots/` at the repository root, which lands them here.
 COPY --from=build --chown=node:node /app/apps/landing/.next/static ./apps/landing/.next/static
-COPY --from=build --chown=node:node /app/apps/landing/public ./apps/landing/public
 
 USER node
 
