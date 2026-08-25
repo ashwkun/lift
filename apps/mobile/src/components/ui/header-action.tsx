@@ -213,9 +213,10 @@ export interface HeaderHeadingProps {
  * an inch high and never once says which seven days that is.
  *
  * Rendered through `headerTitle` rather than `headerTitleStyle`, so the type
- * here has to match `headerOptions` by hand: `display` *is* that variant: 38 in
- * the display cut at -1.2, and the two are only the same because they are both
- * written down. Change one and change the other.
+ * here has to match `headerOptions` by hand: the `display` variant's face and
+ * tracking, resized to `MASTHEAD_SIZE`. Both sides read that constant, so the
+ * size itself stays in step on its own; the face and the tracking are still
+ * written down twice. Change one and change the other.
  *
  * The subtitle sits at `textSecondary` where a `ListRow`'s sits at
  * `textTertiary`, and the difference is not an oversight. The third tier is for
@@ -228,7 +229,12 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
     <View style={styles.heading}>
       {/* The role the platform's own header title carries, restated because
           replacing that component means replacing what it announced. */}
-      <Text variant="display" numberOfLines={1} accessibilityRole="header">
+      <Text
+        variant="display"
+        style={styles.headingTitle}
+        numberOfLines={1}
+        accessibilityRole="header"
+      >
         {title}
       </Text>
       {subtitle !== undefined && (
@@ -241,14 +247,33 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
 }
 
 /**
- * The masthead title: left at the margin, 38 in the display cut.
+ * The masthead's size, and the leading that goes with it.
  *
- * The size is the `display` variant's, which is Nuvio's `pageDisplay` exactly:
- * 38 at -1.2 in the heaviest face the family ships. Against the margin this
- * *is* the page's title rather than a label on a bar above it. At 17 it read as
- * chrome with the content's own headings shouting past it, and at the 24 it sat
- * at before that it was merely the same size as an in-content heading, which
- * says the page's name is worth no more than the sections inside it.
+ * Off the `fontSize` ladder on purpose: it is a step between `xxxl` (28, what
+ * an in-content heading takes) and `display` (38, the token this used to take
+ * whole), and it is a header-only size, so it lives here rather than in the
+ * tokens where a call site could reach for it. The leading keeps `display`'s
+ * ratio, near enough, so the tab headers' two lines sit where they did.
+ *
+ * Read by both places a masthead is drawn: `mastheadTitle`, for the titles the
+ * navigator renders itself, and `HeaderHeading`, for the ones with a subtitle.
+ */
+const MASTHEAD_SIZE = 32;
+const MASTHEAD_LINE_HEIGHT = 36;
+
+/**
+ * The masthead title: left at the margin, 32 in the display cut.
+ *
+ * The face and the tracking are the `display` variant's, which is Nuvio's
+ * `pageDisplay`: -1.2 in the heaviest face the family ships. The size sits
+ * under that token, 32 against its 38, which is the only part of the variant
+ * this does not take verbatim: at 38 the title crowded the actions beside it,
+ * and 32 still clears the 28 an in-content heading takes, so it is the largest
+ * type on the screen. Against the margin this *is* the page's title rather than
+ * a label on a bar above it. At 17 it read as chrome with the content's own
+ * headings shouting past it, and at the 24 it sat at before that it was merely
+ * the same size as an in-content heading, which says the page's name is worth
+ * no more than the sections inside it.
  *
  * **Weight is at the family ceiling here and cannot go further.** `display` is
  * JetBrains Sans Bold, 700, and the family publishes nothing above it. If this
@@ -261,9 +286,9 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
  * ("Leaderboard exercises", a workout the user called "Upper Body Heavy" beside
  * a Finish pill) truncate immediately. Against the margin it starts where every
  * other first line on the screen starts and has the whole width up to the
- * actions. That margin is what the jump from 24 to 38 spends, so the long names
+ * actions. That margin is what the jump from 24 to 32 spends, so the long names
  * above are the ones to check: `numberOfLines={1}` means they clip rather than
- * wrap, and the knob is this number.
+ * wrap, and the knob is `MASTHEAD_SIZE`.
  *
  * Exported because a stack screen with no back control opts back into it; see
  * `stackHeaderOptions`.
@@ -271,7 +296,7 @@ export function HeaderHeading({ title, subtitle }: HeaderHeadingProps) {
 export function mastheadTitle(colors: Palette) {
   return {
     headerTitleStyle: {
-      fontSize: fontSize.display,
+      fontSize: MASTHEAD_SIZE,
       ...font('display'),
       letterSpacing: letterSpacing.pageDisplay,
       color: colors.text,
@@ -316,7 +341,7 @@ export function headerOptions(colors: Palette) {
  *
  * The size comes down with the alignment, and it has to. See `mastheadTitle`:
  * a centred title is sized by what is left after both ends have taken their
- * share, and 38 in the display cut does not survive that next to a chevron and
+ * share, and 32 in the display cut does not survive that next to a chevron and
  * an action. 18 in the semibold cut is the `subheading` variant, and it still
  * reads as the page's name rather than as chrome. The gap between the two is
  * now much wider than it was, which is the point: a masthead is the page, a
@@ -416,6 +441,9 @@ const styles = StyleSheet.create({
   // and the tighter set is what keeps them reading as a title with a caption
   // rather than as two stacked labels.
   heading: { gap: 2 },
+  // The `display` variant at the masthead's size rather than the token's. See
+  // `MASTHEAD_SIZE`: the face and the tracking come from the variant.
+  headingTitle: { fontSize: MASTHEAD_SIZE, lineHeight: MASTHEAD_LINE_HEIGHT },
   action: {
     flexDirection: 'row',
     alignItems: 'center',
