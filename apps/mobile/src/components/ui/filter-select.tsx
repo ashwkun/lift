@@ -1,26 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import {
-  BottomSheetBackdrop,
-  BottomSheetFooter,
-  BottomSheetModal,
-  type BottomSheetBackdropProps,
-  type BottomSheetFooterProps,
-} from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { controlHeight, HIT_SLOP, radius, spacing, stroke, useColors, useLayout } from '@/theme';
+import { controlHeight, radius, spacing, stroke, useColors } from '@/theme';
 
 import { Button } from './button';
-import { SheetScrollView, useSheetLayout } from './sheet-layout';
+import { Sheet, SheetAction } from './sheet';
+import { SheetScrollView } from './sheet-layout';
 import { Divider } from './surfaces';
 import { Text } from './text';
-
-/** How much of the window's height a docked sheet may fill before it scrolls
- *  internally. The same cap the wide dialog's `maxHeight: '80%'` already used. */
-const MAX_DOCKED_HEIGHT_FRACTION = 0.8;
 
 export interface FilterOption<T extends string> {
   value: T;
@@ -85,7 +74,7 @@ export function FilterTrigger({ label, summary, expanded = false, onPress }: Fil
 }
 
 // ---------------------------------------------------------------------------
-// Sheet
+// FilterSheet
 // ---------------------------------------------------------------------------
 
 export interface FilterSheetProps {
@@ -111,248 +100,35 @@ export interface FilterSheetProps {
 }
 
 /**
- * Bottom sheet chrome shared by every filter dimension.
+ * A filter dimension's drawer.
  *
- * Owns the modal, the backdrop, the heading and the two ways out, so a sheet
- * full of checkboxes and a sheet holding a body map dismiss identically.
- *
- * Renders as two different surfaces on the same breakpoint `useSheetLayout`
- * already splits on: a draggable `BottomSheetModal` docked to the bottom
- * edge on a phone, and the app's existing centred `Modal` dialog once the
- * window is wide. The dialog's implementation is untouched rather than given
- * a drag handle of its own — `@gorhom/bottom-sheet` has no centred-dialog
- * mode to fall back on, and a drag-to-dismiss affordance means nothing next
- * to a mouse pointer, the same reasoning `RestTimerSheet`'s decorative
- * grabber already documents for a floating dialog.
+ * The chrome itself is `Sheet`, which every drawer in the app shares. What is
+ * left here is the wording: a filter's `label` names a dimension rather than a
+ * thing, so "Close Muscle" would read as an instruction about a muscle. Both
+ * spoken labels say what they operate on.
  */
 export function FilterSheet({ visible, label, onClose, onClear, children, footer }: FilterSheetProps) {
-  const colors = useColors();
-  const sheetLayout = useSheetLayout();
-  const { isWide } = useLayout();
-  const { height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const sheetRef = useRef<BottomSheetModal>(null);
-
-  // Bridges the boolean prop this component has always taken to the
-  // imperative `present`/`dismiss` pair `BottomSheetModal` actually wants.
-  // Only active once docked: while wide, `sheetRef` is never attached to
-  // anything, so this is a no-op on that path.
-  useEffect(() => {
-    if (isWide) return;
-    if (visible) sheetRef.current?.present();
-    else sheetRef.current?.dismiss();
-  }, [visible, isWide]);
-
-  // `BottomSheetModal` does not wire Android's hardware back button the way
-  // RN's own `Modal` wires it to `onRequestClose` for free, so it is wired
-  // here explicitly, and only while a docked sheet is actually open: two
-  // filters open in a row must not both react to one back press.
-  useEffect(() => {
-    if (isWide || !visible) return;
-
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [isWide, visible, onClose]);
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        pressBehavior="close"
-        style={[props.style, { backgroundColor: colors.overlay }]}
-      />
-    ),
-    [colors.overlay],
-  );
-
-  // The header row, reused verbatim from the wide dialog below, plus the
-  // grabber pill: this is `handleComponent`, not a plain child, because
-  // `enableDynamicSizing` tracks the handle's height as its own field
-  // (`handleHeight`) separately from the scrollable body's, which is what
-  // lets a short list size to content with the header still pinned above it.
-  const renderHandle = useCallback(
-    () => (
-      <View accessibilityViewIsModal>
-        <View style={styles.grabberRow}>
-          <View style={[styles.grabber, { backgroundColor: colors.borderStrong }]} pointerEvents="none" />
-        </View>
-        <View style={styles.sheetHeader}>
-          <Text
-            variant="overline"
-            color="textTertiary"
-            accessibilityRole="header"
-            style={styles.flex}
-          >
-            {label}
-          </Text>
-          {onClear && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
-              onPress={onClear}
-              hitSlop={HIT_SLOP}
-              style={({ pressed }) => [
-                styles.clear,
-                pressed && { backgroundColor: colors.surfacePressed },
-              ]}
-            >
-              <Text variant="label" color="accent">
-                Clear
-              </Text>
-            </Pressable>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Close ${label.toLowerCase()} filter`}
-            onPress={onClose}
-            hitSlop={HIT_SLOP}
-            style={({ pressed }) => [
-              styles.close,
-              pressed && { backgroundColor: colors.surfacePressed },
-            ]}
-          >
-            <Ionicons name="close" size={18} color={colors.textSecondary} />
-          </Pressable>
-        </View>
-      </View>
-    ),
-    [colors, label, onClear, onClose],
-  );
-
-  // Same reasoning as the handle: a footer folded into the scrollable body
-  // would be counted as part of its height rather than pinned beneath it.
-  // `undefined` rather than always returning `BottomSheetFooter` so a sheet
-  // with nothing to pin (`OptionList`'s callers) doesn't reserve space for
-  // one.
-  const renderFooter = useMemo(
-    () =>
-      footer
-        ? (props: BottomSheetFooterProps) => (
-            <BottomSheetFooter
-              {...props}
-              bottomInset={insets.bottom}
-              style={{ backgroundColor: colors.surfaceElevated }}
-            >
-              {footer}
-            </BottomSheetFooter>
-          )
-        : undefined,
-    [footer, insets.bottom, colors.surfaceElevated],
-  );
-
-  if (isWide) {
-    return (
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        {/*
-          `accessible={false}` on both Pressables, deliberately.
-
-          Pressable defaults to `accessible`, which collapses everything under
-          it into one element, so the backdrop announced the entire sheet as a
-          single button reading all 21 muscle groups in a row, and no option
-          inside it could be reached. This is the control that gates every
-          search on the exercise library, so it cannot be a blob.
-        */}
-        <Pressable
-          accessible={false}
-          style={[styles.backdrop, { backgroundColor: colors.overlay }, sheetLayout.backdrop]}
-          onPress={onClose}
-        >
-          <Pressable
-            accessible={false}
-            // Hides the list behind the sheet from VoiceOver, so focus lands on
-            // the sheet's own heading when it opens and a swipe past the last
-            // option comes back to it.
-            accessibilityViewIsModal
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: colors.surfaceElevated,
-                // Docked to the bottom edge, the footer would otherwise sit under
-                // the gesture pill. Centred, there is no pill to clear: see
-                // `bottomInset`.
-                paddingBottom: spacing.md + sheetLayout.bottomInset,
-              },
-              sheetLayout.sheet,
-            ]}
-            onPress={(event) => event.stopPropagation()}
-          >
-            {/*
-              The close button is the sheet's only dismissal for anyone not
-              using the backdrop: tapping the dim area has no screen reader
-              equivalent, and it is also the part sighted users have to guess
-              at. It names the dimension it closes, since "Close" alone reads
-              the same on every filter in the bar.
-            */}
-            <View style={styles.sheetHeader}>
-              <Text
-                variant="overline"
-                color="textTertiary"
-                accessibilityRole="header"
-                style={styles.flex}
-              >
-                {label}
-              </Text>
-              {onClear && (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
-                  onPress={onClear}
-                  hitSlop={HIT_SLOP}
-                  style={({ pressed }) => [
-                    styles.clear,
-                    pressed && { backgroundColor: colors.surfacePressed },
-                  ]}
-                >
-                  <Text variant="label" color="accent">
-                    Clear
-                  </Text>
-                </Pressable>
-              )}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Close ${label.toLowerCase()} filter`}
-                onPress={onClose}
-                hitSlop={HIT_SLOP}
-                style={({ pressed }) => [
-                  styles.close,
-                  pressed && { backgroundColor: colors.surfacePressed },
-                ]}
-              >
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            {children}
-            {footer}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    );
-  }
+  const dimension = label.toLowerCase();
 
   return (
-    <BottomSheetModal
-      ref={sheetRef}
-      onDismiss={onClose}
-      enablePanDownToClose
-      enableDynamicSizing
-      maxDynamicContentSize={windowHeight * MAX_DOCKED_HEIGHT_FRACTION}
-      backdropComponent={renderBackdrop}
-      handleComponent={renderHandle}
-      footerComponent={renderFooter}
-      backgroundStyle={{
-        backgroundColor: colors.surfaceElevated,
-        borderTopLeftRadius: radius.xl,
-        borderTopRightRadius: radius.xl,
-      }}
+    <Sheet
+      visible={visible}
+      label={label}
+      onClose={onClose}
+      closeLabel={`Close ${dimension} filter`}
+      action={
+        onClear && (
+          <SheetAction
+            title="Clear"
+            accessibilityLabel={`Clear ${dimension} filter`}
+            onPress={onClear}
+          />
+        )
+      }
+      footer={footer}
     >
       {children}
-    </BottomSheetModal>
+    </Sheet>
   );
 }
 
@@ -512,45 +288,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: stroke.outline,
   },
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  sheet: {
-    width: '100%',
-    // Capped rather than sized to content: 21 muscle groups would otherwise
-    // reach the status bar.
-    maxHeight: '80%',
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingTop: spacing.lg,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingLeft: spacing.xl,
-    // Shorter than the left: the close button carries its own inset, so the
-    // full gutter would push it away from the edge the thumb reaches for.
-    paddingRight: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  flex: { flex: 1 },
-  clear: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.sm },
-  // 32 plus the standard 8pt slop is 48, and there is nothing pressable in any
-  // direction for that slop to contest.
-  close: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-  },
   list: { flexGrow: 0 },
   listContent: { paddingBottom: spacing.sm },
   footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
-  // Stands in for `sheet`'s own `paddingTop` on the docked path, which has no
-  // single wrapping card for that padding to live on: content, handle and
-  // footer are three separately-measured regions there.
-  grabberRow: { alignItems: 'center', paddingTop: spacing.sm, paddingBottom: spacing.xs },
-  grabber: { width: 36, height: spacing.xs, borderRadius: radius.pill },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

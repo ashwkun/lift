@@ -30,6 +30,7 @@ export {
 } from './list-picker';
 export { PressableScale, Reveal, type PressableScaleProps, type RevealProps } from './motion';
 export { Screen, useScrollEdge, type ScreenProps } from './screen';
+export { Sheet, SheetAction, type SheetActionProps, type SheetProps } from './sheet';
 export { SheetScrollView, useSheetLayout, type SheetLayout } from './sheet-layout';
 export { SideRail } from './side-rail';
 export {
