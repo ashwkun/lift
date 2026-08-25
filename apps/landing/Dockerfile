@@ -33,6 +33,14 @@ COPY apps/api/package.json apps/api/
 COPY apps/mobile/package.json apps/mobile/
 COPY apps/landing/package.json apps/landing/
 
+# The patch file `pnpm-workspace.yaml` names under `patchedDependencies`. pnpm
+# hashes every patch it is told about at install time, before it knows whether
+# this image will use the package the patch applies to, so leaving `patches/`
+# out of the context fails the install outright with ENOENT rather than being
+# skipped as irrelevant. The landing page never loads expo-sqlite; it still
+# needs the file on disk. Same reasoning as the manifests above.
+COPY patches patches/
+
 # The isolated linker overrides the root .npmrc, which hoists for Metro's sake.
 # That is a mobile-development concern this build has no stake in, and hoisting
 # actively hurts here: Next's file tracer follows the resolution it is given, so

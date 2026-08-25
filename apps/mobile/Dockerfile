@@ -27,6 +27,13 @@ COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/mobile/package.json apps/mobile/
 
+# The patch file `pnpm-workspace.yaml` names under `patchedDependencies`, and
+# for this image it is load-bearing rather than bookkeeping: it is the fix to
+# expo-sqlite's web worker channel, without which every query result over 255
+# bytes comes back truncated mid-JSON and each screen renders its empty state.
+# pnpm hashes it during install, so an absent `patches/` fails with ENOENT.
+COPY patches patches/
+
 # No `--config.node-linker=isolated` here, unlike the API image. That override
 # exists because the API has no stake in the root .npmrc's hoisting; this build
 # runs Metro, which is the reason the hoisting is there. `@lift/mobile...`

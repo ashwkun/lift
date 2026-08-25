@@ -60,3 +60,50 @@
    const resultArray = new Uint8Array(resultBuffer);
  
    Atomics.store(lock, 0, PENDING);
+@@ -116,25 +155,36 @@
+     resultBuffer,
+   });
+ 
++  // A wall clock deadline, rather than a number of times around the loop.
++  //
++  // `Atomics.pause()` is a hardware hint that lasts nanoseconds, so a budget of
++  // a million of them is not a timeout at all: on Chrome 150 a million pauses
++  // is about 35ms, and every synchronous query slower than that threw
++  // `Sync operation timeout` no matter how well it was progressing. Reading the
++  // 6,847-row exercise catalog is far past 35ms, so the library screen came
++  // back empty on any browser new enough to have `Atomics.pause`, and because
++  // `useLiveQuery` reports a failed query as an empty result, it did so in
++  // silence. The other branch has the opposite problem: a billion bare spins is
++  // minutes, long after the tab has stopped responding.
++  //
++  // Elapsed time is what both numbers were reaching for. It is read once every
++  // 4,096 spins so that the check stays off the hot path.
++  const SYNC_TIMEOUT_MS = 30_000;
++  const deadline = performance.now() + SYNC_TIMEOUT_MS;
+   let i = 0;
+   // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+   const useAtomicsPause = typeof Atomics.pause === 'function';
+   while (Atomics.load(lock, 0) === PENDING) {
+-    ++i;
++    if ((++i & 0xfff) === 0 && performance.now() > deadline) {
++      throw new Error(`Sync operation timeout after ${SYNC_TIMEOUT_MS}ms`);
++    }
+ 
+     if (useAtomicsPause) {
+-      if (i > 1_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
+       // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+       Atomics.pause();
+-    } else {
+-      // NOTE(kudo): Unfortunate for the busy loop,
+-      // because we don't have a way for main thread to yield its execution to other callbacks.
+-      if (i > 1000_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
+     }
++    // NOTE(kudo): Unfortunate for the busy loop,
++    // because we don't have a way for main thread to yield its execution to other callbacks.
+   }
+ 
+   const length = new Uint32Array(resultArray.buffer, 0, 1)[0];

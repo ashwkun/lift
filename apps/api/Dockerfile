@@ -19,6 +19,14 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 
+# The patch file `pnpm-workspace.yaml` names under `patchedDependencies`. pnpm
+# hashes every patch it is told about at install time, before it knows whether
+# this image will use the package the patch applies to, so leaving `patches/`
+# out of the context fails the install outright with ENOENT rather than being
+# skipped as irrelevant. The API never loads expo-sqlite; it still needs the
+# file on disk. Same reasoning as the manifests above.
+COPY patches patches/
+
 # The isolated linker overrides the root .npmrc, which hoists for Metro's sake.
 # That setting is a mobile-development concern the API has no stake in, and
 # under it `pnpm deploy` below cannot map packages back to the store: it falls
