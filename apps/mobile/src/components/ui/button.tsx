@@ -87,12 +87,21 @@ interface VariantSpec {
   bgHover: string;
   bgPressed: string;
   fg: string;
+  /**
+   * An outline, for the one variant that is nothing without it.
+   *
+   * `outline` only. Every other variant is a filled shape, and a filled shape
+   * with a line around it is two statements of the same edge: the fill already
+   * says where the button stops. Left off, the border is not drawn at all.
+   */
   border?: string;
   /**
-   * Outline at full press. Only for a variant whose border carries the press.
-   * Currently just `danger`. Omitting it leaves the border static, drawn from
-   * the stylesheet, and keeps the extra colour interpolation off every other
-   * button in the app.
+   * Outline at full press, for a border that carries the press itself.
+   *
+   * Unused today, and deliberately kept: `PressableScale` only interpolates the
+   * outline when it is given two ends to travel between, so a variant that names
+   * a static border keeps it from the stylesheet below and pays for no extra
+   * colour interpolation.
    */
   borderPressed?: string;
 }
@@ -126,7 +135,6 @@ function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
       bgHover: hoverFill(c.surfaceMuted, c.surfacePressed),
       bgPressed: c.surfacePressed,
       fg: c.text,
-      border: c.border,
     },
     outline: {
       bg: 'transparent',
@@ -142,34 +150,33 @@ function variantSpecs(c: Palette): Record<ButtonVariant, VariantSpec> {
       fg: c.accent,
     },
     /*
-     * Tinted and outlined, not filled. The one variant that does not fill.
+     * A red tint carrying red text. No outline, and no solid fill either.
      *
-     * Two reasons, and the first is that the filled version was unreadable. Its
-     * label was `textOnDanger`, which on the old red measured 3.06 against a
-     * 4.5 requirement, and no red bright enough for an AMOLED palette can carry
-     * white text (see `danger` in the tokens). Printing the role colour on a
-     * tint of itself reads 5.38 on the canvas and 4.87 on a card instead.
+     * The solid version was unreadable: its label was `textOnDanger`, which on
+     * the old red measured 3.06 against a 4.5 requirement, and no red bright
+     * enough for an AMOLED palette can carry white text (see `danger` in the
+     * tokens). Printing the role colour on a tint of itself reads 5.38 on the
+     * canvas and 4.87 on a card instead. A solid red slab was also the loudest
+     * object on any screen it appeared on, spent on the action the user least
+     * wants to take.
      *
-     * The second is that a solid red slab was the loudest object on the screen,
-     * reserved for the action the user least wants to take. `Discard workout`
-     * sits at the bottom of a live session below a rule and a wide gap. It is
-     * already hard to hit by accident, and it does not also need to shout. This
-     * still reads unmistakably as destructive: it is the only red control in the
-     * app, and the only one that is outlined in its own role colour.
+     * It used to be outlined in its own role colour on top of that, and the
+     * outline is gone: a tint this far from the surface behind it already draws
+     * its own edge, and a line around it only made the button look like a
+     * warning banner. What still reads as destructive is the colour, which is
+     * unique in the app: nothing else here is red.
      *
-     * The press is carried by the outline rather than the fill, which is not a
-     * stylistic choice. Deepening a tint that its own label is printed on closes
-     * the gap between them (at 1.5× the label goes under AA on a card) so the
-     * fill moves only 1.25× and the border, which is not text and has no ratio
-     * to meet, travels the whole way to solid.
+     * That leaves the press to the fill and the scale. The fill moves 1.25× and
+     * no further, and this is the one variant where that ceiling is measured
+     * rather than chosen: deepening a tint that its own label is printed on
+     * closes the gap between the two, and at 1.5× the label goes under AA on a
+     * card. `PressableScale` carries the rest of the gesture.
      */
     danger: {
       bg: c.dangerSurface,
       bgHover: scaleAlpha(c.dangerSurface, 1.125),
       bgPressed: scaleAlpha(c.dangerSurface, 1.25),
       fg: c.danger,
-      border: scaleAlpha(c.dangerSurface, 2.5),
-      borderPressed: c.danger,
     },
     success: {
       bg: c.success,
