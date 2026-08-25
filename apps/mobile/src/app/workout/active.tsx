@@ -90,7 +90,7 @@ import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
-import { HIT_SLOP, spacing, timing, useColors } from '@/theme';
+import { spacing, timing, useColors } from '@/theme';
 
 /** This screen's name on the picker's hand-off channel. */
 const PICKER_ADDRESS = 'active-workout';
@@ -861,11 +861,31 @@ export default function ActiveWorkoutScreen() {
           headerRight: () => (
             <View style={styles.headerActions}>
               {/*
+                Two glyphs and a pill, in that order.
+
+                Both glyphs open a drawer over this screen and neither is the
+                thing the header exists for, so they read as a pair to the left
+                of the one action that is. Naming either would make three words
+                at the end of a header that already carries the session's name.
+
+                The chart is the session drawer's discoverable entry: the stats
+                band below opens the same drawer and is the easier target for a
+                thumb, but a chevron at the end of a row is a hint rather than a
+                control, and a reading nobody can find is a reading nobody has.
+              */}
+              <HeaderAction
+                label="Session summary"
+                icon="stats-chart-outline"
+                iconSize={20}
+                onPress={() => {
+                  haptics.selection();
+                  setInsightsOpen(true);
+                }}
+              />
+              {/*
                 The clock, which is the only way to reach the timer when no
                 rest is running: the docked bar exists for the countdown after
-                a set, and between exercises there is nothing to tap. A glyph
-                rather than a word because the pill beside it is the header's
-                one primary action and two words at that end would read as two.
+                a set, and between exercises there is nothing to tap.
               */}
               <HeaderAction
                 label="Rest timer"
@@ -1208,14 +1228,15 @@ function SessionStats({
       <SessionProgress completed={completedSets} total={totalSets} />
 
       {/*
-        `accessible={false}`, and a real button inside it.
+        `accessible={false}`, and nothing accessible inside it.
 
         A Pressable is accessible by default, which would fold the clock and the
         set fraction into one element announced as a single button: the two
         figures this band exists to state would stop being readable to get one
-        that opens a drawer. So the band takes the tap for a thumb, which can
-        aim at a 60pt strip and shouldn't have to aim at a glyph, and the cue at
-        its end carries the button for anyone navigating by element.
+        that opens a drawer. So the band is a shortcut for a thumb, which can
+        aim at a 60pt strip and shouldn't have to aim at a glyph, and the header
+        carries the button that names the same drawer for anyone navigating by
+        element. One action, announced once, reachable two ways.
       */}
       <Pressable
         accessible={false}
@@ -1249,16 +1270,12 @@ function SessionStats({
           </Text>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Session summary"
-          accessibilityHint="Volume, reps, and the muscles this session has worked"
-          hitSlop={HIT_SLOP}
-          onPress={onOpenSummary}
-          style={styles.summaryCue}
-        >
+        {/* A hint that the row opens something, not a control of its own: the
+            tap it hints at belongs to the whole band, and the header states the
+            same action in a word a screen reader can find. */}
+        <View style={styles.summaryCue} importantForAccessibility="no-hide-descendants">
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-        </Pressable>
+        </View>
       </Pressable>
     </View>
   );
