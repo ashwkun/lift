@@ -16,6 +16,7 @@ import { Button, DialogHost, SideRail, stackHeaderOptions, Text } from '@/compon
 import { databaseReady, db, isDatabaseOpen } from '@/db/client';
 import { seedExerciseLibrary } from '@/db/seed';
 import { writeBackupFile } from '@/features/backup';
+import { WeighInResponder } from '@/features/notifications/weigh-in-responder';
 import { useSyncTriggers } from '@/features/sync/use-sync-triggers';
 import { RestCues } from '@/features/workouts/rest-cues';
 import { WorkoutNotice } from '@/features/workouts/workout-notice';
@@ -189,9 +190,21 @@ function Startup({ onRetry }: { onRetry: () => void }) {
       // nothing on the first frame depends on it. See `syncGymReminder` for
       // which cases this repairs and why it never prompts.
       try {
-        const { gymReminderEnabled, gymReminderTime } = useSettings.getState();
+        const {
+          gymReminderEnabled,
+          gymReminderTime,
+          weighInReminderEnabled,
+          weighInReminderTime,
+        } = useSettings.getState();
+
         const { syncGymReminder } = await import('@/features/notifications/reminder');
         await syncGymReminder(gymReminderEnabled, gymReminderTime);
+
+        // The weigh-in reminder needs this for a reason the gym one does not:
+        // its body quotes the last reading, so a launch is also the moment to
+        // stop it quoting a figure that has since been replaced.
+        const { syncWeighInReminder } = await import('@/features/notifications/weigh-in');
+        await syncWeighInReminder(weighInReminderEnabled, weighInReminderTime);
       } catch {
         // No notification module, or the OS refused. The preference is intact
         // and the switch on the settings screen still reschedules by hand.
@@ -250,6 +263,10 @@ function AppNavigator() {
       {/* Same reasoning: the workout notification has to outlive the workout
           screen, so it is driven from the root. Renders nothing. */}
       <WorkoutNotice />
+      {/* A weight typed into the morning reminder can land while any screen is
+          up, or while none is: see the file for the cold-start half. Renders
+          nothing. */}
+      <WeighInResponder />
       {/*
         The desktop shell: rail beside the stack, rather than inside it.
 

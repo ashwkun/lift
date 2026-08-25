@@ -75,6 +75,11 @@ export default function SettingsScreen() {
         ? null
         : formatWeight(settings.bodyweightKg, weightUnit, { decimals: 1 }),
       settings.heightCm == null ? null : formatMeasurement(settings.heightCm, measurementUnit),
+      // Appended only when set, on the same rule the workout row states: an
+      // "off" for something nobody turned on is noise.
+      settings.weighInReminderEnabled
+        ? `Weigh-in ${formatClockTime(settings.weighInReminderTime)}`
+        : null,
     ]
       .filter(Boolean)
       .join(' · ') || 'Not set';

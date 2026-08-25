@@ -85,7 +85,7 @@ export default function MeasurementDetailScreen() {
   const colors = useColors();
   // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
-  const params = useLocalSearchParams<{ kind: string }>();
+  const params = useLocalSearchParams<{ kind: string; log?: string }>();
 
   const weightUnit = useSettings((state) => state.weightUnit);
   const measurementUnit = useSettings((state) => state.measurementUnit);
@@ -104,6 +104,28 @@ export default function MeasurementDetailScreen() {
   const [scrubbed, setScrubbed] = useState<DataPoint | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  /*
+   * `?log=<anything>` opens the entry sheet on arrival.
+   *
+   * The weigh-in reminder's notification routes here when it is tapped rather
+   * than typed into, and landing on a chart when you were answering a prompt to
+   * log a number is a dead end with the actual control up in the header. Opened
+   * during render rather than in an effect so the sheet is in the first painted
+   * frame: an effect would show the screen without it and drop it in a commit
+   * later, which on a route pushed from outside the app reads as a mis-tap.
+   *
+   * Latched on the param's value rather than run once on mount, because a
+   * second notification tapped while this screen is already on the stack has to
+   * re-open the sheet the user dismissed the first time. What the value *is*
+   * never matters here, only that it changed, which is why the sender passes the
+   * notification's delivery timestamp rather than a flag.
+   */
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  if (params.log && params.log !== openedFor) {
+    setOpenedFor(params.log);
+    setSheet({ mode: 'add' });
+  }
 
   const reload = useCallback(async () => {
     if (!kind) {

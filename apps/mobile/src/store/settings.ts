@@ -105,6 +105,19 @@ export interface Settings {
   gymReminderEnabled: boolean;
   /** Format HH:mm, e.g. "17:30" */
   gymReminderTime: string;
+
+  /**
+   * Reminds the user to weigh in, and takes the reading from the notification.
+   *
+   * Kept apart from `gymReminderEnabled` rather than folded into it because the
+   * two are asking for different things at different hours: a weigh-in is worth
+   * something only when it is taken under the same conditions every day, which
+   * for most people is first thing, and the gym is not. Sharing one time would
+   * mean choosing which of the two to schedule badly.
+   */
+  weighInReminderEnabled: boolean;
+  /** Format HH:mm, e.g. "08:00" */
+  weighInReminderTime: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -143,6 +156,12 @@ export const DEFAULT_SETTINGS: Settings = {
 
   gymReminderEnabled: false,
   gymReminderTime: "17:00",
+
+  weighInReminderEnabled: false,
+  // First thing, before breakfast and before the day's water moves the figure
+  // by more than the week's actual trend does. The one hour where a daily
+  // weigh-in is comparable with the one before it.
+  weighInReminderTime: '08:00',
 };
 
 interface SettingsStore extends Settings {
@@ -304,6 +323,8 @@ async function persist(state: Settings): Promise<void> {
     promptRoutineUpdate: state.promptRoutineUpdate,
     gymReminderEnabled: state.gymReminderEnabled,
     gymReminderTime: state.gymReminderTime,
+    weighInReminderEnabled: state.weighInReminderEnabled,
+    weighInReminderTime: state.weighInReminderTime,
   };
 
   await db

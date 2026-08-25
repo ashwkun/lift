@@ -29,6 +29,7 @@ import {
   type MuscleDistributionEntry,
   type WeeklyPoint,
 } from '@/features/analytics/repository';
+import { BodyweightCard } from '@/features/measurements/bodyweight-card';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
@@ -312,7 +313,7 @@ export default function HomeScreen() {
     <Screen width="board" scrolled={scrollEdge.progress}>
       <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
-         * Four blocks, revealed in the order they are read.
+         * Five blocks, revealed in the order they are read.
          *
          * Everything below this point is gated on `stats`, so none of it exists
          * until the aggregates land, and they now land deliberately late, held
@@ -323,8 +324,14 @@ export default function HomeScreen() {
          *
          * The stagger is per *block*, not per element. The masthead and the
          * band are one thought (this week, in a word and then in figures) so
-         * they arrive together; each chart is its own, and the recent list is
-         * last because it is the one thing here you can act on.
+         * they arrive together; bodyweight is the next, and each of the two
+         * below it is its own.
+         *
+         * Bodyweight is the exception to the gate: it renders inside a `Reveal`
+         * like the rest, but its own query is not `stats`, so it holds its own
+         * frame (see `BodyweightCard`) rather than borrowing this one. The two
+         * arrive independently, which is honest about the fact that they are
+         * two different reads of two different tables.
          */}
         <Reveal index={0}>
           {/*
@@ -492,6 +499,28 @@ export default function HomeScreen() {
         </Reveal>
 
         {/*
+         * Bodyweight, between the week and the breakdowns.
+         *
+         * Above the two blocks below it because it is the only thing on this
+         * screen you can act on *today*: the distribution chart and the recent
+         * list both report on work already done, and this one is asking for a
+         * number that does not exist yet. It is below the masthead because the
+         * masthead is what the screen is for.
+         *
+         * Full width rather than joining the pair below. The pair splits at
+         * `expanded` because a bar chart and a list are both happy in half a
+         * board; a trend line is the one chart here whose whole job is a slope,
+         * and halving its width is halving the horizontal resolution of the
+         * only thing it draws.
+         *
+         * It owns its own data. See the note at the top of `BodyweightCard` for
+         * why it is not fetched alongside the three aggregates above.
+         */}
+        <Reveal index={1}>
+          <BodyweightCard width={chartWidth} />
+        </Reveal>
+
+        {/*
          * The two blocks below the rule, side by side once there is room.
          *
          * This pairing used to be the two charts, which were the only two things
@@ -515,7 +544,7 @@ export default function HomeScreen() {
          * it. The recent-workouts list keeps its Card because its rows are taps.
          */}
         <View style={isExpanded ? styles.chartRow : undefined}>
-          <Reveal index={1} style={isExpanded ? styles.chartColumn : undefined}>
+          <Reveal index={2} style={isExpanded ? styles.chartColumn : undefined}>
             <SectionHeader
               title="Sets by body part · 30 days"
               action={
@@ -533,7 +562,7 @@ export default function HomeScreen() {
           </Reveal>
 
           {recent.length > 0 ? (
-            <Reveal index={2} style={isExpanded ? styles.chartColumn : undefined}>
+            <Reveal index={3} style={isExpanded ? styles.chartColumn : undefined}>
               <SectionHeader
                 title="Recent workouts"
                 action={

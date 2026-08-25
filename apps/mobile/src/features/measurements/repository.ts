@@ -16,6 +16,8 @@ import { trackDelete, trackUpsert, trackUpsertCoalesced } from '@/db/mutations';
 import { bodyMeasurements, type BodyMeasurement } from '@/db/schema';
 import { useSettings } from '@/store/settings';
 
+import { bumpMeasurementRevision } from './revision';
+
 export async function recordMeasurement(input: {
   kind: MeasurementKind;
   value: number;
@@ -41,6 +43,7 @@ export async function recordMeasurement(input: {
   await trackUpsert('body_measurements', { ...row, measuredAt: measuredAt.getTime() });
 
   if (input.kind === 'bodyweight') await mirrorBodyweightToSettings();
+  bumpMeasurementRevision();
 
   return row;
 }
@@ -81,6 +84,7 @@ export async function updateMeasurement(
   // The edit may have moved which reading is newest, or changed the value of
   // the one that already was.
   if (updated.kind === 'bodyweight') await mirrorBodyweightToSettings();
+  bumpMeasurementRevision();
 }
 
 /**
@@ -169,4 +173,5 @@ export async function deleteMeasurement(id: string): Promise<void> {
   // a tombstone. Only for bodyweight: any other kind would clear a value the
   // user may have typed in Settings without ever logging a measurement.
   if (removed?.kind === 'bodyweight') await mirrorBodyweightToSettings();
+  bumpMeasurementRevision();
 }

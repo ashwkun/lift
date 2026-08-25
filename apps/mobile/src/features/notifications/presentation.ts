@@ -39,6 +39,15 @@ export const REST_BELL_TYPE = 'rest-bell';
  */
 export const GYM_REMINDER_TYPE = 'gym-reminder';
 
+/**
+ * Marks the daily weigh-in reminder.
+ *
+ * Presented like the gym reminder, and for the same reason: nothing on screen
+ * says "you have not weighed in today". It differs in what it carries rather
+ * than in how it is shown, see `./weigh-in` for the text field attached to it.
+ */
+export const WEIGH_IN_REMINDER_TYPE = 'weigh-in-reminder';
+
 let configured = false;
 
 export function configureNotificationHandler(): void {
@@ -55,7 +64,11 @@ export function configureNotificationHandler(): void {
     handleNotification: async (notification) => {
       const type = notification.request.content.data?.type;
       const isOngoing = type === ONGOING_WORKOUT_TYPE;
-      const isReminder = type === GYM_REMINDER_TYPE;
+      // Both scheduled reminders present identically. Neither has an on-screen
+      // counterpart, and the weigh-in one carries its own text field, so it is
+      // worth showing even to a user who is already looking at the app: the
+      // banner is the fastest route to logging the reading there is.
+      const isReminder = type === GYM_REMINDER_TYPE || type === WEIGH_IN_REMINDER_TYPE;
 
       /*
        * The rest bell rings here only when the user asked for a system route,
