@@ -254,8 +254,26 @@ export function Button({
         The label stays mounted while loading and is hidden with opacity, so the
         button keeps its width instead of collapsing to spinner-size and shoving
         whatever sits beside it sideways for the length of the request.
+
+        **`collapsable={false}` is load-bearing and this button crashes the app
+        without it.** `styles.content` is nothing but layout: a row, centred,
+        with a gap. Fabric flattens a view like that out of the native tree
+        entirely, so the label normally sits as a direct child of the pressable.
+        Then `loading` goes true, `styles.hidden` adds an opacity, and opacity is
+        a property that needs a real view: the same commit that adds the spinner
+        also has to materialise this wrapper and move the already-mounted label
+        into it. Android's `ViewGroup.addView` refuses a child that still has a
+        parent, and `SurfaceMountingManager` cannot always detach it in time:
+
+            addViewAt: cannot insert view [1102] into parent [1104]:
+            View already has a parent: [1106]
+
+        which is fatal, and on a release build the app simply closes. Pinning the
+        view into existence means the tree shape never changes on this toggle:
+        the wrapper is always there and only its opacity moves, which is what
+        the comment above always claimed was happening.
       */}
-      <View style={[styles.content, loading && styles.hidden]}>
+      <View collapsable={false} style={[styles.content, loading && styles.hidden]}>
         {icon && iconPosition === 'left' && (
           <Ionicons name={icon} size={dimensions.iconSize} color={fg} />
         )}

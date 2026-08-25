@@ -91,7 +91,16 @@ function RowFace({ icon, label, description, dimmed = false }: RowFaceProps) {
       >
         <Ionicons name={icon} size={17} color={colors.textSecondary} />
       </View>
-      <View style={[styles.body, dimmed && styles.dimmed]}>
+      {/*
+        `collapsable={false}` for the same reason `Button`'s label wrapper has
+        it, and see that file for the crash. `styles.body` is layout only, so
+        Fabric flattens it out of the native tree and the label below becomes a
+        direct child of the row. Adding an opacity when the row dims needs a
+        real view, so the wrapper materialises and the already-mounted label has
+        to move into it, which Android's `addView` rejects while it still has a
+        parent. Pinning it means dimming only ever changes an opacity.
+      */}
+      <View collapsable={false} style={[styles.body, dimmed && styles.dimmed]}>
         <Text variant="bodyMedium">{label}</Text>
         {description && (
           <Text variant="caption" color="textTertiary">
@@ -399,7 +408,8 @@ export function SettingAction({
       >
         <Ionicons name={icon} size={17} color={danger ? colors.danger : colors.textSecondary} />
       </View>
-      <View style={[styles.body, disabled && styles.dimmed]}>
+      {/* Pinned against flattening, as above. */}
+      <View collapsable={false} style={[styles.body, disabled && styles.dimmed]}>
         <Text variant="bodyMedium" style={danger ? { color: colors.danger } : undefined}>
           {label}
         </Text>
