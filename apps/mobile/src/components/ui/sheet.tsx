@@ -9,9 +9,10 @@
  * and the two ways out. `FilterSheet` is now a wrapper over it that supplies
  * filter wording, and nothing about how a filter behaves changed.
  *
- * Renders as two different surfaces on the breakpoint `useSheetLayout` already
- * splits on: a draggable `BottomSheetModal` docked to the bottom edge on a
- * phone, and the app's centred `Modal` dialog once the window is wide. The
+ * Renders as two different surfaces on the split `useSheetIsDialog` owns: a
+ * draggable `BottomSheetModal` docked to the bottom edge on a phone, and the
+ * app's centred `Modal` dialog once the window is wide, or at any width on the
+ * web, where the docked surface paints nothing at all. The
  * dialog is not given a drag handle of its own: `@gorhom/bottom-sheet` has no
  * centred-dialog mode to fall back on, and a drag-to-dismiss affordance means
  * nothing next to a mouse pointer, which is the same reasoning
@@ -31,9 +32,9 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { BackHandler, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HIT_SLOP, radius, spacing, useColors, useLayout } from '@/theme';
+import { HIT_SLOP, radius, spacing, useColors } from '@/theme';
 
-import { useSheetLayout } from './sheet-layout';
+import { useSheetIsDialog, useSheetLayout } from './sheet-layout';
 import { Text } from './text';
 
 /** How much of the window's height a docked sheet may fill before it scrolls
@@ -73,7 +74,7 @@ export interface SheetProps {
 export function Sheet({ visible, label, onClose, closeLabel, action, children, footer }: SheetProps) {
   const colors = useColors();
   const sheetLayout = useSheetLayout();
-  const { isWide } = useLayout();
+  const isDialog = useSheetIsDialog();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
@@ -83,24 +84,24 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
   // Only active once docked: while wide, `sheetRef` is never attached to
   // anything, so this is a no-op on that path.
   useEffect(() => {
-    if (isWide) return;
+    if (isDialog) return;
     if (visible) sheetRef.current?.present();
     else sheetRef.current?.dismiss();
-  }, [visible, isWide]);
+  }, [visible, isDialog]);
 
   // `BottomSheetModal` does not wire Android's hardware back button the way
   // RN's own `Modal` wires it to `onRequestClose` for free, so it is wired
   // here explicitly, and only while a docked sheet is actually open: two
   // sheets open in a row must not both react to one back press.
   useEffect(() => {
-    if (isWide || !visible) return;
+    if (isDialog || !visible) return;
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       onClose();
       return true;
     });
     return () => subscription.remove();
-  }, [isWide, visible, onClose]);
+  }, [isDialog, visible, onClose]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -154,7 +155,7 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
     [footer, insets.bottom, colors.surfaceElevated],
   );
 
-  if (isWide) {
+  if (isDialog) {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         {/*

@@ -24,7 +24,7 @@
 
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, type ScrollViewProps, type ViewStyle } from 'react-native';
+import { Platform, ScrollView, StyleSheet, type ScrollViewProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useLayout } from '@/theme';
@@ -38,6 +38,36 @@ import { radius, spacing, useLayout } from '@/theme';
  * instead of the block they are meant to read as.
  */
 const SHEET_MAX_WIDTH = 400;
+
+/**
+ * Whether the docked surface is one a sheet can actually be seen on.
+ *
+ * `BottomSheetModal` presents and then paints nothing at all in a browser: no
+ * sheet, no backdrop, no error. Every control that opens one is therefore dead
+ * on the web below `breakpoint.medium` -- the muscle and equipment filters, the
+ * settings pickers, the list pickers -- and dead in the worst way, because the
+ * button takes the press and reports success. A narrow browser window is the
+ * default way the app gets looked at on a phone, so that is most of the UI.
+ *
+ * The centred dialog is the same component with the same children and it does
+ * paint, so on the web it is used at every width. A dialog in a narrow window
+ * is not the idiom this file argues for above, but it is the whole difference
+ * between a working control and one that does nothing.
+ */
+const DOCKED_SHEETS_PAINT = Platform.OS !== 'web';
+
+/**
+ * Which of the two surfaces a sheet should render on right now.
+ *
+ * The single answer that `useSheetLayout`, `SheetScrollView` and `Sheet` itself
+ * all have to agree on: they pick the styles, the scroll container and the
+ * modal separately, and a disagreement between any two of them mounts a
+ * `BottomSheetScrollView` with no `BottomSheetModal` above it, which throws.
+ */
+export function useSheetIsDialog(): boolean {
+  const { isWide } = useLayout();
+  return isWide || !DOCKED_SHEETS_PAINT;
+}
 
 export interface SheetLayout {
   /** Append to the backdrop's style. Moves the sheet off the bottom edge. */
@@ -89,12 +119,13 @@ const wide = StyleSheet.create({
 });
 
 export function useSheetLayout(): SheetLayout {
-  const { isWide, width } = useLayout();
+  const { width } = useLayout();
+  const isDialog = useSheetIsDialog();
   const insets = useSafeAreaInsets();
 
   // `undefined` rather than an empty object on a phone, so the style arrays at
   // the call sites flatten to exactly what they were before this existed.
-  return isWide
+  return isDialog
     ? {
         backdrop: wide.backdrop,
         sheet: wide.sheet,
@@ -126,6 +157,6 @@ export function useSheetLayout(): SheetLayout {
  * itself switches on, so the two can never disagree about which is mounted.
  */
 export function SheetScrollView(props: ScrollViewProps & { children: ReactNode }) {
-  const { isWide } = useLayout();
-  return isWide ? <ScrollView {...props} /> : <BottomSheetScrollView {...props} />;
+  const isDialog = useSheetIsDialog();
+  return isDialog ? <ScrollView {...props} /> : <BottomSheetScrollView {...props} />;
 }
