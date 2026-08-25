@@ -13,6 +13,7 @@ import { Text } from '@/components/ui';
 import { formatSets } from '@/features/analytics/format';
 import { volumeColor } from '@/features/analytics/volume-landmarks';
 import { spacing, useColors } from '@/theme';
+import { mix } from '@/theme/color';
 
 import {
   BACK_PATHS,
@@ -119,6 +120,69 @@ export function BodyMap({
       }
       onPress={
         onSelect ? (muscle) => onSelect(selectedRegion === muscle ? null : muscle) : undefined
+      }
+    />
+  );
+}
+
+/**
+ * The lightest a region gets while still counting as trained.
+ *
+ * A muscle that took one set out of forty is a real answer to "did I touch my
+ * calves today", and a pure share ramp would draw it at 2.5% of the accent:
+ * indistinguishable from the untrained grey beside it. The ramp therefore
+ * starts here and spends the rest of its range on the differences that are
+ * actually being compared.
+ */
+const SESSION_FLOOR = 0.3;
+
+export interface SessionBodyMapProps {
+  /** Weighted working sets per muscle, for this session alone. */
+  sets: Partial<Record<MuscleGroup, number>>;
+  width: number;
+  maxHeight?: number;
+}
+
+/**
+ * The same two figures, reporting on one session rather than on a training
+ * week.
+ *
+ * Colour here is **relative**, which is the one place this app departs from the
+ * absolute ramp `BodyMap` uses, and it is deliberate. Volume landmarks are
+ * weekly quantities: MEV for chest is roughly ten sets a week, so a hard push
+ * day of eight would paint the chest below its minimum effective volume and
+ * read as "you barely trained this", which is the opposite of what happened.
+ * A single session has no landmark to be measured against; the only honest
+ * question it can answer is *where the work went*, and that is a share.
+ *
+ * So there is no legend and no ramp key: the figures say which regions this
+ * session leaned on and roughly how hard, and the list beneath them carries the
+ * numbers. Nothing here is claiming a muscle is under- or over-trained.
+ */
+export function SessionBodyMap({ sets, width, maxHeight = 240 }: SessionBodyMapProps) {
+  const colors = useColors();
+
+  const regionSets = resolveRegions(sets);
+  const peak = Math.max(0, ...Object.values(regionSets));
+
+  return (
+    <Figures
+      width={width}
+      maxHeight={maxHeight}
+      fillFor={(region) => {
+        const value = regionSets[region] ?? 0;
+        if (value <= 0 || peak <= 0) return colors.surfaceMuted;
+        return mix(
+          colors.surfaceMuted,
+          colors.accent,
+          SESSION_FLOOR + (1 - SESSION_FLOOR) * (value / peak),
+        );
+      }}
+      // Nothing on this map is selectable: it is a readout, and an outline
+      // would promise a tap that does nothing.
+      isSelected={() => false}
+      label={(region) =>
+        `${MUSCLE_GROUP_LABELS[region]}, ${formatSets(regionSets[region] ?? 0)} sets`
       }
     />
   );

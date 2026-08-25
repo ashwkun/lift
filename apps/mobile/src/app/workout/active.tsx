@@ -56,6 +56,7 @@ import {
   sweepRestNotifications,
 } from '@/features/notifications/rest';
 import { RestDurationSheet } from '@/features/workouts/rest-duration-sheet';
+import { SessionInsightsSheet } from '@/features/workouts/session-insights-sheet';
 import { REST_BAR_HEIGHT, RestTimerBar } from '@/features/workouts/rest-timer-bar';
 import { RestTimerSheet } from '@/features/workouts/rest-timer-sheet';
 import {
@@ -89,7 +90,7 @@ import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
-import { spacing, timing, useColors } from '@/theme';
+import { HIT_SLOP, spacing, timing, useColors } from '@/theme';
 
 /** This screen's name on the picker's hand-off channel. */
 const PICKER_ADDRESS = 'active-workout';
@@ -723,6 +724,7 @@ export default function ActiveWorkoutScreen() {
   const restingDetail = details.find((detail) => detail.exercise.id === restExerciseId);
 
   const [timerSheetOpen, setTimerSheetOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
 
   /*
    * Whether the docked bar is occupying the bottom of the screen.
@@ -891,6 +893,10 @@ export default function ActiveWorkoutScreen() {
         startedAt={workout.startedAt}
         completedSets={completedSets}
         totalSets={totalSets}
+        onOpenSummary={() => {
+          haptics.selection();
+          setInsightsOpen(true);
+        }}
       />
 
       {lostWrites > 0 && (
@@ -1056,11 +1062,32 @@ export default function ActiveWorkoutScreen() {
         {/* Discard sits below a rule and a wide gap: a thumb that overshoots Add
             exercise should land on nothing, not on the end of the session. */}
         <Divider style={styles.discardRule} />
-        <View style={styles.actions}>
+        <View style={[styles.actions, styles.closing]}>
+          {/*
+            Settings leads, and takes only the width of its own label.
+
+            It is here because the settings this screen runs on are the ones you
+            find out are wrong mid-session: the rest is too short, the bell is
+            coming out of the earbuds in your bag. Sending someone back to the
+            tab bar and down two levels to fix that, while a set is on the clock,
+            is how a rest timer gets turned off instead of tuned.
+
+            Discard keeps the rest of the row rather than the whole of it, which
+            is the trade for having anything beside it at all: the wide gap above
+            still catches an overshoot from Add exercise, and what a stray thumb
+            lands on down here is now a settings screen rather than a
+            confirmation dialog.
+          */}
+          <Button
+            title="Settings"
+            icon="options-outline"
+            variant="secondary"
+            onPress={() => router.push('/settings/workout')}
+          />
           <Button
             title="Discard workout"
             variant="danger"
-            fullWidth
+            style={styles.closingPrimary}
             disabled={closing}
             onPress={handleDiscard}
           />
@@ -1116,6 +1143,13 @@ export default function ActiveWorkoutScreen() {
         />
       )}
 
+      <SessionInsightsSheet
+        visible={insightsOpen}
+        onClose={() => setInsightsOpen(false)}
+        workout={workout}
+        details={details}
+      />
+
       <ReorderSheet
         visible={reordering}
         title="Reorder exercises"
@@ -1151,22 +1185,46 @@ export default function ActiveWorkoutScreen() {
  *
  * Volume used to sit alongside these figures and doesn't: the summary screen
  * states it thirty seconds later, and three figures forced the type down a step
- * for a number nobody acts on mid-set.
+ * for a number nobody acts on mid-set. It has not come back here. It is one tap
+ * away instead, in `SessionInsightsSheet`, which this band opens: the figures a
+ * lifter *acts* on stay on the screen, and the ones they are curious about live
+ * in a drawer that costs nothing until it is asked for.
  */
 function SessionStats({
   startedAt,
   completedSets,
   totalSets,
+  onOpenSummary,
 }: {
   startedAt: Date;
   completedSets: number;
   totalSets: number;
+  onOpenSummary: () => void;
 }) {
+  const colors = useColors();
+
   return (
     <View>
       <SessionProgress completed={completedSets} total={totalSets} />
 
-      <View style={styles.stats}>
+      {/*
+        `accessible={false}`, and a real button inside it.
+
+        A Pressable is accessible by default, which would fold the clock and the
+        set fraction into one element announced as a single button: the two
+        figures this band exists to state would stop being readable to get one
+        that opens a drawer. So the band takes the tap for a thumb, which can
+        aim at a 60pt strip and shouldn't have to aim at a glyph, and the cue at
+        its end carries the button for anyone navigating by element.
+      */}
+      <Pressable
+        accessible={false}
+        onPress={onOpenSummary}
+        style={({ pressed }) => [
+          styles.stats,
+          pressed && { backgroundColor: colors.surfacePressed },
+        ]}
+      >
         <View style={styles.statColumn}>
           <Text variant="overline" color="textTertiary">
             Elapsed
@@ -1190,7 +1248,18 @@ function SessionStats({
             <Text variant="numericLarge" color="textTertiary">{` / ${totalSets}`}</Text>
           </Text>
         </View>
-      </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Session summary"
+          accessibilityHint="Volume, reps, and the muscles this session has worked"
+          hitSlop={HIT_SLOP}
+          onPress={onOpenSummary}
+          style={styles.summaryCue}
+        >
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </Pressable>
+      </Pressable>
     </View>
   );
 }
@@ -1298,8 +1367,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   // Equal columns, so the two figures sit on the same grid as the exercise
-  // blocks below them rather than being spaced to their own content.
+  // blocks below them rather than being spaced to their own content. The cue at
+  // the end is outside that grid and takes only the width it needs, so adding
+  // it moved the two columns in by 16pt each rather than making them three.
   statColumn: { flex: 1, gap: spacing.xs },
+  // Centred against the figures rather than their labels: the band is two rows
+  // tall and a glyph pinned to the top of it would read as belonging to the
+  // overline rather than to the row.
+  summaryCue: { width: 32, height: 32, alignItems: 'flex-end', justifyContent: 'center' },
   writeFailure: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1318,4 +1393,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   discardRule: { marginTop: spacing.xxxl },
+  closing: { flexDirection: 'row', alignItems: 'center' },
+  // Whatever Settings did not take. Flex rather than a width, so the label
+  // survives a narrow phone and a large text size by shrinking the button it
+  // sits in rather than truncating inside it.
+  closingPrimary: { flex: 1 },
 });
