@@ -1,22 +1,39 @@
 /**
- * A time of day, chosen rather than typed.
+ * A time of day, typed or stepped.
  *
- * This replaced a `PromptModal` that asked for "HH:mm" as free text. That is a
- * keyboard, a colon, a leading zero and a format the user has to be told about,
- * to answer a question with 1,440 possible answers that every phone already has
- * a control for. It also silently discarded anything that failed its regex, so
- * "5pm" and "5:00" both saved nothing and said nothing.
+ * ## What this used to be, and why it is not that any more
  *
- * Built in JS rather than pulling in `@react-native-community/datetimepicker`.
- * A native picker is one more module in the prebuild, it is unavailable in Expo
- * Go and on the web, and its two platform renderings look nothing like each
- * other or like this app. The wheel below is the same object on every target and
- * reads from the theme.
+ * Two scroll-snapping wheels, iOS-datepicker style: a `ScrollView` per column
+ * with `snapToInterval`, reporting the row under a highlight band. It reads
+ * beautifully in a screenshot and it did not work. Both reminder screens got
+ * the same report, that the wheel will not slide, and a snap wheel has a long
+ * list of ways to arrive there that all look identical from outside: it sits
+ * inside a `Modal`, which on Android is its own native window outside the
+ * gesture root; it re-rendered sixty rows per scroll frame to move the
+ * highlight; and it competes for the touch with two nested `Pressable`s, the
+ * backdrop and the card. Each of those is separately plausible, none is
+ * verifiable from here, and a fix for the wrong one ships a control that still
+ * does not slide.
  *
- * The clock it offers follows the device: `prefersTwelveHourClock` decides
- * whether the hour column runs 12, 1, 2 … with an AM/PM control beside it, or
- * simply 00 through 23. The value crossing the boundary is always 24-hour
- * "HH:mm"; the 12-hour split exists only inside this file.
+ * So the gesture is gone rather than repaired. What replaces it is the stepper
+ * from `features/measurements/entry-sheet`: two buttons and a field, the same
+ * control this app already uses for every other number that is nudged more
+ * often than it is retyped. It cannot fail to scroll, because it does not
+ * scroll. Typing 7 and 30 is two taps and two keystrokes against a flick that
+ * has to land on the right of sixty rows.
+ *
+ * The wheel is not worth another attempt. If a native picker is ever wanted,
+ * `@react-native-community/datetimepicker` is the thing to reach for, and the
+ * costs are the ones the old header listed: another module in the prebuild,
+ * nothing in Expo Go or the browser, and two platform renderings that look like
+ * neither each other nor this app.
+ *
+ * ## The clock it offers
+ *
+ * Follows the device. `prefersTwelveHourClock` decides whether the hour field
+ * runs 1 to 12 with an AM/PM control beside it, or 0 through 23 with none. The
+ * value crossing the boundary is always 24-hour `"HH:mm"`; the 12-hour split
+ * exists only inside this file.
  */
 
 import {
@@ -25,58 +42,39 @@ import {
   toClockTime,
   type ClockTime,
 } from '@lift/shared';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
+  TextInput,
   View,
+  type AccessibilityActionEvent,
   type AccessibilityActionInfo,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 
 import { haptics } from '@/features/feedback/haptics';
-import { fontSize, radius, spacing, useColors } from '@/theme';
+import { font, fontSize, radius, spacing, useColors } from '@/theme';
 
 import { Button } from './button';
 import { SegmentedControl } from './segmented-control';
 import { Text } from './text';
 
-/** Row height inside a wheel, and therefore the snap interval. */
-const ITEM_HEIGHT = 40;
+const DAY_MINUTES = 24 * 60;
 
 /**
- * Rows visible at once. Odd on purpose: the middle one is the selection, so an
- * even count would have the chosen value straddling the band.
+ * How far one press of the minute stepper moves.
+ *
+ * Five, not one. The only two things this dialog sets are "remind me to lift"
+ * and "remind me to weigh in", and nobody has ever wanted either at 17:23.
+ * Twelve presses cover the hour, where sixty would make the button useless and
+ * push everyone into the keyboard. Any minute is still reachable by typing it,
+ * which is the point of the field between the buttons.
  */
-const VISIBLE_ROWS = 5;
-
-const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
-/** Blank space above the first row and below the last, so either can centre. */
-const WHEEL_PADDING = (WHEEL_HEIGHT - ITEM_HEIGHT) / 2;
-
-/**
- * Wide enough for two tabular digits with room either side, and fixed rather
- * than sized to content: the columns have to stay put as the digits change, or
- * the colon between them walks back and forth while you scroll.
- */
-const WHEEL_WIDTH = 64;
+const MINUTE_STEP = 5;
 
 /** Falls back to 5pm, the same default the store ships. */
 const FALLBACK: ClockTime = { hour: 17, minute: 0 };
-
-const HOURS_24 = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
-/**
- * 12 first, not last. The wheel is read as a clock face going forwards, and on a
- * 12-hour clock the hour after 11 is 12: putting it at the end would place the
- * two halves of the day's turn at opposite ends of the column. It also makes the
- * index the hour's position within its half, which is the whole conversion:
- * `hour24 = index + (pm ? 12 : 0)`.
- */
-const HOURS_12 = ['12', ...Array.from({ length: 11 }, (_, index) => String(index + 1))];
-const MINUTES = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'));
 
 const MERIDIEM_OPTIONS = [
   { value: 'am' as const, label: 'AM' },
@@ -84,124 +82,192 @@ const MERIDIEM_OPTIONS = [
 ];
 
 /**
- * What a screen reader gets instead of a scroll gesture.
+ * What a screen reader gets instead of the two buttons.
  *
- * A wheel is a swipe over a list whose rows are not individually focusable, so
- * without these it is an unlabelled dead end. `adjustable` is the role that maps
- * "swipe up / swipe down" onto these two actions.
+ * The field is one `adjustable` element, exactly as the measurement stepper is:
+ * announcing "minus button, 30, plus button" makes the user hunt for the step,
+ * where `adjustable` puts it on the swipe gesture the platform already reserves
+ * for this.
  */
 const ADJUST_ACTIONS: readonly AccessibilityActionInfo[] = [
   { name: 'increment', label: 'Later' },
   { name: 'decrement', label: 'Earlier' },
 ];
 
-// ---------------------------------------------------------------------------
-// Wheel
-// ---------------------------------------------------------------------------
+/** Hoisted so the field's props keep their identity between renders. */
+const STEPPER_ACTIONS = ADJUST_ACTIONS as AccessibilityActionInfo[];
 
-interface WheelProps {
-  /** Announced before the value, e.g. "Hour". */
-  label: string;
-  items: readonly string[];
-  /** Read once, at mount. The wheel is uncontrolled after that; see below. */
-  initialIndex: number;
-  onChange: (index: number) => void;
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
 }
 
 /**
- * One scrolling column.
+ * Moves a time by some number of minutes, wrapping at midnight in both
+ * directions.
  *
- * Deliberately uncontrolled. A controlled wheel has to scroll itself whenever
- * the value it is given moves, and it is also the thing that moved the value, so
- * every settled scroll fires a programmatic scroll back into a list that is
- * still decelerating. It seeds from `initialIndex` and reports outwards only;
- * the modal remounts it on each open, which is where re-seeding happens.
+ * Everything both steppers do goes through this, which is what makes 07:55 plus
+ * five minutes read 08:00 rather than 07:00. Carrying is not a nicety here: an
+ * hour field and a minute field that cannot reach each other make setting 08:00
+ * from 07:55 a two-field edit, and the wrap is the same arithmetic.
  */
-function Wheel({ label, items, initialIndex, onChange }: WheelProps) {
-  const ref = useRef<ScrollView>(null);
-  /** The last index reported out. Guards the haptic and the callback. */
-  const settled = useRef(initialIndex);
-  const seeded = useRef(false);
-  /** Which row is under the band right now, including mid-fling. */
-  const [active, setActive] = useState(initialIndex);
+function shift(time: ClockTime, minutes: number): ClockTime {
+  const total = time.hour * 60 + time.minute + minutes;
+  const wrapped = ((total % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+  return { hour: Math.floor(wrapped / 60), minute: wrapped % 60 };
+}
 
-  const clamp = (index: number) => Math.min(Math.max(index, 0), items.length - 1);
-  const indexAt = (event: NativeSyntheticEvent<NativeScrollEvent>) =>
-    clamp(Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT));
+// ---------------------------------------------------------------------------
+// Field
+// ---------------------------------------------------------------------------
 
-  const settle = (index: number) => {
-    setActive(index);
-    if (index === settled.current) return;
+interface TimeFieldProps {
+  /** Announced before the value, and printed over the field. */
+  label: string;
+  /** The number shown, already in the units this field displays. */
+  value: number;
+  min: number;
+  max: number;
+  /** A number typed into the field, already range-checked. */
+  onCommit: (value: number) => void;
+  onStep: (delta: 1 | -1) => void;
+}
 
-    settled.current = index;
-    haptics.selection();
-    onChange(index);
+/**
+ * One stepper: two buttons around an editable pair of digits.
+ *
+ * The text is held locally rather than derived from `value` on every render,
+ * because the two disagree for as long as someone is mid-edit: an empty field
+ * is a number being replaced, not a zero, and re-deriving would fill it back in
+ * under the cursor. `seed` is what tells an outside change (a stepper press,
+ * AM/PM moving the hour) from a change this field itself just emitted; only the
+ * former rewrites the text.
+ */
+function TimeField({ label, value, min, max, onCommit, onStep }: TimeFieldProps) {
+  const colors = useColors();
+
+  const [text, setText] = useState(() => pad(value));
+  const [seed, setSeed] = useState(value);
+
+  if (seed !== value) {
+    setSeed(value);
+    setText(pad(value));
+  }
+
+  const change = (raw: string) => {
+    // Digits only. A number pad still offers a minus and a decimal separator on
+    // some keyboards, and neither is part of a clock.
+    const digits = raw.replace(/\D/g, '').slice(0, 2);
+    setText(digits);
+
+    if (digits.length === 0) return;
+
+    const parsed = Number(digits);
+
+    /*
+     * The two ends of the range are not the same kind of wrong.
+     *
+     * Too small is usually a prefix. On a 12-hour clock the hour runs from 1,
+     * and "0" is one keystroke away from "09", which is a perfectly good hour.
+     * Clamping it up to 1 the instant it is typed both misreports what is
+     * stored and, in a two-character field, leaves the second digit nowhere to
+     * go: the field sticks at "01" and the user has to clear it to escape. So
+     * it is held, uncommitted, and `onBlur` writes back whatever is actually
+     * stored.
+     *
+     * Too big is never a prefix. No second digit rescues "70" as a minute, so
+     * it clamps at once rather than sitting on screen as a figure the dialog
+     * has quietly declined to save.
+     */
+    if (parsed < min) return;
+
+    const clamped = Math.min(parsed, max);
+    if (clamped !== parsed) setText(pad(clamped));
+
+    // Seeded before the parent hears about it, so the value coming back is not
+    // mistaken for an outside change and does not rewrite the text under the
+    // cursor.
+    setSeed(clamped);
+    onCommit(clamped);
   };
 
-  const step = (delta: number) => {
-    const next = clamp(settled.current + delta);
-    if (next === settled.current) return;
+  const step = (delta: 1 | -1) => {
+    haptics.selection();
+    onStep(delta);
+  };
 
-    ref.current?.scrollTo({ y: next * ITEM_HEIGHT, animated: true });
-    settle(next);
+  const onAction = (event: AccessibilityActionEvent) => {
+    if (event.nativeEvent.actionName === 'increment') step(1);
+    if (event.nativeEvent.actionName === 'decrement') step(-1);
   };
 
   return (
-    <View
-      style={styles.wheel}
-      accessible
-      accessibilityRole="adjustable"
-      accessibilityLabel={label}
-      accessibilityValue={{ text: items[active] }}
-      accessibilityActions={ADJUST_ACTIONS}
-      onAccessibilityAction={(event) =>
-        step(event.nativeEvent.actionName === 'increment' ? 1 : -1)
-      }
-    >
-      <ScrollView
-        ref={ref}
-        // The wrapper above is the accessible element. Left visible, the rows
-        // would also be reachable one by one, which is 60 stops for the minutes.
-        importantForAccessibility="no-hide-descendants"
-        showsVerticalScrollIndicator={false}
-        snapToInterval={ITEM_HEIGHT}
-        decelerationRate="fast"
-        scrollEventThrottle={16}
-        contentContainerStyle={styles.wheelContent}
-        // Not an effect: on Android the first layout has not landed when a mount
-        // effect runs, so `scrollTo` there is a no-op and the wheel opens at
-        // midnight. This fires once the rows have a height to scroll through.
-        onContentSizeChange={() => {
-          if (seeded.current) return;
-          seeded.current = true;
-          ref.current?.scrollTo({ y: initialIndex * ITEM_HEIGHT, animated: false });
-        }}
-        // Highlighting tracks the scroll; committing does not. Bailing out when
-        // the row has not changed keeps this to one render per row crossed
-        // rather than one per frame.
-        onScroll={(event) => {
-          const next = indexAt(event);
-          setActive((current) => (current === next ? current : next));
-        }}
-        // Both, because a drag that stops without a fling never produces a
-        // momentum event. When one does follow, it settles again on the final
-        // row and the guard above drops the intermediate report.
-        onScrollEndDrag={(event) => settle(indexAt(event))}
-        onMomentumScrollEnd={(event) => settle(indexAt(event))}
+    <View style={styles.field}>
+      <Text variant="overline" color="textTertiary">
+        {label}
+      </Text>
+
+      <View
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={label}
+        accessibilityValue={{ text: pad(value) }}
+        accessibilityActions={STEPPER_ACTIONS}
+        onAccessibilityAction={onAction}
+        style={[styles.stepper, { backgroundColor: colors.surfaceMuted }]}
       >
-        {items.map((item, index) => (
-          <View key={item} style={styles.item}>
-            <Text
-              variant="numeric"
-              color={index === active ? 'text' : 'textTertiary'}
-              style={index === active ? styles.itemActive : undefined}
-            >
-              {item}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
+        <StepperButton label={`${label} down`} glyph="−" onPress={() => step(-1)} />
+
+        <TextInput
+          value={text}
+          onChangeText={change}
+          // Normalises a half-typed "7" to "07" once the cursor leaves. The
+          // value is already committed; this only settles how it is written.
+          onBlur={() => setText(pad(value))}
+          keyboardType="number-pad"
+          selectTextOnFocus
+          maxLength={2}
+          placeholder="00"
+          placeholderTextColor={colors.textTertiary}
+          // Hidden from the screen reader: the adjustable wrapper above already
+          // announces the same value, and reaching the raw field would announce
+          // it twice under two different roles.
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          returnKeyType="done"
+          style={[styles.value, { color: colors.text }]}
+        />
+
+        <StepperButton label={`${label} up`} glyph="+" onPress={() => step(1)} />
+      </View>
     </View>
+  );
+}
+
+function StepperButton({
+  label,
+  glyph,
+  onPress,
+}: {
+  label: string;
+  glyph: string;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.stepperButton,
+        { backgroundColor: pressed ? colors.surfacePressed : 'transparent' },
+      ]}
+    >
+      <Text variant="subheading" color="textSecondary">
+        {glyph}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -223,8 +289,7 @@ export interface TimePickerModalProps {
 }
 
 /**
- * The dialog. Same card, backdrop and button row as `PromptModal`, which is the
- * component this replaces at its one call site.
+ * The dialog. Same card, backdrop and button row as `PromptModal`.
  */
 export function TimePickerModal({
   visible,
@@ -239,7 +304,7 @@ export function TimePickerModal({
 
   // Re-read on every open rather than once per process: the 24-hour setting is
   // a system toggle the user can flip while the app is running, and the answer
-  // decides how many rows the hour column has.
+  // decides what the hour field counts up to.
   const [twelveHour, setTwelveHour] = useState(prefersTwelveHourClock);
   const [draft, setDraft] = useState<ClockTime>(() => parseClockTime(value) ?? FALLBACK);
 
@@ -249,18 +314,14 @@ export function TimePickerModal({
    * seeded from, the way `PromptModal` does it: an effect would do the same job
    * a commit later, painting the previous edit for a frame before correcting it.
    *
-   * `generation` keys the wheels below. They are uncontrolled and read their
-   * position once at mount, so re-seeding the draft is only half the job:
-   * without a new key they would keep the scroll offset of the last edit.
+   * No `generation` key any more. The wheels this used to remount were
+   * uncontrolled and held their own scroll offset; the fields that replaced them
+   * are driven by `draft`, so re-seeding the draft is the whole job.
    */
-  const [seed, setSeed] = useState({ visible, value, generation: 0 });
+  const [seed, setSeed] = useState({ visible, value });
 
   if (seed.visible !== visible || seed.value !== value) {
-    setSeed((current) => ({
-      visible,
-      value,
-      generation: current.generation + (visible ? 1 : 0),
-    }));
+    setSeed({ visible, value });
     if (visible) {
       setDraft(parseClockTime(value) ?? FALLBACK);
       setTwelveHour(prefersTwelveHourClock());
@@ -268,13 +329,39 @@ export function TimePickerModal({
   }
 
   const pm = draft.hour >= 12;
-  const hourIndex = twelveHour ? draft.hour % 12 : draft.hour;
 
-  const setHourIndex = (index: number) =>
+  /*
+   * 12 rather than 0, and 12 rather than 24.
+   *
+   * `hour % 12` is the arithmetic, and it maps both noon and midnight to zero,
+   * which is an hour no 12-hour clock has ever shown. `|| 12` is the whole
+   * correction: midnight reads 12 AM and noon reads 12 PM, which is what every
+   * other clock on the device says.
+   */
+  const shownHour = twelveHour ? draft.hour % 12 || 12 : draft.hour;
+
+  /** A typed hour, back to the 24-hour one that is actually stored. */
+  const commitHour = (hour: number) =>
     setDraft((current) => ({
       ...current,
-      hour: twelveHour ? index + (current.hour >= 12 ? 12 : 0) : index,
+      hour: twelveHour ? (hour % 12) + (current.hour >= 12 ? 12 : 0) : hour,
     }));
+
+  /*
+   * Snapped to the five-minute grid rather than added blindly, so a minute
+   * typed off the grid lands back on it. 07:03 stepped down is 07:00, not
+   * 06:58: the button is for choosing a round time, and the field is there for
+   * anyone who wants 07:03 and means it.
+   */
+  const stepMinute = (delta: 1 | -1) =>
+    setDraft((current) => {
+      const snapped =
+        delta > 0
+          ? (Math.floor(current.minute / MINUTE_STEP) + 1) * MINUTE_STEP
+          : (Math.ceil(current.minute / MINUTE_STEP) - 1) * MINUTE_STEP;
+
+      return shift({ hour: current.hour, minute: 0 }, snapped);
+    });
 
   const setMeridiem = (next: 'am' | 'pm') =>
     setDraft((current) => ({
@@ -287,7 +374,7 @@ export function TimePickerModal({
       {/*
         `accessible={false}` on both Pressables, deliberately: Pressable defaults
         to accessible, which would collapse the whole dialog into one element and
-        take both wheels away from a screen reader. See `PromptModal`, which
+        take both fields away from a screen reader. See `PromptModal`, which
         carries the same pair for the same reason.
       */}
       <Pressable
@@ -311,37 +398,32 @@ export function TimePickerModal({
             </Text>
           )}
 
-          <View key={seed.generation} style={styles.picker}>
-            {/* Behind the columns, and never a touch target: the wheels have to
-                receive every gesture that lands on them. */}
-            <View
-              pointerEvents="none"
-              style={[styles.band, { backgroundColor: colors.surfaceMuted }]}
+          <View style={styles.time}>
+            <TimeField
+              label="Hour"
+              value={shownHour}
+              min={twelveHour ? 1 : 0}
+              max={twelveHour ? 12 : 23}
+              onCommit={commitHour}
+              onStep={(delta) => setDraft((current) => shift(current, delta * 60))}
             />
-            <View style={styles.columns}>
-              <Wheel
-                label="Hour"
-                items={twelveHour ? HOURS_12 : HOURS_24}
-                initialIndex={hourIndex}
-                onChange={setHourIndex}
-              />
-              <Text variant="numeric" color="textTertiary" style={styles.colon}>
-                :
-              </Text>
-              <Wheel
-                label="Minute"
-                items={MINUTES}
-                initialIndex={draft.minute}
-                onChange={(minute) => setDraft((current) => ({ ...current, minute }))}
-              />
-            </View>
+            <Text variant="numeric" color="textTertiary" style={styles.colon}>
+              :
+            </Text>
+            <TimeField
+              label="Minute"
+              value={draft.minute}
+              min={0}
+              max={59}
+              onCommit={(minute) => setDraft((current) => ({ ...current, minute }))}
+              onStep={stepMinute}
+            />
           </View>
 
           {/*
-            A segmented control rather than a two-row wheel. AM and PM are a
+            A segmented control rather than a third field. AM and PM are a
             two-way choice between abbreviations, which is the case
-            `SettingSegmented` already documents as belonging in a track: a wheel
-            holding two items is mostly empty space and snaps past both.
+            `SettingSegmented` already documents as belonging in a track.
           */}
           {twelveHour && (
             <SegmentedControl
@@ -391,23 +473,45 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.md,
   },
-  picker: { height: WHEEL_HEIGHT, justifyContent: 'center' },
-  band: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: WHEEL_PADDING,
-    height: ITEM_HEIGHT,
+  time: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
+  // Both fields share the width evenly, so the colon stays centred in the card
+  // whatever the two labels are.
+  field: { flex: 1, gap: spacing.xs },
+  // Lifted off the baseline of the row: the fields carry a label above them, so
+  // a colon aligned to the row's bottom edge sits level with the digits rather
+  // than with the labels.
+  colon: { paddingBottom: spacing.md },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: radius.md,
+    padding: spacing.xs,
   },
-  columns: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  colon: { paddingHorizontal: spacing.xs },
-  wheel: { width: WHEEL_WIDTH, height: WHEEL_HEIGHT },
-  wheelContent: { paddingVertical: WHEEL_PADDING },
-  item: { height: ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
-  // The row under the band is the value, so it is the one thing on the wheel
-  // set at a size you can read from arm's length.
-  itemActive: { fontSize: fontSize.xl },
+  // Past the touch minimum in both axes on its own frame, exactly as the
+  // measurement stepper's are. The buttons sit close enough to their neighbours
+  // that slop is not available to either: it would overlap, and the later
+  // sibling silently wins the hit test.
+  stepperButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  value: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: fontSize.xxl,
+    ...font('bold'),
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.3,
+    // Android reserves extra room above the ascender and below the descender
+    // from the font's own metrics, which at this size pushes the digits off the
+    // centre line the buttons beside them sit on. Harmless on iOS, which
+    // ignores it.
+    paddingVertical: 0,
+    includeFontPadding: false,
+  },
   meridiem: { alignSelf: 'center', width: 160 },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   action: { flex: 1 },
