@@ -9,6 +9,7 @@
 import {
   detectPrs,
   isWorkingSet,
+  normalizeSupersets,
   summarizeSets,
   TRACKING_FIELDS,
   uuidv7,
@@ -16,6 +17,7 @@ import {
   type ExerciseSession,
   type PositionedRow,
   type PrKind,
+  type SupersetAssignment,
   type SetLike,
   type SetType,
   type TrackingType,
@@ -383,6 +385,14 @@ async function nextPosition(workoutId: string): Promise<number> {
 export async function removeExerciseFromWorkout(workoutExerciseId: string): Promise<void> {
   const deletedAt = Date.now();
 
+  // Read before the tombstone, so the superset sweep at the end knows which
+  // session to look at.
+  const [link] = await db
+    .select({ workoutId: workoutExercises.workoutId })
+    .from(workoutExercises)
+    .where(eq(workoutExercises.id, workoutExerciseId))
+    .limit(1);
+
   await db
     .update(workoutExercises)
     .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
@@ -405,6 +415,35 @@ export async function removeExerciseFromWorkout(workoutExerciseId: string): Prom
       .where(eq(workoutSets.id, child.id));
     await trackDelete('workout_sets', child.id, deletedAt);
   }
+
+  // Taking one half of a pair out of the session leaves the other half holding
+  // a group id with nothing to be paired with, which is not a superset. The
+  // screen's own copy is already stale by this point, so the sweep reads the
+  // rows back rather than being handed them.
+  if (link) await sweepSupersets(link.workoutId);
+}
+
+/**
+ * Clears any superset a structural edit has just invalidated.
+ *
+ * Removing an exercise and substituting one below another are both list edits
+ * that nothing in the superset code asked for and neither can see coming: one
+ * leaves a member alone, the other puts a lift between two that were performed
+ * back to back. `normalizeSupersets` decides what no longer holds; this is only
+ * the read that feeds it.
+ *
+ * A reorder is the third such edit, and it is handled at the screens instead:
+ * they already hold the reordered list, so re-reading the session to find out
+ * what they just wrote would be a round trip to learn something they know.
+ */
+async function sweepSupersets(workoutId: string): Promise<void> {
+  const links = await db
+    .select({ id: workoutExercises.id, supersetGroup: workoutExercises.supersetGroup })
+    .from(workoutExercises)
+    .where(and(eq(workoutExercises.workoutId, workoutId), isNull(workoutExercises.deletedAt)))
+    .orderBy(workoutExercises.position);
+
+  await applySupersetGroups(normalizeSupersets(links));
 }
 
 /** The measurement columns a tracking type switches on and off. */
@@ -468,6 +507,11 @@ export async function substituteExercise(
     // One empty set, matching what adding an exercise by hand produces: a
     // block with no rows reads as an error rather than an invitation.
     await addSet(created.id);
+
+    // The replacement went *between* the original and whatever followed it. If
+    // those two were a superset, an unrelated lift is now standing in the
+    // middle of it and it is not one any more.
+    await sweepSupersets(link.workoutId);
 
     return { workoutExercise: created, replacedInPlace: false };
   }
@@ -549,6 +593,38 @@ export async function applyExerciseOrder(updates: PositionedRow[]): Promise<void
     await db
       .update(workoutExercises)
       .set({ position, ...touch() })
+      .where(eq(workoutExercises.id, id));
+
+    const [updated] = await db
+      .select()
+      .from(workoutExercises)
+      .where(eq(workoutExercises.id, id))
+      .limit(1);
+
+    if (updated) await trackUpsertCoalesced('workout_exercises', updated);
+  }
+}
+
+/**
+ * Applies the writes a superset edit produced.
+ *
+ * The sibling of `applyExerciseOrder`, down to the shape: `@lift/shared`'s
+ * `supersets.ts` decides which rows change and this writes exactly those. A
+ * pair being formed is two rows; a lift joining a pair that already exists is
+ * one.
+ *
+ * **Every reorder ends here too.** Dropping an exercise between two halves of a
+ * superset dismantles it, and the drag handle has no idea it did that, so the
+ * screens run `normalizeSupersets` over the reordered list and pass whatever it
+ * asks for. Usually that is nothing, and this returns without a statement.
+ */
+export async function applySupersetGroups(updates: SupersetAssignment[]): Promise<void> {
+  if (updates.length === 0) return;
+
+  for (const { id, supersetGroup } of updates) {
+    await db
+      .update(workoutExercises)
+      .set({ supersetGroup, ...touch() })
       .where(eq(workoutExercises.id, id));
 
     const [updated] = await db

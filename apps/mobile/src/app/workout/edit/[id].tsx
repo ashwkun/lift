@@ -3,10 +3,12 @@ import {
   DATE_LONG,
   formatDateTime,
   formatDurationShort,
+  normalizeSupersets,
   reorder,
   TRACKING_FIELDS,
   type PositionedRow,
   type SetType,
+  type SupersetAssignment,
 } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -42,10 +44,12 @@ import { haptics } from '@/features/feedback/haptics';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
 import { ghostFill, pairedPreviousSet } from '@/features/workouts/previous';
 import { RestDurationSheet } from '@/features/workouts/rest-duration-sheet';
+import { showSupersetMenu, supersetMap, SupersetTie } from '@/features/workouts/superset';
 import {
   addExerciseToWorkout,
   addSet,
   applyExerciseOrder,
+  applySupersetGroups,
   canLogSet,
   deleteSet,
   getPreviousPerformance,
@@ -350,6 +354,34 @@ export default function EditWorkoutScreen() {
   const [restEditorId, setRestEditorId] = useState<string | null>(null);
   const restEditorDetail = details.find((detail) => detail.workoutExercise.id === restEditorId);
 
+  /*
+   * The rows the superset logic reads: grouping and order, nothing else.
+   *
+   * A superset is part of what happened rather than part of the plan, so it is
+   * editable here for the same reason the set list is: this screen exists to
+   * correct a record of a session, and "these two were done back to back" is a
+   * fact about that session which can have been recorded wrong.
+   */
+  const supersetRows = useMemo(
+    () =>
+      details.map((detail) => ({
+        id: detail.workoutExercise.id,
+        name: detail.exercise.name,
+        supersetGroup: detail.workoutExercise.supersetGroup,
+      })),
+    [details],
+  );
+
+  const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
+
+  const applySupersets = useCallback(
+    (writes: SupersetAssignment[]) => {
+      if (writes.length === 0) return;
+      write(applySupersetGroups(writes));
+    },
+    [write],
+  );
+
   const [reordering, setReordering] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [editingDuration, setEditingDuration] = useState(false);
@@ -406,8 +438,20 @@ export default function EditWorkoutScreen() {
       // only needs the position it ended on.
       const final = new Map(writes.map((entry) => [entry.id, entry]));
       write(applyExerciseOrder([...final.values()]));
+
+      // A drag through the middle of a superset dismantles it, and the drag
+      // handle has no idea it did that. See the same sweep in `active.tsx`.
+      const groups = new Map(
+        details.map((detail) => [detail.workoutExercise.id, detail.workoutExercise.supersetGroup]),
+      );
+
+      applySupersets(
+        normalizeSupersets(
+          rows.map((row) => ({ id: row.id, supersetGroup: groups.get(row.id) ?? null })),
+        ),
+      );
     },
-    [details, write],
+    [details, write, applySupersets],
   );
 
   const handleSaveRest = useCallback(
@@ -625,9 +669,24 @@ export default function EditWorkoutScreen() {
         ) : (
           details.map((detail, index) => (
             <View key={detail.workoutExercise.id}>
-              {index > 0 && <Divider />}
+              {/* A member that is not the first of its run is tied to the block
+                  above rather than separated from it. See `SupersetTie`. */}
+              {index > 0 &&
+                (placements.get(detail.workoutExercise.id)?.first === false ? (
+                  <SupersetTie />
+                ) : (
+                  <Divider />
+                ))}
               <ExerciseBlock
                 detail={detail}
+                superset={placements.get(detail.workoutExercise.id)}
+                // Nothing to pair with in a session of one, so no control.
+                onEditSuperset={
+                  details.length > 1
+                    ? () =>
+                        showSupersetMenu(supersetRows, detail.workoutExercise.id, applySupersets)
+                    : undefined
+                }
                 previousSets={previousByExercise[detail.exercise.id]?.sets ?? []}
                 // No recalled note here. On the logging screen it puts a
                 // standing cue back in front of someone about to lift; on a

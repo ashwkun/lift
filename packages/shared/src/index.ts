@@ -9,6 +9,7 @@ export * from './progression.ts';
 export * from './measurements.ts';
 export * from './ordering.ts';
 export * from './plates.ts';
+export * from './supersets.ts';
 export * from './sync.ts';
 
 // The exercise catalog is deliberately *not* re-exported here. It is ~6,800

@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
   fromDisplayWeight,
+  normalizeSupersets,
   reorder,
   toDisplayWeight,
   type PositionedRow,
+  type SupersetAssignment,
 } from '@lift/shared';
 import { and, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -30,6 +32,7 @@ import {
   addExerciseToRoutine,
   addRoutineSet,
   applyRoutineExerciseOrder,
+  applyRoutineSupersetGroups,
   deleteRoutine,
   deleteRoutineSet,
   getRoutineDetail,
@@ -41,6 +44,12 @@ import {
 } from '@/features/routines/repository';
 import { resolveExerciseUnits, useAppUnits } from '@/features/exercises/units';
 import { startWorkout } from '@/features/workouts/repository';
+import {
+  showSupersetMenu,
+  SupersetChip,
+  supersetMap,
+  SupersetTie,
+} from '@/features/workouts/superset';
 import { startSession } from '@/features/workouts/start-session';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { haptics } from '@/features/feedback/haptics';
@@ -108,6 +117,36 @@ export default function RoutineEditorScreen() {
     setDetail((await getRoutineDetail(id)) ?? null);
   }, [id]);
 
+  /*
+   * The rows the superset logic reads: grouping and order, nothing else.
+   *
+   * Keyed by `routineExercise.id` rather than by the exercise's, because a
+   * routine may prescribe the same lift twice and only one of the two may be in
+   * the superset.
+   */
+  const supersetRows = useMemo(
+    () =>
+      (detail?.exercises ?? []).map((entry) => ({
+        id: entry.routineExercise.id,
+        name: entry.exercise.name,
+        supersetGroup: entry.routineExercise.supersetGroup,
+      })),
+    [detail],
+  );
+
+  const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
+
+  // A reload rather than an optimistic edit, for the same reason `handleReorder`
+  // reloads: nothing on this screen is a live query, so storage is the only
+  // thing that knows what the grouping is now.
+  const applySupersets = useCallback(
+    (writes: SupersetAssignment[]) => {
+      if (writes.length === 0) return;
+      void applyRoutineSupersetGroups(writes).then(reload);
+    },
+    [reload],
+  );
+
   const [reordering, setReordering] = useState(false);
 
   // Names and set counts. A routine's blocks are told apart by what they are
@@ -169,6 +208,29 @@ export default function RoutineEditorScreen() {
 
         haptics.selection();
         await applyRoutineExerciseOrder([...writes.values()]);
+
+        /*
+         * A drag is a superset control whether or not it meant to be: dropping
+         * an exercise between two halves of a pair leaves two lifts carrying a
+         * group id with something standing between them, which is no longer a
+         * superset. `rows` is already in the order the sheet produced, so the
+         * grouping is read back off it and whatever no longer holds is cleared.
+         *
+         * Usually this writes nothing and returns without a statement.
+         */
+        const groups = new Map(
+          (detail?.exercises ?? []).map((entry) => [
+            entry.routineExercise.id,
+            entry.routineExercise.supersetGroup,
+          ]),
+        );
+
+        await applyRoutineSupersetGroups(
+          normalizeSupersets(
+            rows.map((row) => ({ id: row.id, supersetGroup: groups.get(row.id) ?? null })),
+          ),
+        );
+
         await reload();
       })();
     },
@@ -313,7 +375,15 @@ export default function RoutineEditorScreen() {
         ) : (
           detail.exercises.map((entry, index) => (
             <View key={entry.routineExercise.id}>
-              {index > 0 && <Divider />}
+              {/* A member that is not the first of its run is tied to the block
+                  above rather than separated from it: a run is contiguous, so
+                  "not first" is the whole test. See `SupersetTie`. */}
+              {index > 0 &&
+                (placements.get(entry.routineExercise.id)?.first === false ? (
+                  <SupersetTie />
+                ) : (
+                  <Divider />
+                ))}
 
               <View style={styles.exerciseHeader}>
                 {/* No accent, and a heavier variant to carry the row instead.
@@ -327,6 +397,17 @@ export default function RoutineEditorScreen() {
                 <Text variant="subheading" color="text" numberOfLines={1} style={styles.flex}>
                   {entry.exercise.name}
                 </Text>
+                {/* Nothing to pair with in a routine of one, so no control: the
+                    same rule the reorder action in the header follows. */}
+                {detail.exercises.length > 1 && (
+                  <SupersetChip
+                    placement={placements.get(entry.routineExercise.id)}
+                    exerciseName={entry.exercise.name}
+                    onPress={() =>
+                      showSupersetMenu(supersetRows, entry.routineExercise.id, applySupersets)
+                    }
+                  />
+                )}
                 <Pressable
                   hitSlop={8}
                   accessibilityLabel={`Remove ${entry.exercise.name}`}

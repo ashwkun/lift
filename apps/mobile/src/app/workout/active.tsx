@@ -5,8 +5,10 @@ import {
   reorder,
   TRACKING_FIELDS,
   detectPrs,
+  normalizeSupersets,
   type PositionedRow,
   type SetType,
+  type SupersetAssignment,
 } from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -60,6 +62,7 @@ import {
   addExerciseToWorkout,
   addSet,
   applyExerciseOrder,
+  applySupersetGroups,
   canLogSet,
   deleteSet,
   discardWorkout,
@@ -76,6 +79,7 @@ import {
   type SetInput,
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
+import { showSupersetMenu, supersetMap, SupersetTie } from '@/features/workouts/superset';
 import type { ProgressionInput } from '@/features/workouts/suggestion';
 import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
@@ -604,6 +608,33 @@ export default function ActiveWorkoutScreen() {
   const [restEditorId, setRestEditorId] = useState<string | null>(null);
   const restEditorDetail = details.find((detail) => detail.workoutExercise.id === restEditorId);
 
+  /*
+   * The rows the superset logic reads: grouping and order, nothing else.
+   *
+   * Keyed by `workoutExercise.id` rather than by the exercise's, because the
+   * same lift can legitimately appear twice in one session and only one of the
+   * two may be in the superset.
+   */
+  const supersetRows = useMemo(
+    () =>
+      details.map((detail) => ({
+        id: detail.workoutExercise.id,
+        name: detail.exercise.name,
+        supersetGroup: detail.workoutExercise.supersetGroup,
+      })),
+    [details],
+  );
+
+  const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
+
+  const applySupersets = useCallback(
+    (writes: SupersetAssignment[]) => {
+      if (writes.length === 0) return;
+      guard(applySupersetGroups(writes));
+    },
+    [guard],
+  );
+
   const [reordering, setReordering] = useState(false);
 
   // Names and set counts only. The sheet reorders a list of labels, and what
@@ -662,8 +693,28 @@ export default function ActiveWorkoutScreen() {
       // only needs the position it ended on.
       const final = new Map(writes.map((write) => [write.id, write]));
       guard(applyExerciseOrder([...final.values()]));
+
+      /*
+       * A drag is a superset control whether or not it meant to be: dropping an
+       * exercise between two halves of a pair leaves two lifts carrying a group
+       * id with something standing between them, which is no longer a superset.
+       * `rows` is already in the order the sheet produced, so the grouping is
+       * read back off it and whatever no longer holds is cleared.
+       *
+       * Usually this writes nothing, and `applySupersetGroups` returns without
+       * a statement.
+       */
+      const groups = new Map(
+        details.map((detail) => [detail.workoutExercise.id, detail.workoutExercise.supersetGroup]),
+      );
+
+      applySupersets(
+        normalizeSupersets(
+          rows.map((row) => ({ id: row.id, supersetGroup: groups.get(row.id) ?? null })),
+        ),
+      );
     },
-    [details, guard],
+    [details, guard, applySupersets],
   );
 
   // The exercise the running timer belongs to, so the bar can show and edit
@@ -894,12 +945,28 @@ export default function ActiveWorkoutScreen() {
         ) : (
           details.map((detail, index) => (
             <View key={detail.workoutExercise.id}>
-              {index > 0 && <Divider />}
+              {/* A member that is not the first of its run is tied to the block
+                  above rather than separated from it: a run is contiguous, so
+                  "not first" is the whole test. See `SupersetTie`. */}
+              {index > 0 &&
+                (placements.get(detail.workoutExercise.id)?.first === false ? (
+                  <SupersetTie />
+                ) : (
+                  <Divider />
+                ))}
               <ExerciseBlock
                 detail={detail}
                 previousSets={previousByExercise[detail.exercise.id]?.sets ?? []}
                 previousNote={previousByExercise[detail.exercise.id]?.note ?? null}
                 recordSetIds={recordSetIds}
+                superset={placements.get(detail.workoutExercise.id)}
+                // Nothing to pair with in a session of one, so no control.
+                onEditSuperset={
+                  details.length > 1
+                    ? () =>
+                        showSupersetMenu(supersetRows, detail.workoutExercise.id, applySupersets)
+                    : undefined
+                }
                 progression={progressionByExercise[detail.exercise.id]}
                 onAddSet={() => {
                   // Carry the last set's load forward. The usual case is

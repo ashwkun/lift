@@ -12,6 +12,7 @@ import {
   type DistanceUnit,
   type SetType,
   type Suggestion,
+  type SupersetPlacement,
   type WeightUnit,
 } from '@lift/shared';
 import { useMemo } from 'react';
@@ -28,6 +29,7 @@ import { radius, spacing, stroke, useColors } from '@/theme';
 
 import { pairWithPrevious } from './previous';
 import { SetRow } from './set-row';
+import { SupersetChip } from './superset';
 import { hasRestOverride, resolveRestSeconds, type WorkoutExerciseDetail } from './repository';
 import { suggestForExercise, type ProgressionInput } from './suggestion';
 
@@ -51,6 +53,21 @@ export interface ExerciseBlockProps {
    */
   /** Sets that took a personal record, marked with a trophy. */
   recordSetIds?: ReadonlySet<string>;
+  /**
+   * Where this exercise sits in the superset it belongs to, if it is in one.
+   *
+   * Derived by the screen rather than read off `workoutExercise.supersetGroup`,
+   * because the letter is positional and a row cannot see the list it is in:
+   * see `runLabel` in `@lift/shared`.
+   */
+  superset?: SupersetPlacement;
+  /**
+   * Opens the superset menu. **Absent means no control is drawn**, which is
+   * how a session holding one exercise avoids offering a pairing it has
+   * nothing to pair with. Same rule the routine editor applies to its reorder
+   * action, for the same reason.
+   */
+  onEditSuperset?: () => void;
   progression?: ProgressionInput;
   onAddSet: () => void;
   onUpdateSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -100,6 +117,8 @@ export function ExerciseBlock({
   previousSets,
   previousNote,
   recordSetIds,
+  superset,
+  onEditSuperset,
   progression,
   onAddSet,
   onUpdateSet,
@@ -296,6 +315,14 @@ export function ExerciseBlock({
             )}
           </View>
         </Pressable>
+
+        {onEditSuperset && (
+          <SupersetChip
+            placement={superset}
+            exerciseName={detail.exercise.name}
+            onPress={onEditSuperset}
+          />
+        )}
 
         {restTimerEnabled && (
           <Pressable

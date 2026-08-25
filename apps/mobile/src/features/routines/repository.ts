@@ -6,7 +6,13 @@
  * separate tables: editing a routine must never rewrite history.
  */
 
-import { uuidv7, type PositionedRow, type SetType } from '@lift/shared';
+import {
+  normalizeSupersets,
+  uuidv7,
+  type PositionedRow,
+  type SetType,
+  type SupersetAssignment,
+} from '@lift/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
@@ -160,6 +166,38 @@ export async function applyRoutineExerciseOrder(updates: PositionedRow[]): Promi
   }
 }
 
+/**
+ * Applies the writes a superset edit produced.
+ *
+ * The sibling of `applyRoutineExerciseOrder`, and the same contract: the
+ * arithmetic is `supersets.ts`' in `@lift/shared`, and this writes the rows it
+ * named. Prescribing a superset in a routine is what makes the session start
+ * with one, because `copyRoutineIntoWorkout` carries `supersetGroup` across
+ * with the notes and the rest.
+ *
+ * **The editor calls this after a reorder as well.** A drag that lands an
+ * exercise between two halves of a superset has dismantled it, and
+ * `normalizeSupersets` is the only thing that notices.
+ */
+export async function applyRoutineSupersetGroups(updates: SupersetAssignment[]): Promise<void> {
+  if (updates.length === 0) return;
+
+  for (const { id, supersetGroup } of updates) {
+    await db
+      .update(routineExercises)
+      .set({ supersetGroup, ...touch() })
+      .where(eq(routineExercises.id, id));
+
+    const [updated] = await db
+      .select()
+      .from(routineExercises)
+      .where(eq(routineExercises.id, id))
+      .limit(1);
+
+    if (updated) await trackUpsertCoalesced('routine_exercises', updated);
+  }
+}
+
 export async function addExerciseToRoutine(
   routineId: string,
   exerciseId: string,
@@ -259,6 +297,14 @@ export async function deleteRoutineSet(setId: string): Promise<void> {
 export async function removeExerciseFromRoutine(routineExerciseId: string): Promise<void> {
   const deletedAt = Date.now();
 
+  // Read before the tombstone, so the superset sweep at the end knows which
+  // routine to look at.
+  const [link] = await db
+    .select({ routineId: routineExercises.routineId })
+    .from(routineExercises)
+    .where(eq(routineExercises.id, routineExerciseId))
+    .limit(1);
+
   await db
     .update(routineExercises)
     .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
@@ -280,6 +326,26 @@ export async function removeExerciseFromRoutine(routineExerciseId: string): Prom
       .set({ deletedAt, updatedAt: deletedAt, syncState: 'pending' })
       .where(eq(routineSets.id, child.id));
     await trackDelete('routine_sets', child.id, deletedAt);
+  }
+
+  /*
+   * Taking one half of a pair out of the routine leaves the other half holding
+   * a group id with nothing to be paired with, which is not a superset.
+   *
+   * This also runs once per exercise while `deleteRoutine` empties a routine it
+   * is about to tombstone, which is a write or two the wire did not need. The
+   * alternative is a second removal path that skips the sweep, and a path that
+   * exists only to be faster in the one case where nothing is left to be
+   * correct about is how the invariant gets lost.
+   */
+  if (link) {
+    const links = await db
+      .select({ id: routineExercises.id, supersetGroup: routineExercises.supersetGroup })
+      .from(routineExercises)
+      .where(and(eq(routineExercises.routineId, link.routineId), isNull(routineExercises.deletedAt)))
+      .orderBy(asc(routineExercises.position));
+
+    await applyRoutineSupersetGroups(normalizeSupersets(links));
   }
 }
 
