@@ -126,9 +126,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --font-sans: var(--font-archivo);
-  --font-mono: var(--font-azeret);
-  --font-heading: var(--font-archivo);
+  --font-sans: var(--font-jetbrains-sans);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-jetbrains-sans);
 
   --radius-sm: calc(var(--radius) * 0.45);
   --radius-md: calc(var(--radius) * 0.72);
@@ -153,12 +153,12 @@
   html {
     @apply font-sans;
     /*
-     * Archivo's width axis is the whole reason it is here. The page runs
-     * slightly narrow for body copy and pushes wide for headlines, which is
-     * how it lands near the app's own typeface without shipping a licence it
-     * does not have.
+     * No `font-stretch` anywhere on this page any more. The face it used to
+     * carry had a real width axis and the page rode it, narrow for body copy
+     * and wide for headlines, to land near the app's own typeface. This is now
+     * that typeface: three static cuts and no axis at all, so a width
+     * declaration would either do nothing or pick a face that is not there.
      */
-    font-stretch: 96%;
     scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
     /* The sticky header is 64px; anchored sections stop below it, not under it. */
@@ -345,30 +345,46 @@
     border-top-width: 1px;
   }
 
-  /* Headline setting: wide, heavy, tight. */
+  /*
+   * Headline setting.
+   *
+   * 700 rather than 800: the family ships no Extrabold, and the app made the
+   * same call when it moved here — its `display` role names the Bold. Asking
+   * for 800 would resolve to the same file and read as a number nobody chose.
+   *
+   * The tracking is the app's own, converted from points to ems rather than
+   * re-eyeballed: `pageDisplay` is -1.2 at 38px, which is -0.032em, and it
+   * holds at any size because an em is what the app's fixed pair describes at
+   * the size it was drawn for.
+   */
   .display {
-    font-stretch: 112%;
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    line-height: 0.94;
+    font-weight: 700;
+    letter-spacing: -0.032em;
+    line-height: 0.95;
   }
 
-  /* Small mono labels. Caps, tracked out, never body copy. */
+  /*
+   * Small mono labels. Caps, tracked out, never body copy.
+   *
+   * 0.1em rather than the 0.14em this carried under Azeret. A monospace is
+   * already spaced by construction and JetBrains Mono is a wide one, so the
+   * old figure now reads as gapped rather than tracked. The app's own uppercase
+   * label sits at 0.8 over 11px, about 0.073em; this stays above it because a
+   * mono needs less help than a sans and a page needs more than a phone.
+   */
   .label {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 500;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    font-stretch: normal;
   }
 
   /* Figures. Tabular so columns of numbers do not reflow as they change. */
   .figure {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-stretch: normal;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
   }
 
   /*

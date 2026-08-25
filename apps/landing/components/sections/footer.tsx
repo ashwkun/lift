@@ -13,6 +13,14 @@ const COLUMNS = [
     ],
   },
   {
+    heading: "Self-hosting",
+    items: [
+      { label: "Deploy guide", href: links.selfHosting },
+      { label: "The sync server", href: links.api },
+      { label: "Compose file", href: links.compose },
+    ],
+  },
+  {
     heading: "Licence",
     /*
      * `Third-party notices` is not an ordinary link. The app's anatomical
@@ -33,12 +41,19 @@ export function Footer() {
   return (
     <footer className="mt-auto">
       <div className="shell py-16">
-        <div className="grid gap-12 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-20">
+        {/*
+          `lg` rather than `sm` for the split. Three link columns beside a
+          paragraph at 42 characters is more than 640px holds, and the failure
+          is the paragraph collapsing to a word per line rather than anything
+          obvious about the columns.
+        */}
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
           <div>
             <Wordmark id="mark-footer" />
             <p className="mt-5 max-w-[42ch] text-[0.9375rem] leading-relaxed text-fg-2">
-              A local-first workout tracker. Everything works offline; an account
-              is optional and only adds backup and cross-device sync.
+              A local-first workout tracker. Everything works offline, nothing
+              in it is tracked, and an account is optional: all it adds is a
+              backup and a second device, on a server you can run yourself.
             </p>
             <a
               href={links.repo}
@@ -49,7 +64,7 @@ export function Footer() {
             </a>
           </div>
 
-          <div className="flex gap-16">
+          <div className="grid grid-cols-2 gap-x-12 gap-y-10 sm:grid-cols-3 sm:gap-x-14">
             {COLUMNS.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
                 <p className="label text-fg-3">{column.heading}</p>
@@ -69,7 +84,6 @@ export function Footer() {
             ))}
           </div>
         </div>
-
       </div>
     </footer>
   );

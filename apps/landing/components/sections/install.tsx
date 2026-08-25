@@ -92,11 +92,6 @@ export function Install({ release }: { release: Release | null }) {
               4.36 against it, which is under AA; 70% reads 6.02. Every other
               tint on this slab is a rule and has no ratio to meet.
             */}
-            {/*
-              70% rather than 60. Composited over the lime, a 60% ink measures
-              4.36 against it, which is under AA; 70% reads 6.02. Every other
-              tint on this slab is a rule and has no ratio to meet.
-            */}
             <p className="mt-8 text-[0.9375rem] text-volt-ink/70">
               An Android install file
               {release?.apkBytes ? `, ${formatBytes(release.apkBytes)}` : ""},

@@ -21,12 +21,19 @@ import { links } from "@/lib/site";
  * every frame of every scroll, which is the one thing this component must not
  * do on a page that is nine thousand pixels long.
  */
+/*
+ * Six, and `get` is not one of them. The download button is pinned to the right
+ * of this bar at every width and does the job an "Install" link would, so the
+ * slot it was taking went to `privacy` and `self-host`, which are sections a
+ * reader has no other way of knowing are down there.
+ */
 const SECTIONS = [
   { id: "screens", label: "Screens" },
   { id: "coach", label: "Coaching" },
   { id: "offline", label: "Offline" },
+  { id: "privacy", label: "Privacy" },
   { id: "sync", label: "Sync" },
-  { id: "get", label: "Install" },
+  { id: "self-host", label: "Self-host" },
 ];
 
 export function Nav() {
@@ -107,11 +114,13 @@ export function Nav() {
         </a>
 
         {/*
-          `lg` rather than `md`. Five section links plus Source plus the
-          download button do not fit beside the wordmark at 768px without the
-          gaps closing to the point where the links read as one word.
+          `lg` rather than `md`. Six section links plus Source plus the download
+          button do not fit beside the wordmark at 768px without the gaps
+          closing to the point where the links read as one word. They do fit at
+          1024 with the gap at 6 rather than 7, which is what paid for the two
+          sections added since.
         */}
-        <ul ref={list} className="ml-auto hidden items-center gap-7 lg:flex">
+        <ul ref={list} className="ml-auto hidden items-center gap-6 lg:flex xl:gap-7">
           {SECTIONS.map((section) => (
             <li key={section.id}>
               <a

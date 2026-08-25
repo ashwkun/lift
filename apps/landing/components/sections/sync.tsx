@@ -35,10 +35,10 @@ export function Sync() {
             <p>
               Edit the same session in two places and the most recent edit is
               the one that keeps. Delete it on one phone and it goes on the
-              other. The server sits in the same repository as the app, under
-              the same licence, so you can point the app at your own copy of it,
-              use the one that is already running, or never sign in at all and
-              lose none of the app.
+              other. Nothing is held back until you sign in and nothing stops
+              working if you never do: not a tier, not a trial, not a screen
+              waiting behind a login. All an account buys is a second copy, and
+              where that copy sits is the next thing on this page.
             </p>
           </div>
 

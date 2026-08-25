@@ -5,7 +5,9 @@ import { Nav } from "@/components/sections/nav";
 import { Offline } from "@/components/sections/offline";
 import { Opinion } from "@/components/sections/opinion";
 import { Portable } from "@/components/sections/portable";
+import { Privacy } from "@/components/sections/privacy";
 import { Screens } from "@/components/sections/screens";
+import { SelfHost } from "@/components/sections/self-host";
 import { Sync } from "@/components/sections/sync";
 import { Reveal } from "@/components/site/reveal";
 import { VolumeBand } from "@/components/site/volume-band";
@@ -44,7 +46,19 @@ export default async function Home() {
         <Opinion />
         <Offline />
         <Portable />
+
+        {/*
+          The ledger sits here rather than up beside the offline guarantees, and
+          the order is the argument. By this point the page has said where the
+          training is kept and shown both doors it can leave by; what a reader
+          wants next is the list of everything that leaves without being
+          carried, and the last two rows of that list hand straight over to the
+          two sections about sync.
+        */}
+        <Privacy />
+
         <Sync />
+        <SelfHost />
         <Install release={release} />
       </main>
 

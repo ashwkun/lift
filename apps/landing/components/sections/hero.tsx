@@ -32,6 +32,10 @@ export function Hero({ release }: { release: Release | null }) {
               <span>Android</span>
               <Tick />
               <span>AGPL-3.0</span>
+              <Tick />
+              {/* Above the fold because it is half of what the page argues and
+                  the only fact in this row a reader cannot guess. */}
+              <span>Self-hostable</span>
             </p>
 
             {/*
@@ -59,7 +63,8 @@ export function Hero({ release }: { release: Release | null }) {
               Lift keeps every workout, set, routine and record on the phone in
               your hand. It opens instantly, works with the network off, and
               never asks you to make an account. Signing in is optional, and all
-              it adds is a backup and a second device.
+              it adds is a backup and a second device, on a server you can run
+              yourself.
             </p>
 
             <div
@@ -80,7 +85,8 @@ export function Hero({ release }: { release: Release | null }) {
               className="rise mt-6 text-sm leading-relaxed text-fg-3"
               style={{ animationDelay: "340ms" }}
             >
-              No account, no ads, no subscription, nothing to unlock.
+              No account, no ads, no trackers, no subscription, nothing to
+              unlock.
             </p>
           </div>
 
