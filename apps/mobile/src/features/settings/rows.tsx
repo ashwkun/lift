@@ -237,9 +237,14 @@ export function SettingValue({ icon, label, value, hint, onPress }: SettingValue
 export interface SettingChoiceProps<T extends string> {
   icon: SettingIcon;
   label: string;
+  /** The second line. What the setting does, or why the row is dead. */
+  description?: string;
   options: readonly ListPickerOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  disabled?: boolean;
+  /** Why the row is dead. Replaces the description, and is read out with the label. */
+  disabledReason?: string;
 }
 
 /**
@@ -253,26 +258,43 @@ export interface SettingChoiceProps<T extends string> {
 export function SettingChoice<T extends string>({
   icon,
   label,
+  description,
   options,
   value,
   onChange,
+  disabled = false,
+  disabledReason,
 }: SettingChoiceProps<T>) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
 
   const current = options.find((option) => option.value === value) ?? options[0];
 
+  // Same rule as `SettingToggle`: a dead row is better spent saying which
+  // switch above to turn back on than describing behaviour that is not running.
+  const detail = disabled ? disabledReason : description;
+
   return (
     <>
       <PressableRow
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${label}, ${current?.label ?? ''}`}
-        accessibilityHint={`Opens the ${label.toLowerCase()} picker`}
+        accessibilityState={{ expanded: open, disabled }}
+        accessibilityLabel={
+          disabled && disabledReason
+            ? `${label}, ${current?.label ?? ''}. ${disabledReason}`
+            : `${label}, ${current?.label ?? ''}`
+        }
+        accessibilityHint={disabled ? undefined : `Opens the ${label.toLowerCase()} picker`}
+        disabled={disabled}
         onPress={() => setOpen(true)}
       >
-        <RowFace icon={icon} label={label} />
-        <Text variant="label" color="textSecondary" numberOfLines={1} style={styles.trailing}>
+        <RowFace icon={icon} label={label} description={detail} dimmed={disabled} />
+        <Text
+          variant="label"
+          color="textSecondary"
+          numberOfLines={1}
+          style={[styles.trailing, disabled && styles.dimmed]}
+        >
           {current?.label}
         </Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />

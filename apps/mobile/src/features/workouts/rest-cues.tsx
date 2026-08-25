@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, AppState } from 'react-native';
 
 import { haptics } from '@/features/feedback/haptics';
+import { systemRestBellPending } from '@/features/notifications/rest';
 import {
   playCountdownBeep,
   playRestBell,
@@ -119,7 +120,11 @@ export function RestCues() {
       // Guarded on `prior` so extending an already-finished timer and letting it
       // lapse again is the only way to hear this twice.
       if (prior > 0) {
-        if (soundEnabled) void playRestBell();
+        // Only when the bell is ours to ring. On the notification and alarm
+        // routes the OS is about to play the same tone through the same
+        // deadline (`systemRestBellPending`), and two bells a frame apart is
+        // worse than either of them alone.
+        if (soundEnabled && !systemRestBellPending()) void playRestBell();
         haptics.restComplete();
         AccessibilityInfo.announceForAccessibility('Rest complete');
       }

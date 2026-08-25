@@ -1,11 +1,11 @@
 import { formatClockTime, formatDuration } from '@lift/shared';
 import { useState } from 'react';
 
-import { Card, Divider, Reveal, TimePickerModal } from '@/components/ui';
+import { Card, Divider, Reveal, TimePickerModal, type ListPickerOption } from '@/components/ui';
 import { Footnote, SettingsPage, settingsStyles } from '@/features/settings/page';
 import { SettingChoice, SettingToggle, SettingValue } from '@/features/settings/rows';
 import { showAlert } from '@/store/dialog';
-import { useSettings } from '@/store/settings';
+import { useSettings, type RestSoundOutput } from '@/store/settings';
 import { spacing } from '@/theme';
 
 /**
@@ -20,6 +20,37 @@ import { spacing } from '@/theme';
 const REST_PRESETS = [60, 90, 120, 150, 180, 240];
 
 /**
+ * Where the bell comes out of the phone.
+ *
+ * Written as three promises about what you will hear rather than three
+ * technical routes, because that is the only part of the difference anyone can
+ * check. The failure this exists to fix has no name a settings screen can use:
+ * a bell on the music volume goes wherever the music goes, so a pair of earbuds
+ * on the bench next to you is a bell you will never hear, and every one of the
+ * "my rest timer stopped working" moments this app has had was that.
+ */
+const SOUND_OUTPUTS: readonly ListPickerOption<RestSoundOutput>[] = [
+  {
+    value: 'media',
+    label: 'Media',
+    description: 'Plays in the app, at your music volume. Goes to your earbuds, and only there.',
+  },
+  {
+    value: 'notification',
+    label: 'Notification',
+    description: 'Rung by the phone at its notification volume, through its own speaker.',
+  },
+  {
+    value: 'alarm',
+    label: 'Alarm',
+    // Not a claim about volume alone: silent mode mutes the ring and
+    // notification streams and leaves the alarm one running, which is the
+    // difference between this and the row above it on a phone in a pocket.
+    description: 'The same, at alarm volume. The loudest, and the one silent mode leaves alone.',
+  },
+];
+
+/**
  * Everything that changes what a session does, in the order it happens: the
  * rest timer's master switch, its settings, when the reminder to come in fires,
  * and what the phone itself does once you are here.
@@ -31,6 +62,8 @@ export default function WorkoutSettingsScreen() {
   const [editingTime, setEditingTime] = useState(false);
 
   const restOff = !settings.restTimerEnabled;
+  /** Both routes that hand the bell to the OS rather than playing it in-app. */
+  const soundGoesThroughPhone = settings.restTimerSoundOutput !== 'media';
   /** The stored "HH:mm" as the device writes a clock: "5:00 pm" or "17:00". */
   const reminderTime = formatClockTime(settings.gymReminderTime);
 
@@ -141,6 +174,26 @@ export default function WorkoutSettingsScreen() {
             onChange={(value) => update('soundEnabled', value)}
             disabled={restOff}
             disabledReason="The rest timer is off."
+          />
+          <Divider inset={spacing.lg} />
+          <SettingChoice
+            icon="volume-high-outline"
+            label="Sound output"
+            // Two descriptions, because the row has a dependency it cannot
+            // enforce: the phone can only ring the bell if it was given one to
+            // ring, and that is the switch two rows up. Saying so on the row
+            // beats a footnote nobody reads and beats silently doing something
+            // other than what the row says.
+            description={
+              soundGoesThroughPhone && !settings.restTimerNotifications
+                ? 'Plays in the app until Notify when finished is on.'
+                : "Which of the phone's volumes the bell rings at."
+            }
+            options={SOUND_OUTPUTS}
+            value={settings.restTimerSoundOutput}
+            onChange={(value) => update('restTimerSoundOutput', value)}
+            disabled={restOff || !settings.soundEnabled}
+            disabledReason={restOff ? 'The rest timer is off.' : 'The alert sound is off.'}
           />
           <Divider inset={spacing.lg} />
           <SettingToggle

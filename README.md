@@ -49,7 +49,9 @@ palettes, is in [`screenshots/`](screenshots).
   [Self-hosting](#self-hosting) — instead of depending on a hosted one.
 - **A rest timer that survives the app dying.** Backed by an Android
   foreground service, so the countdown in the notification shade stays live
-  even if the app is killed mid-set.
+  even if the app is killed mid-set. The bell at zero can ring on the phone's
+  notification or alarm volume rather than its media volume, so it still
+  reaches you with a pair of earbuds sitting on the bench.
 - **Supersets**, prescribed in a routine or paired mid-session: tap the link
   chip on an exercise to join it to the one above or below, and the grouping
   carries from the routine into every session started from it.

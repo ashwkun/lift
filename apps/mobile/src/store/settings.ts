@@ -24,6 +24,28 @@ import { create } from 'zustand';
 import { db } from '@/db/client';
 import { bodyMeasurements, settings as settingsTable } from '@/db/schema';
 
+/**
+ * Which of the phone's volume sliders the rest bell rings on.
+ *
+ * A phone has three of them and they are three different promises. `media` is
+ * the app playing a sound of its own: it rides the music volume, and with
+ * earbuds paired it goes to the earbuds and nowhere else, which is silence for
+ * anyone who has just taken them out to squat. The other two hand the bell to
+ * the OS, which routes it the way it routes a text message or an alarm: through
+ * the phone's own speaker as well as whatever is paired, at the ring or the
+ * alarm slider rather than at whatever the music is set to.
+ *
+ * `alarm` is the loudest of the three and is the one that survives a phone left
+ * across the room. `notification` is the same routing at a volume that will not
+ * make the whole gym look up.
+ *
+ * See `features/notifications/rest.ts` for how each is delivered, and note that
+ * the countdown beeps are `media` whichever of the three is chosen: they are
+ * the app talking, seven times a set, and no phone has a volume slider for
+ * that.
+ */
+export type RestSoundOutput = 'media' | 'notification' | 'alarm';
+
 export interface Settings {
   weightUnit: WeightUnit;
   distanceUnit: DistanceUnit;
@@ -39,6 +61,8 @@ export interface Settings {
   /** Buzz on each of the last three seconds, so the cue starts before zero. */
   restTimerCountdownCues: boolean;
   soundEnabled: boolean;
+  /** Which of the phone's volume sliders the rest bell rings on. */
+  restTimerSoundOutput: RestSoundOutput;
   hapticsEnabled: boolean;
   /** Keep the screen on during an active workout. */
   keepAwakeDuringWorkout: boolean;
@@ -95,6 +119,12 @@ export const DEFAULT_SETTINGS: Settings = {
   restTimerNotifications: true,
   restTimerCountdownCues: true,
   soundEnabled: true,
+  // Not `media`, which is what the app did before this setting existed: a bell
+  // that only the earbuds you took off can hear is the bug this option is for,
+  // and defaulting to the old behaviour would leave it in place for everyone
+  // who never finds the row. `notification` rather than `alarm` because it is
+  // the quieter of the two fixes.
+  restTimerSoundOutput: 'notification',
   hapticsEnabled: true,
   keepAwakeDuringWorkout: true,
 
@@ -262,6 +292,7 @@ async function persist(state: Settings): Promise<void> {
     restTimerNotifications: state.restTimerNotifications,
     restTimerCountdownCues: state.restTimerCountdownCues,
     soundEnabled: state.soundEnabled,
+    restTimerSoundOutput: state.restTimerSoundOutput,
     hapticsEnabled: state.hapticsEnabled,
     keepAwakeDuringWorkout: state.keepAwakeDuringWorkout,
     oneRepMaxFormula: state.oneRepMaxFormula,
