@@ -1,3 +1,19 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Two faults in expo-sqlite 57.0.1's synchronous web bridge, both of which make
+# a query come back wrong rather than fail:
+#
+#   - It writes the result's length header with
+#     `Uint8Array.set(new Uint32Array([length]))`, which writes one byte, so
+#     every result over 255 bytes arrives truncated mid-JSON.
+#   - The transport buffer is a fixed megabyte and the write past the end of it
+#     throws inside the worker, which then never releases the lock the calling
+#     thread is spinning on. The exercise catalog is six thousand rows and hits
+#     this every time. It is growable now, and grown on demand.
+#
+# Native is unaffected: this is the web bridge only, which is what the desktop
+# build and `scripts/screenshots` run on. See the patch.
+patchedDependencies:
+  expo-sqlite@57.0.1: patches/expo-sqlite@57.0.1.patch

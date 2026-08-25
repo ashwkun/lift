@@ -1,0 +1,62 @@
+--- a/web/WorkerChannel.ts
++++ b/web/WorkerChannel.ts
+@@ -38,9 +38,44 @@
+     const lock = new Int32Array(lockBuffer);
+     const resultArray = new Uint8Array(resultBuffer);
+     const resultJson = error != null ? serialize({ error }) : serialize({ result });
+-    const resultBytes = new TextEncoder().encode(resultJson);
++    let resultBytes = new TextEncoder().encode(resultJson);
++
++    // The buffer is a megabyte and some results are not. `openDatabaseSync` is
++    // handed a fresh one per call, so it cannot be sized for the worst query up
++    // front without paying for that on every trivial one; it is created
++    // growable instead, and grown here to whatever this answer needs.
++    //
++    // Without this the write below throws `RangeError: offset is out of bounds`
++    // inside the worker, the lock is never released, and the calling thread
++    // spins until it times out. A six-thousand-row catalog read came back as an
++    // empty list on the web build and as nothing at all in the console.
++    if (resultBytes.length + 4 > resultBuffer.byteLength) {
++      const wanted = Math.ceil((resultBytes.length + 4) / (1024 * 1024)) * 1024 * 1024;
++
++      if (resultBuffer.growable && wanted <= resultBuffer.maxByteLength) {
++        resultBuffer.grow(wanted);
++      }
++    }
++
++    // Still short: say so, in a payload that does fit, rather than deadlocking
++    // the thread that is waiting on this one.
++    if (resultBytes.length + 4 > resultBuffer.byteLength) {
++      resultBytes = new TextEncoder().encode(
++        serialize({
++          error: new Error(
++            `SQLite result of ${resultBytes.length} bytes exceeds the ${resultBuffer.byteLength} byte transport buffer`
++          ),
++        })
++      );
++    }
++
+     const length = resultBytes.length;
+-    resultArray.set(new Uint32Array([length]), 0);
++    // `resultArray` is a Uint8Array, so `set` with a Uint32Array source writes
++    // one *byte* per element: the length arrived as `length % 256` and every
++    // result over 255 bytes came back truncated mid-JSON. Write the header
++    // through a Uint32 view of the same buffer, which is how the main thread
++    // reads it back.
++    new Uint32Array(resultBuffer, 0, 1)[0] = length;
+     resultArray.set(resultBytes, 4);
+     Atomics.store(lock, 0, RESOLVED);
+   } else {
+@@ -103,7 +138,11 @@
+   const id = messageId++;
+   const lockBuffer = new SharedArrayBuffer(4);
+   const lock = new Int32Array(lockBuffer);
+-  const resultBuffer = new SharedArrayBuffer(1024 * 1024);
++  // Growable, so the megabyte covers the overwhelming majority of calls without
++  // allocating for the rare large read. The worker grows it when an answer does
++  // not fit; see `emitResult`. The ceiling is generous because it is a ceiling
++  // rather than an allocation: nothing is committed until a result asks for it.
++  const resultBuffer = new SharedArrayBuffer(1024 * 1024, { maxByteLength: 64 * 1024 * 1024 });
+   const resultArray = new Uint8Array(resultBuffer);
+ 
+   Atomics.store(lock, 0, PENDING);
