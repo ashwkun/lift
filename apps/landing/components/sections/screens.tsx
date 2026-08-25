@@ -78,9 +78,10 @@ export function Screens() {
               Built for one hand, standing up, mid set.
             </h2>
             <p className="mt-7 max-w-[56ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
-              Every screen below is a real phone with 184 sessions behind it.
-              None of it is a mockup, and none of the numbers were made up for
-              the picture.
+              Every screen below is the app itself, with a year of training
+              behind it: 179 sessions, 3,143 sets. None of it is a mockup, and
+              every figure on them was computed by the app rather than typed
+              into the picture.
             </p>
 
             <div className="mt-11 border-t border-line pt-9 sm:mt-14">

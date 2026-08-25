@@ -59,17 +59,33 @@ comment beside them:
   `scripts/generate-brand.sh`, mask included. Editing the mark means editing
   that script and copying the geometry across.
 
-The typeface is not the app's. The app is set in Spotify Mix, bundled into the
-APK and not something this project may redistribute over the web, so the page
-uses Archivo and Azeret Mono and leans on Archivo's width axis to land near the
-same voice. See the note in `app/layout.tsx`.
+The typeface is the app's, now that it can be. The page ran Archivo for as long
+as the app ran Spotify Mix, a licence this project could not redistribute over
+the web; the app moved to JetBrains Sans in `bfda0f5`, and JetBrains publishes
+that family for the web, so the page is set in the same face the phone is. The
+three cuts live in `app/fonts` rather than being pathed across the workspace,
+because `Dockerfile` only copies `apps/landing` into the build stage. See the
+note in `app/layout.tsx` for which weights are registered and why one of them is
+registered twice.
 
 ## Screenshots
 
-`public/screens` holds thirteen 1080x2340 captures off a real phone with a real
-training log behind them, converted to WebP. `lib/screens.ts` names them and
-carries their alt text. Replacing one means replacing the file and, if what it
-shows changed, the sentence next to it.
+`public/screens` holds thirteen 1080x2340 captures of the app, converted to
+WebP. `lib/screens.ts` names them and carries their alt text. Replacing one
+means replacing the file and, if what it shows changed, the sentence next to it.
+
+They are retaken by script rather than off a phone by hand:
+
+```bash
+cd apps/mobile && npx expo start --web        # in one terminal
+node scripts/screenshots/capture.mjs --landing --fresh   # in another
+```
+
+`scripts/screenshots/` at the repository root is the same harness that takes the
+figures in the root README, pointed at this directory and at the phone geometry
+`lib/screens.ts` documents. The training log behind every figure is generated
+from a fixed seed, so the numbers are the app's own arithmetic over a year that
+belongs to nobody. The root README's Screenshots section has the rest.
 
 ## Social card and icons
 

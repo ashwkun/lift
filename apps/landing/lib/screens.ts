@@ -1,7 +1,17 @@
 /**
- * The screenshots in `public/screens`, all 1080x2340 off a real phone with a
- * real training log behind them. Nothing here is a mockup, which is the point:
- * the numbers on these screens are 184 sessions of somebody's actual lifting.
+ * The screenshots in `public/screens`, all 1080x2340.
+ *
+ * Nothing here is a mockup, which is the point, but nor is it anybody's real
+ * log: `scripts/screenshots/capture.mjs --landing` at the repository root drives
+ * the app in a browser against a year generated from a fixed seed, and every
+ * figure on these screens is the app's own arithmetic over it. That is a
+ * stronger claim than a hand-shot phone was, because it is reproducible: the
+ * same command a year from now takes the same set off whatever the app has
+ * become.
+ *
+ * **The keys here are the shot names in `LANDING_SHOTS`.** Renaming one means
+ * renaming it there, and an alt text that quotes a number means re-reading that
+ * number off the new screen.
  */
 
 export interface Screen {
@@ -19,7 +29,7 @@ export const screens = {
   },
   workout: {
     src: "/screens/workout.webp",
-    alt: "The workout tab, with an empty workout button above three saved routines",
+    alt: "The workout tab, with an empty workout button above four saved routines",
     caption: "Routines",
   },
   activeWorkout: {
@@ -44,7 +54,7 @@ export const screens = {
   },
   history: {
     src: "/screens/history.webp",
-    alt: "All time history: 184 workouts, 316 hours, 2,803 sets, charted by quarter",
+    alt: "All time history: 179 workouts, 221 hours, 3,143 sets, charted by month",
     caption: "History",
   },
   historyMuscles: {
@@ -59,17 +69,17 @@ export const screens = {
   },
   body: {
     src: "/screens/body.webp",
-    alt: "Body measurements: bodyweight and trend, left against right for biceps, forearms and thighs",
+    alt: "Body measurements: bodyweight with its trend and weekly rate, and the body fat, lean mass and BMI derived from it",
     caption: "Body",
   },
   profile: {
     src: "/screens/profile.webp",
-    alt: "The profile tab showing lifetime volume, session count, and an optional account with pending changes",
+    alt: "The profile tab: lifetime volume, sessions, week streak and active days, above an account that is optional and signed out",
     caption: "Profile",
   },
   backup: {
     src: "/screens/backup.webp",
-    alt: "Backup and export, listing what the JSON file holds: 204 workouts, 3,266 sets, 571 personal records",
+    alt: "Backup and export, listing what the JSON file holds: workouts, sets, routines, personal records and measurements",
     caption: "Backup",
   },
   import: {

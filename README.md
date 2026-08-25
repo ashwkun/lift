@@ -19,6 +19,26 @@ an account is optional and only adds backup and cross-device sync — and the
 server behind that sync is this same repository, so you can run your own
 instead of trusting someone else's.
 
+## Screens
+
+| Home | Logging a session | Calendar |
+| :--: | :--: | :--: |
+| ![The home dashboard: weekly volume, a trend chart and sets by body part](screenshots/home.png) | ![An open session, sets checked off against last time's numbers](screenshots/session.png) | ![A month of training, each day shaded by volume](screenshots/calendar.png) |
+| **Statistics** | **Personal records** | **Exercise detail** |
+| ![A week of sets drawn on the body](screenshots/stats.png) | ![Bests per exercise, by kind and date](screenshots/records.png) | ![A year of estimated 1RM for the bench press](screenshots/exercise.png) |
+| **Body** | **Monthly report** | **Supersets** |
+| ![Bodyweight, body fat, and the figures derived from them](screenshots/measurements.png) | ![One month against the twelve around it](screenshots/monthly-report.png) | ![Two accessories prescribed back to back, tied and both marked A](screenshots/superset.png) |
+
+The same app, same code and same database, laid out for a window:
+
+![The desktop layout: a side rail instead of a tab bar, content in two columns](screenshots/desktop.png)
+
+Every figure above is one generated year of training rather than anyone's real
+log: `node scripts/screenshots/capture.mjs` builds the year, feeds it in through
+the app's own importer and retakes each image. The rest of the set, including
+the routine list, the palette grid, the plate calculator and two of the nine
+palettes, is in [`screenshots/`](screenshots).
+
 ## Features
 
 - **Local-first.** Every workout, PR and body-weight entry writes to a
@@ -30,6 +50,9 @@ instead of trusting someone else's.
 - **A rest timer that survives the app dying.** Backed by an Android
   foreground service, so the countdown in the notification shade stays live
   even if the app is killed mid-set.
+- **Supersets**, prescribed in a routine or paired mid-session: tap the link
+  chip on an exercise to join it to the one above or below, and the grouping
+  carries from the routine into every session started from it.
 - **History, a workout calendar, and volume/PR analytics.**
 - **Body tracking**, with estimated 1RM, BMI and body-fat figures.
 - **Nine palettes** — Nord, Gruvbox, Catppuccin and Solarized among them —
@@ -332,6 +355,35 @@ It runs the app's own dark palette, copied out of the theme tokens rather than
 re-picked, and draws the mark from the same geometry `scripts/generate-brand.sh`
 does. `apps/landing/README.md` says where each piece comes from and what to
 re-run when the mark or the screenshots change.
+
+### Screenshots
+
+The images at the top of this file are retaken by a script rather than by hand,
+against a generated training log rather than anyone's real one:
+
+```bash
+cd apps/mobile && npx expo start --web    # in one terminal
+node scripts/screenshots/capture.mjs      # in another
+```
+
+`scripts/screenshots/sample-log.mjs` builds a year of a four-day split from a
+fixed seed: some 180 sessions, 3,500 sets, a weekly weigh-in and the four
+routines they were run from, one of which prescribes a superset. `capture.mjs`
+drives a real browser, hands it to the app's own importer, and photographs each
+screen, so every volume, estimated 1RM and personal record on display was
+computed by the app rather than written into the fixture.
+
+`--landing` takes the other set: the thirteen screens the marketing page frames
+inside a phone, at the 1080x2340 geometry `apps/landing/lib/screens.ts`
+documents, written there as WebP. Same harness, same generated year, different
+shot list and different output.
+
+Two things follow from being a screenshot tool rather than part of the app.
+Playwright is not a dependency here (`npm i -g playwright-core && npx playwright
+install chromium`, or point `NODE_PATH` at a copy you already have), and the
+browser profile is kept under `node_modules/.cache`, so `--skip-seed` retakes a
+single image in seconds instead of re-importing the year. `--only home,stats`
+narrows it further, and `--fresh` throws the database away and starts over.
 
 ## Testing
 
