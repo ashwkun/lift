@@ -16,6 +16,7 @@
 
 import { relations, sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   doublePrecision,
@@ -118,6 +119,41 @@ export const verification = pgTable(
 // Replicated application tables
 // ---------------------------------------------------------------------------
 
+/**
+ * Parent keys among these ten tables.
+ *
+ * The device declares eleven of them and runs with `PRAGMA foreign_keys = ON`,
+ * so until now the client enforced an integrity rule this server did not: a
+ * push carrying a set whose workout never arrived was accepted here and could
+ * never be applied there. Eight of the eleven are declared below, so the
+ * violation is caught on the way in and answered with `missing_parent`, which
+ * the client already treats as retryable rather than fatal.
+ *
+ * The three deliberately absent ones are every reference to `exercises`:
+ * `routine_exercises`, `workout_exercises` and `personal_records` each carry an
+ * `exercise_id` that the device does constrain. The built-in catalog is ~6,800
+ * rows seeded identically on every install and written straight to
+ * `syncState: 'synced'`, and only `isCustom` exercises are ever tracked into
+ * the oplog, so the catalog never crosses the wire. Declaring those three keys
+ * here would reject essentially every logged set: the exercise it names is on
+ * the phone, correctly, and has no reason to exist in Postgres. Making the
+ * catalog server-side data first is a far larger change than this one.
+ *
+ * No `onDelete` action anywhere, on purpose. The client's `cascade` and
+ * `set null` fire on hard deletes, which only the device performs. Every delete
+ * that reaches this server is a tombstone, an UPDATE, and the single place rows
+ * are really removed is the tombstone sweep. A cascade there would hard-delete
+ * a live child that no tombstone was ever written for: the row would disappear
+ * from Postgres while every device that already pulled it kept it forever, with
+ * nothing to replicate the removal. The sweep instead walks children before
+ * parents and skips any parent still referenced, which is the same protection
+ * without the silent deletion.
+ *
+ * Each referencing column carries an index. Postgres does not create one for a
+ * foreign key, and the sweep asks "is this tombstone still referenced?" once per
+ * candidate row.
+ */
+
 export const exercises = pgTable(
   'exercises',
   {
@@ -165,21 +201,26 @@ export const routines = pgTable(
   'routines',
   {
     id: text('id').primaryKey(),
-    folderId: text('folder_id'),
+    folderId: text('folder_id').references(() => routineFolders.id),
     name: text('name').notNull(),
     notes: text('notes'),
     position: doublePrecision('position').notNull().default(0),
     lastPerformedAt: bigint('last_performed_at', { mode: 'number' }),
     ...syncColumns,
   },
-  (table) => [index('routines_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('routines_sync_idx').on(table.userId, table.seq),
+    index('routines_folder_idx').on(table.folderId),
+  ],
 );
 
 export const routineExercises = pgTable(
   'routine_exercises',
   {
     id: text('id').primaryKey(),
-    routineId: text('routine_id').notNull(),
+    routineId: text('routine_id')
+      .notNull()
+      .references(() => routines.id),
     exerciseId: text('exercise_id').notNull(),
     position: doublePrecision('position').notNull().default(0),
     notes: text('notes'),
@@ -187,14 +228,19 @@ export const routineExercises = pgTable(
     supersetGroup: integer('superset_group'),
     ...syncColumns,
   },
-  (table) => [index('routine_exercises_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('routine_exercises_sync_idx').on(table.userId, table.seq),
+    index('routine_exercises_routine_idx').on(table.routineId),
+  ],
 );
 
 export const routineSets = pgTable(
   'routine_sets',
   {
     id: text('id').primaryKey(),
-    routineExerciseId: text('routine_exercise_id').notNull(),
+    routineExerciseId: text('routine_exercise_id')
+      .notNull()
+      .references(() => routineExercises.id),
     position: doublePrecision('position').notNull().default(0),
     setType: text('set_type').notNull().default('normal'),
     targetReps: integer('target_reps'),
@@ -204,14 +250,17 @@ export const routineSets = pgTable(
     targetRpe: doublePrecision('target_rpe'),
     ...syncColumns,
   },
-  (table) => [index('routine_sets_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('routine_sets_sync_idx').on(table.userId, table.seq),
+    index('routine_sets_parent_idx').on(table.routineExerciseId),
+  ],
 );
 
 export const workouts = pgTable(
   'workouts',
   {
     id: text('id').primaryKey(),
-    routineId: text('routine_id'),
+    routineId: text('routine_id').references(() => routines.id),
     name: text('name').notNull(),
     notes: text('notes'),
     startedAt: bigint('started_at', { mode: 'number' }).notNull(),
@@ -226,6 +275,7 @@ export const workouts = pgTable(
   (table) => [
     index('workouts_sync_idx').on(table.userId, table.seq),
     index('workouts_started_idx').on(table.userId, table.startedAt),
+    index('workouts_routine_idx').on(table.routineId),
   ],
 );
 
@@ -233,7 +283,9 @@ export const workoutExercises = pgTable(
   'workout_exercises',
   {
     id: text('id').primaryKey(),
-    workoutId: text('workout_id').notNull(),
+    workoutId: text('workout_id')
+      .notNull()
+      .references(() => workouts.id),
     exerciseId: text('exercise_id').notNull(),
     position: doublePrecision('position').notNull().default(0),
     notes: text('notes'),
@@ -241,14 +293,19 @@ export const workoutExercises = pgTable(
     supersetGroup: integer('superset_group'),
     ...syncColumns,
   },
-  (table) => [index('workout_exercises_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('workout_exercises_sync_idx').on(table.userId, table.seq),
+    index('workout_exercises_workout_idx').on(table.workoutId),
+  ],
 );
 
 export const workoutSets = pgTable(
   'workout_sets',
   {
     id: text('id').primaryKey(),
-    workoutExerciseId: text('workout_exercise_id').notNull(),
+    workoutExerciseId: text('workout_exercise_id')
+      .notNull()
+      .references(() => workoutExercises.id),
     position: doublePrecision('position').notNull().default(0),
     setType: text('set_type').notNull().default('normal'),
     weightKg: doublePrecision('weight_kg'),
@@ -260,7 +317,10 @@ export const workoutSets = pgTable(
     completedAt: bigint('completed_at', { mode: 'number' }),
     ...syncColumns,
   },
-  (table) => [index('workout_sets_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('workout_sets_sync_idx').on(table.userId, table.seq),
+    index('workout_sets_parent_idx').on(table.workoutExerciseId),
+  ],
 );
 
 export const personalRecords = pgTable(
@@ -271,12 +331,16 @@ export const personalRecords = pgTable(
     kind: text('kind').notNull(),
     value: doublePrecision('value').notNull(),
     reps: integer('reps'),
-    setId: text('set_id'),
-    workoutId: text('workout_id'),
+    setId: text('set_id').references(() => workoutSets.id),
+    workoutId: text('workout_id').references(() => workouts.id),
     achievedAt: bigint('achieved_at', { mode: 'number' }).notNull(),
     ...syncColumns,
   },
-  (table) => [index('personal_records_sync_idx').on(table.userId, table.seq)],
+  (table) => [
+    index('personal_records_sync_idx').on(table.userId, table.seq),
+    index('personal_records_set_idx').on(table.setId),
+    index('personal_records_workout_idx').on(table.workoutId),
+  ],
 );
 
 export const bodyMeasurements = pgTable(
@@ -312,6 +376,28 @@ export const syncReceipts = pgTable(
   ],
 );
 
+/**
+ * How far the tombstone sweep has purged, per user.
+ *
+ * Per user, even though `seq` is a single global sequence. A global watermark
+ * would sit above the cursor of every user whose data was never touched, and
+ * the answer to a cursor below the watermark is "throw your database away and
+ * start again": one busy account's sweep would order a full resync on all of
+ * them.
+ *
+ * A date horizon cannot stand in for this. The sweep chooses rows by
+ * `deletedAt`, which is a client-authored wall clock, while a cursor is a `seq`
+ * from this server's sequence. There is no function from one to the other, so
+ * the only thing a cursor can be compared against is the highest `seq` actually
+ * removed. That is what this records.
+ */
+export const syncPurgeWatermarks = pgTable('sync_purge_watermarks', {
+  userId: text('user_id').primaryKey(),
+  /** Highest `seq` a sweep has removed. A cursor at or above it has missed nothing. */
+  purgedThroughSeq: bigint('purged_through_seq', { mode: 'number' }).notNull().default(0),
+  sweptAt: timestamp('swept_at').notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
@@ -344,5 +430,38 @@ export const SYNC_TABLES = {
 } as const;
 
 export type SyncTableName = keyof typeof SYNC_TABLES;
+
+interface ParentRef {
+  /** The referencing column on the child table. */
+  readonly column: AnyPgColumn;
+  /** Wire name of the table it points at. */
+  readonly parent: SyncTableName;
+}
+
+/**
+ * The foreign keys declared above, as data.
+ *
+ * The sweep needs to walk this graph in both directions: children before
+ * parents when deleting, and parent to children when asking whether a tombstone
+ * is still referenced. Reading it back off the Drizzle table objects at runtime
+ * is possible but obscure, and a hand-written list that drifts from the columns
+ * would fail loudly the first time a delete hit a constraint this map did not
+ * know about. Keeping it next to the declarations is what stops it drifting.
+ *
+ * `exercise_id` is absent for the reason given at the top of the replicated
+ * tables: the built-in catalog is not server-side data.
+ */
+export const SYNC_PARENT_REFS: Partial<Record<SyncTableName, readonly ParentRef[]>> = {
+  routines: [{ column: routines.folderId, parent: 'routine_folders' }],
+  routine_exercises: [{ column: routineExercises.routineId, parent: 'routines' }],
+  routine_sets: [{ column: routineSets.routineExerciseId, parent: 'routine_exercises' }],
+  workouts: [{ column: workouts.routineId, parent: 'routines' }],
+  workout_exercises: [{ column: workoutExercises.workoutId, parent: 'workouts' }],
+  workout_sets: [{ column: workoutSets.workoutExerciseId, parent: 'workout_exercises' }],
+  personal_records: [
+    { column: personalRecords.setId, parent: 'workout_sets' },
+    { column: personalRecords.workoutId, parent: 'workouts' },
+  ],
+};
 
 export { seqDefault };

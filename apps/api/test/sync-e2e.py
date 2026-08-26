@@ -325,6 +325,279 @@ check("and the tombstone is still stored clamped",
       row is not None and row.get("updatedAt", 0) < far,
       str(row.get("updatedAt") if row else None))
 
+# --------------------------------------------------------------------------
+# The client declares eleven foreign keys and runs with PRAGMA foreign_keys=ON;
+# the server declared none, so a set whose workout never arrived was accepted
+# here and could never be applied there. `missing_parent` is the one conflict
+# reason the client retries rather than retires, so a late parent has to be
+# told apart from a payload the schema refuses.
+print("\n--- missing parent ---")
+token_f = signup(f"f-{uuid.uuid4().hex[:8]}@example.com")
+
+orphan_parent = str(uuid.uuid4())
+orphan_child = str(uuid.uuid4())
+sibling = str(uuid.uuid4())
+
+orphan_batch = [
+    # The workout this set's exercise belongs to is deliberately never pushed.
+    {"clientSeq": 400, "table": "workout_exercises", "rowId": orphan_child, "op": "upsert",
+     "updatedAt": now, "payload": {"id": orphan_child, "workoutId": orphan_parent,
+                                   "exerciseId": "bench-press-barbell", "position": 1,
+                                   "createdAt": now, "updatedAt": now, "deletedAt": None}},
+    {"clientSeq": 401, "table": "workouts", "rowId": sibling, "op": "upsert", "updatedAt": now,
+     "payload": {"id": sibling, "name": "Unrelated", "startedAt": now,
+                 "createdAt": now, "updatedAt": now, "deletedAt": None}},
+]
+status, body = call("/api/sync/push", {"mutations": orphan_batch, "deviceId": "device-f"}, token_f)
+check("a row whose parent is absent is not a 500", status in (200, 201), f"status {status}: {body}")
+conflicts = body.get("conflicts", [])
+check("it comes back as missing_parent, not invalid",
+      len(conflicts) == 1 and conflicts[0]["reason"] == "missing_parent", str(conflicts))
+check("the savepoint kept the rest of the batch", body.get("applied") == [401], str(body.get("applied")))
+
+# A missing parent must leave no receipt, or the retry the client is told to
+# make would be acknowledged without ever applying the row. The parent arrives
+# in a later push, which is the shape the client produces: the rejected entry
+# stays in the oplog and goes up again on the next run.
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 402, "table": "workouts", "rowId": orphan_parent, "op": "upsert", "updatedAt": now,
+     "payload": {"id": orphan_parent, "name": "The Late Parent", "startedAt": now,
+                 "createdAt": now, "updatedAt": now, "deletedAt": None}}],
+    "deviceId": "device-f"}, token_f)
+check("the late parent lands", body.get("applied") == [402], str(body))
+
+status, body = call("/api/sync/push", {"mutations": [orphan_batch[0]], "deviceId": "device-f"}, token_f)
+check("and the retry of the rejected child then applies, having left no receipt",
+      body.get("applied") == [400], f"applied={body.get('applied')} conflicts={body.get('conflicts')}")
+
+# Nullable references are enforced too: `routineId` may be null, but a routine
+# id that names nothing is the same missing parent.
+ghost_routine = [{"clientSeq": 403, "table": "workouts", "rowId": str(uuid.uuid4()), "op": "upsert",
+                  "updatedAt": now, "payload": {"id": str(uuid.uuid4()), "name": "From A Ghost Routine",
+                                                "routineId": str(uuid.uuid4()), "startedAt": now,
+                                                "createdAt": now, "updatedAt": now, "deletedAt": None}}]
+status, body = call("/api/sync/push", {"mutations": ghost_routine, "deviceId": "device-f"}, token_f)
+conflicts = body.get("conflicts", [])
+check("a nullable reference to a row that does not exist is missing_parent too",
+      len(conflicts) == 1 and conflicts[0]["reason"] == "missing_parent", str(conflicts))
+
+# The built-in exercise catalog is seeded on device and never pushed, so
+# `exercise_id` is deliberately not a foreign key here. If it were, this would
+# be rejected and essentially every logged set with it.
+catalog_workout = str(uuid.uuid4())
+catalog_child = str(uuid.uuid4())
+catalog = [
+    {"clientSeq": 404, "table": "workouts", "rowId": catalog_workout, "op": "upsert", "updatedAt": now,
+     "payload": {"id": catalog_workout, "name": "Catalog Exercise", "startedAt": now,
+                 "createdAt": now, "updatedAt": now, "deletedAt": None}},
+    {"clientSeq": 405, "table": "workout_exercises", "rowId": catalog_child, "op": "upsert",
+     "updatedAt": now, "payload": {"id": catalog_child, "workoutId": catalog_workout,
+                                   "exerciseId": "an-exercise-only-the-phone-has", "position": 1,
+                                   "createdAt": now, "updatedAt": now, "deletedAt": None}},
+]
+status, body = call("/api/sync/push", {"mutations": catalog, "deviceId": "device-f"}, token_f)
+check("a set naming a built-in exercise the server has never seen still applies",
+      body.get("applied") == [404, 405], f"applied={body.get('applied')} conflicts={body.get('conflicts')}")
+
+# --------------------------------------------------------------------------
+# Nothing purged a tombstone, so every row the user ever deleted was still
+# stored, still indexed and still downloaded in full by every fresh install.
+print("\n--- tombstone sweep ---")
+token_g = signup(f"g-{uuid.uuid4().hex[:8]}@example.com")
+
+# Stamped in the past: the sweep's horizon is `deletedAt`, and a delete a client
+# stamps slightly ahead of the server would not be old enough to purge.
+past = now - 600000
+gc_workout = str(uuid.uuid4())
+gc_child = str(uuid.uuid4())
+gc_live = str(uuid.uuid4())
+
+seed = [
+    {"clientSeq": 500, "table": "workouts", "rowId": gc_workout, "op": "upsert", "updatedAt": past,
+     "payload": {"id": gc_workout, "name": "To Be Deleted", "startedAt": past,
+                 "createdAt": past, "updatedAt": past, "deletedAt": None}},
+    {"clientSeq": 501, "table": "workout_exercises", "rowId": gc_child, "op": "upsert",
+     "updatedAt": past, "payload": {"id": gc_child, "workoutId": gc_workout,
+                                    "exerciseId": "bench-press-barbell", "position": 1,
+                                    "createdAt": past, "updatedAt": past, "deletedAt": None}},
+    {"clientSeq": 502, "table": "workouts", "rowId": gc_live, "op": "upsert", "updatedAt": past,
+     "payload": {"id": gc_live, "name": "Still Here", "startedAt": past,
+                 "createdAt": past, "updatedAt": past, "deletedAt": None}},
+]
+status, body = call("/api/sync/push", {"mutations": seed, "deviceId": "device-g"}, token_g)
+check("seeded a parent, its child and a live row", len(body.get("applied", [])) == 3, str(body))
+
+# The parent is deleted; the child is not. Purging the parent now would either
+# violate the key or, with a cascade, hard-delete a live row that no tombstone
+# was ever written for.
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 503, "table": "workouts", "rowId": gc_workout, "op": "delete",
+     "updatedAt": past + 1000, "payload": None}], "deviceId": "device-g"}, token_g)
+check("the parent is tombstoned", body.get("applied") == [503], str(body))
+
+status, sweep = call("/api/sync/gc", {"retainForDays": 0}, token_g)
+check("a sweep is accepted", status in (200, 201), f"status {status}: {sweep}")
+check("a tombstone whose child is still live is kept, not purged",
+      sweep.get("purged", {}).get("workouts") is None, str(sweep.get("purged")))
+
+status, kept = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_g)
+ids = {w.get("id") for w in kept.get("changes", {}).get("workouts", [])}
+check("and it is still replicated", gc_workout in ids, str(ids))
+
+# Now the child goes too, so one sweep can take both: children first, then the
+# parent nothing references any more.
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 504, "table": "workout_exercises", "rowId": gc_child, "op": "delete",
+     "updatedAt": past + 2000, "payload": None}], "deviceId": "device-g"}, token_g)
+check("the child is tombstoned", body.get("applied") == [504], str(body))
+
+status, sweep = call("/api/sync/gc", {"retainForDays": 0}, token_g)
+check("one sweep removes the child and then the parent",
+      sweep.get("purged", {}).get("workout_exercises") == 1
+      and sweep.get("purged", {}).get("workouts") == 1, str(sweep.get("purged")))
+check("the sweep reports a watermark", int(sweep.get("watermark", 0)) > 0, str(sweep.get("watermark")))
+
+status, fresh = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_g)
+workouts_now = fresh.get("changes", {}).get("workouts", [])
+check("a fresh install no longer downloads the purged tombstone",
+      {w.get("id") for w in workouts_now} == {gc_live}, str([w.get("id") for w in workouts_now]))
+check("and the live row is untouched",
+      len(workouts_now) == 1 and workouts_now[0].get("name") == "Still Here", str(workouts_now))
+check("nor the purged child", len(fresh.get("changes", {}).get("workout_exercises", [])) == 0,
+      str(fresh.get("changes", {}).get("workout_exercises")))
+
+# --------------------------------------------------------------------------
+# A cursor is a `seq`; the horizon is a date. The only thing the two can be
+# compared through is the highest `seq` a sweep actually removed.
+print("\n--- purge watermark ---")
+token_h = signup(f"h-{uuid.uuid4().hex[:8]}@example.com")
+
+doomed = str(uuid.uuid4())
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 600, "table": "workouts", "rowId": doomed, "op": "upsert", "updatedAt": past,
+     "payload": {"id": doomed, "name": "Seen Then Deleted", "startedAt": past,
+                 "createdAt": past, "updatedAt": past, "deletedAt": None}}],
+    "deviceId": "device-h"}, token_h)
+check("seeded a row for the watermark case", body.get("applied") == [600], str(body))
+
+# The device pulls, and stops here. Everything after this it has not seen.
+status, seen = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_h)
+stale_cursor = seen.get("cursor")
+
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 601, "table": "workouts", "rowId": doomed, "op": "delete",
+     "updatedAt": past + 1000, "payload": None}], "deviceId": "device-h2"}, token_h)
+check("another device deletes it", body.get("applied") == [601], str(body))
+
+status, sweep = call("/api/sync/gc", {"retainForDays": 0}, token_h)
+watermark = int(sweep.get("watermark", 0))
+check("the sweep purged the tombstone", sweep.get("purged", {}).get("workouts") == 1, str(sweep))
+check("the watermark is the seq of what it removed, above the stale cursor",
+      watermark > int(stale_cursor), f"watermark {watermark} against cursor {stale_cursor}")
+
+status, behind = call("/api/sync/pull", {"cursor": stale_cursor, "limit": 100}, token_h)
+check("a pull from below the watermark is answered, not rejected",
+      status in (200, 201), f"status {status}: {behind}")
+check("it says a resync is required", behind.get("resyncRequired") is True, str(behind))
+# What an old client does with that: nothing. It reads `changes` and moves on,
+# so it keeps its copy of a row deleted elsewhere. The page must therefore be
+# exactly the page it would have received before, or the flag it ignores would
+# change behaviour it cannot see.
+check("but the page itself is unchanged: no rewind, no error",
+      behind.get("cursor") == stale_cursor and behind.get("hasMore") is False
+      and sum(len(v) for v in behind.get("changes", {}).values()) == 0,
+      str(behind))
+
+status, first_sync = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_h)
+check("a first sync is never told to resync", first_sync.get("resyncRequired") is False,
+      str(first_sync.get("resyncRequired")))
+status, restart = call("/api/sync/pull", {"cursor": "0", "limit": 100}, token_h)
+check("nor is a client restarting from zero, which is what makes it loop-free",
+      restart.get("resyncRequired") is False, str(restart.get("resyncRequired")))
+status, caught_up = call("/api/sync/pull", {"cursor": str(watermark), "limit": 100}, token_h)
+check("a cursor at the watermark has missed nothing",
+      caught_up.get("resyncRequired") is False, str(caught_up.get("resyncRequired")))
+
+# `seq` is global, so a global watermark would order a resync on every account
+# that happened to be quiet while a busy one was swept.
+token_i = signup(f"i-{uuid.uuid4().hex[:8]}@example.com")
+bystander = str(uuid.uuid4())
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 700, "table": "workouts", "rowId": bystander, "op": "upsert", "updatedAt": past,
+     "payload": {"id": bystander, "name": "Somebody Else's", "startedAt": past,
+                 "createdAt": past, "updatedAt": past, "deletedAt": None}}],
+    "deviceId": "device-i"}, token_i)
+status, bystander_pull = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_i)
+bystander_cursor = bystander_pull.get("cursor")
+
+# A sweep on the other account, above this one's cursor.
+status, body = call("/api/sync/push", {"mutations": [
+    {"clientSeq": 602, "table": "workouts", "rowId": str(uuid.uuid4()), "op": "upsert",
+     "updatedAt": past, "payload": {"id": doomed, "name": "ignored", "startedAt": past,
+                                    "createdAt": past, "updatedAt": past, "deletedAt": None}}],
+    "deviceId": "device-h"}, token_h)
+status, sweep = call("/api/sync/gc", {"retainForDays": 0}, token_h)
+
+status, unaffected = call("/api/sync/pull", {"cursor": bystander_cursor, "limit": 100}, token_i)
+check("one account's sweep does not order a resync on another",
+      unaffected.get("resyncRequired") is False, str(unaffected.get("resyncRequired")))
+check("and does not remove its rows",
+      len(call("/api/sync/pull", {"cursor": None, "limit": 100}, token_i)[1]
+          .get("changes", {}).get("workouts", [])) == 1)
+
+# --------------------------------------------------------------------------
+# Every push used to load every receipt the device had ever written into a Set,
+# from a table nothing deleted from. The read is now scoped to the batch and the
+# table is trimmed to a window, which is only safe because a missing receipt
+# means "apply it again and let last-write-wins decide", never "already done".
+print("\n--- receipt bounds ---")
+token_j = signup(f"j-{uuid.uuid4().hex[:8]}@example.com")
+
+old_row = str(uuid.uuid4())
+old_mutation = {"clientSeq": 1, "table": "workouts", "rowId": old_row, "op": "upsert",
+                "updatedAt": past, "payload": {"id": old_row, "name": "Long Ago", "startedAt": past,
+                                               "createdAt": past, "updatedAt": past, "deletedAt": None}}
+status, body = call("/api/sync/push", {"mutations": [old_mutation], "deviceId": "device-j"}, token_j)
+check("an early mutation applies", body.get("applied") == [1], str(body))
+
+# Far enough past the window that the receipt for clientSeq 1 falls out of it.
+recent_row = str(uuid.uuid4())
+recent_mutation = {"clientSeq": 20001, "table": "workouts", "rowId": recent_row, "op": "upsert",
+                   "updatedAt": past, "payload": {"id": recent_row, "name": "Much Later",
+                                                  "startedAt": past, "createdAt": past,
+                                                  "updatedAt": past, "deletedAt": None}}
+status, body = call("/api/sync/push", {"mutations": [recent_mutation], "deviceId": "device-j"}, token_j)
+check("and so does one 20,000 oplog entries later", body.get("applied") == [20001], str(body))
+
+status, body = call("/api/sync/push", {"mutations": [old_mutation], "deviceId": "device-j"}, token_j)
+conflicts = body.get("conflicts", [])
+check("replaying past the trimmed window is judged on its timestamp, not acknowledged blind",
+      body.get("applied") == [] and len(conflicts) == 1 and conflicts[0]["reason"] == "stale",
+      f"applied={body.get('applied')} conflicts={conflicts}")
+check("and the row it would have rewritten is untouched",
+      conflicts and conflicts[0].get("serverRow", {}).get("name") == "Long Ago",
+      str(conflicts[0].get("serverRow", {}).get("name") if conflicts else None))
+
+status, body = call("/api/sync/push", {"mutations": [recent_mutation], "deviceId": "device-j"}, token_j)
+check("a receipt still inside the window short-circuits as before",
+      body.get("applied") == [20001] and body.get("conflicts") == [], str(body))
+
+# The window above already trimmed the receipt for clientSeq 1, so one is left:
+# the window bounds a device that is still pushing, and the sweep is what
+# reaches a device that has stopped and will never trim itself again.
+status, sweep = call("/api/sync/gc", {"retainForDays": 0}, token_j)
+check("the sweep clears the receipts a stopped device left behind",
+      sweep.get("receiptsRemoved") == 1, str(sweep.get("receiptsRemoved")))
+
+status, body = call("/api/sync/push", {"mutations": [recent_mutation], "deviceId": "device-j"}, token_j)
+conflicts = body.get("conflicts", [])
+check("a swept receipt falls back to last-write-wins rather than losing the write",
+      len(conflicts) == 1 and conflicts[0]["reason"] == "stale", str(body))
+
+status, intact = call("/api/sync/pull", {"cursor": None, "limit": 100}, token_j)
+names = sorted(w.get("name") for w in intact.get("changes", {}).get("workouts", []))
+check("both rows survived every replay", names == ["Long Ago", "Much Later"], str(names))
+
 print("\n" + "=" * 60)
 print(f"{len(passes)} passed, {len(failures)} failed")
 if failures:

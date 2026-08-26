@@ -15,6 +15,13 @@
       "when": 1787232030840,
       "tag": "0001_closed_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787745609764,
+      "tag": "0002_bitter_romulus",
+      "breakpoints": true
     }
   ]
 }
