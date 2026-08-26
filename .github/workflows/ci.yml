@@ -1,0 +1,180 @@
+name: CI
+
+# The gate the other two workflows do not have.
+#
+# `android.yml` and `update.yml` both trigger on a `v*` tag and nothing else, so
+# before this file existed a tag went from `pnpm install` straight to a release
+# APK and an `eas update` with no compiler in between. An OTA reaches every
+# install on its next launch, which makes "does it typecheck" a question worth
+# answering before the tag, not after the phones have it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A second push to the same branch makes the first one's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # -------------------------------------------------------------------------
+  check:
+    name: Typecheck, lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must precede setup-node so that `cache: pnpm` can find the binary.
+      # Version comes from the root package.json `packageManager` field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Load-bearing, and it has to come first. `@lift/shared` resolves through
+      # its exports map: Metro takes the `react-native` condition and reads the
+      # source, but `tsc` in apps/api and apps/mobile takes `default` and reads
+      # `dist`. Skip this and every typecheck below fails on a package that is
+      # sitting right there in the tree.
+      - name: Build the shared package
+        run: pnpm --filter @lift/shared build
+
+      # apps/landing's tsconfig includes `.next/types/**/*.ts`, and `.next/` is
+      # gitignored. `LayoutProps` and the route types live only there, so on a
+      # clean checkout `tsc` fails on names that exist on every developer
+      # machine. Cheap: `typegen` writes the types without doing a build.
+      - name: Generate Next types
+        run: pnpm --filter @lift/landing exec next typegen
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      # Reaches apps/mobile and apps/landing only. apps/api and packages/shared
+      # define no `lint` script and carry no eslint dependency, so `pnpm -r lint`
+      # skips them silently rather than failing. Said out loud here because a
+      # green lint job that covered half the repo would otherwise read as full
+      # coverage.
+      - name: Lint
+        run: pnpm -r lint
+
+      - name: Unit tests
+        run: pnpm --filter @lift/shared test
+
+  # -------------------------------------------------------------------------
+  # The sync protocol against a real Postgres.
+  #
+  # These are the tests that would have caught a batch being discarded by one
+  # bad mutation, a row stored with a timestamp years into the future, and a
+  # pull reporting itself complete with rows still past the cursor. None of
+  # that reproduces without a server and a database, which is why this job
+  # exists rather than being folded into the one above.
+  sync-e2e:
+    name: Sync end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lift
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: lift
+        ports:
+          - 5432:5432
+        # The API applies migrations before it listens, so it needs a database
+        # that is genuinely ready rather than merely started.
+        options: >-
+          --health-cmd "pg_isready -U lift -d lift"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: |
+          pnpm --filter @lift/shared build
+          pnpm --filter @lift/api build
+
+      # Migrations run on boot, so a schema that will not apply fails here as a
+      # server that never becomes healthy, which is the same way it would fail
+      # on a deploy.
+      - name: Start the API
+        env:
+          DATABASE_URL: postgres://lift:ci@localhost:5432/lift
+          BETTER_AUTH_SECRET: ci-secret-not-used-outside-this-job
+          BETTER_AUTH_URL: http://localhost:3999
+          TRUSTED_ORIGINS: lift://,http://localhost:8081
+          PORT: 3999
+        run: |
+          node apps/api/dist/main.js > "$RUNNER_TEMP/api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/api.pid"
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3999/health > /dev/null; then
+              echo "API healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error title=API never became healthy::See the log below."
+          cat "$RUNNER_TEMP/api.log"
+          exit 1
+
+      - name: Run the sync suite
+        run: python3 apps/api/test/sync-e2e.py
+
+      # The suite asserts over responses; a warning the server logged while
+      # answering them is the other half of the story.
+      - name: API log
+        if: always()
+        run: cat "$RUNNER_TEMP/api.log" || true
+
+  # -------------------------------------------------------------------------
+  # All three images are built from this repository by Dokploy on deploy, from
+  # whatever git resolves to. Building them here means a Dockerfile that no
+  # longer builds is a failed check rather than a failed deploy.
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the API image
+        run: docker build -f apps/api/Dockerfile -t lift-api:ci .
+
+      # The web app is the mobile app's own static export. Its API URL is baked
+      # in by Metro at build time, so it takes a build argument rather than an
+      # environment variable, and the build fails outright without one. The
+      # value here only has to exist; nothing in this job calls it.
+      - name: Build the web image
+        run: docker build -f apps/mobile/Dockerfile --build-arg EXPO_PUBLIC_API_URL=https://ci.invalid -t lift-web:ci .
+
+      - name: Build the landing image
+        run: docker build -f apps/landing/Dockerfile --build-arg NEXT_PUBLIC_SITE_URL=https://ci.invalid -t lift-landing:ci .

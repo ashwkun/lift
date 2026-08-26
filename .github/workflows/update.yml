@@ -144,6 +144,33 @@ jobs:
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "message=$message" >> "$GITHUB_OUTPUT"
 
+      # Read back rather than parsed out of the publish above, so the command
+      # that ships to phones keeps the exact form it has always had.
+      #
+      # Best-effort on purpose: this is bookkeeping, and a publish that
+      # succeeded must not be reported as failed because a follow-up query did
+      # not. The id matters because `update:republish` in the rollback workflow
+      # takes a group and nothing else records one; without it, recovering to a
+      # known-good update means finding it by hand in the EAS dashboard during
+      # the incident.
+      - name: Record the update group
+        id: group
+        continue-on-error: true
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          group=$(eas update:list --branch "${{ steps.publish.outputs.branch }}" \
+            --limit 1 --json --non-interactive 2>/dev/null \
+            | node -p "
+                try {
+                  const d = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+                  const groups = d.currentPage ?? d;
+                  groups[0]?.group ?? groups[0]?.id ?? '';
+                } catch { '' }
+              " || echo '')
+          echo "id=$group" >> "$GITHUB_OUTPUT"
+
       - name: Summarise
         if: always() && steps.publish.outcome == 'success'
         run: |
@@ -155,9 +182,14 @@ jobs:
             echo "| Branch | \`${{ steps.publish.outputs.branch }}\` |"
             echo "| Message | ${{ steps.publish.outputs.message }} |"
             echo "| Runtime version | \`${{ steps.runtime.outputs.version }}\` |"
+            echo "| Update group | \`${{ steps.group.outputs.id || 'not recorded' }}\` |"
             echo "| API URL | \`$EXPO_PUBLIC_API_URL\` |"
             echo ""
             echo "Only builds whose runtime version matches will take this update."
             echo "If the APK on your phone was built from a commit with a different"
             echo "runtime version, it will keep reporting that it is up to date."
+            echo ""
+            echo "To take this back, run the **OTA Rollback** workflow *from this"
+            echo "same commit*. The update group above is what its \`republish\`"
+            echo "mode takes; \`embedded\` needs nothing but the branch."
           } >> "$GITHUB_STEP_SUMMARY"
