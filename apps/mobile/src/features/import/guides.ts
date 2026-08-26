@@ -53,7 +53,6 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
       'Hevy sends the CSV to your share sheet or email. Save it to Files, then come back here.',
     ],
     warnings: [
-      'Set Hevy to English before exporting. It writes month names and set types in the app\'s language, and only English is recognised here.',
       'Do not open the file in a spreadsheet app first. Excel and Sheets rewrite the dates on save, which is enough to make every workout unreadable.',
     ],
     mimeTypes: CSV_MIME_TYPES,
@@ -71,7 +70,6 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
       'If you cannot find it, Lyfta support can send you the export.',
     ],
     warnings: [
-      'Set Lyfta to English before exporting, for the same reason as Hevy.',
       'Do not open the file in a spreadsheet app first.',
     ],
     mimeTypes: CSV_MIME_TYPES,

@@ -241,6 +241,254 @@ describe('parseTimestamp', () => {
   });
 });
 
+describe('parseTimestamp: localised month names', () => {
+  /**
+   * Twelve month words in order, in Hevy's own date shape.
+   *
+   * Every word below is what `Intl.DateTimeFormat` returns for that locale, so
+   * these cases are the export a phone in that language actually writes rather
+   * than a translation of the English list.
+   */
+  const readsYear = (...names: readonly string[]): void => {
+    assert.equal(names.length, 12);
+    names.forEach((name, index) => {
+      assert.equal(
+        parseTimestamp(`21 ${name} 2025, 20:44`),
+        local(2025, index + 1, 21, 20, 44),
+        name,
+      );
+    });
+  };
+
+  it('reads Spanish', () => {
+    readsYear('ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic');
+    readsYear(
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+    );
+  });
+
+  it('reads German, accents and all', () => {
+    readsYear('Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez');
+    readsYear(
+      'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+    );
+    // German dates carry an ordinal dot the English ones do not.
+    assert.equal(parseTimestamp('21. März 2025, 20:44'), local(2025, 3, 21, 20, 44));
+  });
+
+  it('reads French, including the four-letter July it needs', () => {
+    readsYear(
+      'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+    );
+    readsYear(
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+    );
+    // The 1990 spelling of août, which drops the circumflex.
+    assert.equal(parseTimestamp('21 aout 2025'), local(2025, 8, 21));
+  });
+
+  it('reads Portuguese, connectors and all', () => {
+    readsYear(
+      'jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.',
+      'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.',
+    );
+    readsYear(
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+    );
+    assert.equal(parseTimestamp('21 de mai. de 2025'), local(2025, 5, 21));
+    assert.equal(parseTimestamp('21 de maio de 2025, 20:44'), local(2025, 5, 21, 20, 44));
+  });
+
+  it('reads Italian', () => {
+    readsYear('gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic');
+    readsYear(
+      'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
+    );
+  });
+
+  it('reads Dutch', () => {
+    readsYear('jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec');
+    readsYear(
+      'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+      'juli', 'augustus', 'september', 'oktober', 'november', 'december',
+    );
+  });
+
+  it('reads Swedish, Danish and Norwegian', () => {
+    readsYear(
+      'jan.', 'feb.', 'mars', 'apr.', 'maj', 'juni',
+      'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.',
+    );
+    readsYear(
+      'januar', 'februar', 'marts', 'april', 'maj', 'juni',
+      'juli', 'august', 'september', 'oktober', 'november', 'december',
+    );
+    readsYear('jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des');
+  });
+
+  it('reads Polish and Czech, in the genitive their dates use', () => {
+    readsYear('sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru');
+    readsYear(
+      'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
+      'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia',
+    );
+    readsYear('led', 'úno', 'bře', 'dub', 'kvě', 'čvn', 'čvc', 'srp', 'zář', 'říj', 'lis', 'pro');
+    readsYear(
+      'ledna', 'února', 'března', 'dubna', 'května', 'června',
+      'července', 'srpna', 'září', 'října', 'listopadu', 'prosince',
+    );
+    // Czech and Slovak medium dates are numeric and space the parts out.
+    assert.equal(parseTimestamp('21. 5. 2025'), local(2025, 5, 21));
+  });
+
+  it('reads Slovak and Slovenian', () => {
+    readsYear(
+      'januára', 'februára', 'marca', 'apríla', 'mája', 'júna',
+      'júla', 'augusta', 'septembra', 'októbra', 'novembra', 'decembra',
+    );
+    readsYear(
+      'januar', 'februar', 'marec', 'april', 'maj', 'junij',
+      'julij', 'avgust', 'september', 'oktober', 'november', 'december',
+    );
+  });
+
+  it('reads Turkish, dotless i and all', () => {
+    readsYear('Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara');
+    readsYear(
+      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+    );
+  });
+
+  it('reads Romanian, Indonesian, Malay and Catalan', () => {
+    readsYear(
+      'ian.', 'feb.', 'mar.', 'apr.', 'mai', 'iun.',
+      'iul.', 'aug.', 'sept.', 'oct.', 'nov.', 'dec.',
+    );
+    readsYear('Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des');
+    readsYear(
+      'Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun',
+      'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember',
+    );
+    readsYear(
+      'gen.', 'febr.', 'març', 'abr.', 'maig', 'juny',
+      'jul.', 'ag.', 'set.', 'oct.', 'nov.', 'des.',
+    );
+    // Catalan puts a connector on both sides, and elides it before a vowel.
+    assert.equal(parseTimestamp('21 de maig del 2025'), local(2025, 5, 21));
+    assert.equal(parseTimestamp("21 d'abril del 2025"), local(2025, 4, 21));
+  });
+
+  it('still reads the British four-letter September', () => {
+    assert.equal(parseTimestamp('21 Sept 2025, 20:44'), local(2025, 9, 21, 20, 44));
+  });
+});
+
+describe('parseTimestamp: month names that mean two months', () => {
+  it('does not read Finnish marras as March', () => {
+    // `marras` is November and begins with the three letters fourteen other
+    // languages spell March with. Reading it by prefix would file every
+    // Finnish November session in March without saying so, so `mar` is matched
+    // as a whole word and never as a prefix.
+    assert.equal(parseTimestamp('21 marras 2025, 20:44'), local(2025, 11, 21, 20, 44));
+    assert.equal(parseTimestamp('21 marrask. 2025'), local(2025, 11, 21));
+    assert.equal(parseTimestamp('21 marraskuuta 2025'), local(2025, 11, 21));
+    assert.equal(parseTimestamp('21 maalis 2025'), local(2025, 3, 21));
+    assert.equal(parseTimestamp('21 mar 2025'), local(2025, 3, 21));
+    assert.equal(parseTimestamp('21 mars 2025'), local(2025, 3, 21));
+  });
+
+  it('reads the whole Finnish year', () => {
+    const names = [
+      'tammi', 'helmi', 'maalis', 'huhti', 'touko', 'kesä',
+      'heinä', 'elo', 'syys', 'loka', 'marras', 'joulu',
+    ];
+    names.forEach((name, index) => {
+      assert.equal(parseTimestamp(`21 ${name}kuuta 2025`), local(2025, index + 1, 21), name);
+    });
+  });
+
+  it('separates French juin from juillet', () => {
+    // Three letters cannot: French abbreviates to `juil.` for exactly this
+    // reason. So `jui` is not a prefix, and a word starting with it that is not
+    // one of the four spellings below is refused instead of guessed at.
+    assert.equal(parseTimestamp('21 juin 2025'), local(2025, 6, 21));
+    assert.equal(parseTimestamp('21 juil. 2025'), local(2025, 7, 21));
+    assert.equal(parseTimestamp('21 juillet 2025'), local(2025, 7, 21));
+    assert.equal(parseTimestamp('21 juix 2025'), null);
+  });
+
+  it('separates Czech června from července', () => {
+    assert.equal(parseTimestamp('21. června 2025'), local(2025, 6, 21));
+    assert.equal(parseTimestamp('21. července 2025'), local(2025, 7, 21));
+    assert.equal(parseTimestamp('21. čvn 2025'), local(2025, 6, 21));
+    assert.equal(parseTimestamp('21. čvc 2025'), local(2025, 7, 21));
+  });
+
+  it('resolves listopad the Polish and Czech way, not the Croatian one', () => {
+    // `listopad` is November in Polish and Czech and October in Croatian, and
+    // `lip` and `srp` slide by a month the same way. Nothing in a CSV says
+    // which language wrote it, so one reading has to win: Polish and Czech,
+    // on population. Croatian exports are the documented casualty, which is
+    // why Croatian is deliberately absent from the tables.
+    assert.equal(parseTimestamp('21 listopada 2025'), local(2025, 11, 21));
+    assert.equal(parseTimestamp('21. listopadu 2025'), local(2025, 11, 21));
+    assert.equal(parseTimestamp('21 lip 2025'), local(2025, 7, 21));
+    assert.equal(parseTimestamp('21 srp 2025'), local(2025, 8, 21));
+  });
+
+  it('refuses a date shape it cannot read rather than inventing one', () => {
+    // Hungarian and Latvian put the year first, and Russian needs a genitive
+    // stem and a trailing era marker. All three are out of scope here, and the
+    // point of these cases is that being out of scope means null, which the
+    // import screen counts, rather than a plausible wrong day.
+    assert.equal(parseTimestamp('2025. máj. 21.'), null);
+    assert.equal(parseTimestamp('2025. gada 21. maijs'), null);
+    assert.equal(parseTimestamp('21 мая 2025'), null);
+    assert.equal(parseTimestamp('21 lipanj 2025, 20:44'), local(2025, 7, 21, 20, 44));
+  });
+
+  it('matches every month name the platform can produce for a supported locale', () => {
+    // The tables were generated from CLDR, so this re-derives them at run time
+    // and is the case that fails if a future ICU renames a month. It needs the
+    // full data set: a Node built with small-icu formats everything as English,
+    // which would make the sweep pass for the wrong reason.
+    const locales = [
+      'en', 'en-GB', 'es', 'pt', 'fr', 'de', 'it', 'nl', 'sv', 'da', 'nb',
+      'fi', 'pl', 'cs', 'sk', 'sl', 'tr', 'ro', 'id', 'ms', 'ca',
+    ];
+    const november = new Date(2025, 10, 21);
+    if (new Intl.DateTimeFormat('fi', { month: 'short' }).format(november) === 'Nov') return;
+
+    for (const locale of locales) {
+      for (let month = 0; month < 12; month += 1) {
+        const day = new Date(2025, month, 21);
+        for (const width of ['short', 'long'] as const) {
+          const name = new Intl.DateTimeFormat(locale, { month: width }).format(day);
+          assert.equal(
+            parseTimestamp(`21 ${name} 2025, 20:44`),
+            local(2025, month + 1, 21, 20, 44),
+            `${locale} ${width} ${name}`,
+          );
+        }
+        for (const style of [
+          { day: 'numeric', month: 'short', year: 'numeric' },
+          { day: 'numeric', month: 'long', year: 'numeric' },
+        ] as const) {
+          const written = new Intl.DateTimeFormat(locale, style).format(day);
+          assert.equal(parseTimestamp(written), local(2025, month + 1, 21), `${locale} ${written}`);
+        }
+      }
+    }
+  });
+});
+
 describe('detectDateOrder', () => {
   it('takes one unambiguous row as evidence for the column', () => {
     assert.equal(detectDateOrder(['01/02/2025', '21/05/2025']), 'dmy');
@@ -266,6 +514,67 @@ describe('parseSetType', () => {
   it('flags the ones it had to flatten', () => {
     assert.deepEqual(parseSetType('amrap'), { type: 'normal', exact: false });
     assert.deepEqual(parseSetType('myoreps'), { type: 'normal', exact: false });
+  });
+});
+
+describe('parseSetType: localised words', () => {
+  const warmup = { type: 'warmup', exact: true };
+  const drop = { type: 'drop', exact: true };
+  const failure = { type: 'failure', exact: true };
+  const normal = { type: 'normal', exact: true };
+
+  it('reads the warm-up word in every language the month tables cover', () => {
+    for (const word of [
+      'Calentamiento', 'Aquecimento', 'Échauffement', 'Aufwärmen', 'Riscaldamento',
+      'Opwarmen', 'Warming-up', 'Uppvärmning', 'Opvarmning', 'Oppvarming',
+      'Lämmittely', 'Rozgrzewka', 'Zahřívací série', 'Rozcvička', 'Ogrevanje',
+      'Isınma', 'Încălzire', 'Pemanasan', 'Escalfament',
+    ]) {
+      assert.deepEqual(parseSetType(word), warmup, word);
+    }
+  });
+
+  it('reads translated drop sets and failure sets', () => {
+    for (const word of ['Dropsatz', 'Dropsæt', 'Serie descendente', 'Série dégressive', 'Reduktionssatz']) {
+      assert.deepEqual(parseSetType(word), drop, word);
+    }
+    for (const word of [
+      'Fallo', 'Al fallo', 'Falha', 'Échec', 'Muskelversagen', 'Cedimento', 'Falen', 'Do upadku',
+    ]) {
+      assert.deepEqual(parseSetType(word), failure, word);
+    }
+  });
+
+  it('reads a translated working set as an ordinary one', () => {
+    for (const word of [
+      'Normale', 'Normaal', 'Serie normal', 'Arbeitssatz', 'Arbetsset', 'Arbejdssæt',
+      'Arbeidssett', 'Série de travail', 'Serie di lavoro', 'Série de trabalho',
+      'Serie de trabajo', 'Werkset', 'Seria robocza', 'Pracovní série', 'Çalışma seti',
+      'Set kerja', 'Serie', 'Série',
+    ]) {
+      assert.deepEqual(parseSetType(word), normal, word);
+    }
+  });
+
+  it('does not let the word for "set" inside a warm-up label win', () => {
+    // `Aufwärmsatz` and `serie de calentamiento` both contain the ordinary word
+    // for a set, and a warm-up read as a working set inflates volume, PRs and
+    // every 1RM estimate downstream. Hence warm-up is matched first.
+    assert.deepEqual(parseSetType('Aufwärmsatz'), warmup);
+    assert.deepEqual(parseSetType('Serie de calentamiento'), warmup);
+    assert.deepEqual(parseSetType('Série d’échauffement'), warmup);
+    assert.deepEqual(parseSetType('Serie di riscaldamento'), warmup);
+  });
+
+  it('keeps an accented word from losing the letter under the accent', () => {
+    // The old fold deleted anything outside a-z, so `Aufwärmen` arrived as
+    // `aufwrmen` and matched nothing at all.
+    assert.deepEqual(parseSetType('AUFWÄRMEN'), warmup);
+    assert.deepEqual(parseSetType('ısınma'), warmup);
+  });
+
+  it('still flattens a word no language on the list claims', () => {
+    assert.deepEqual(parseSetType('kalibrointi'), { type: 'normal', exact: false });
   });
 });
 
@@ -401,10 +710,32 @@ describe('parseWorkoutCsv: units', () => {
 });
 
 describe('parseWorkoutCsv: European exports', () => {
+  it('reads a Hevy export written by a phone that is not in English', () => {
+    // Hevy's headers are machine names and stay put; the dates and set types
+    // are what the phone's locale rewrites. This is the whole reason the export
+    // guide no longer asks people to switch the app to English first.
+    const parsed = parseWorkoutCsv(
+      `"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Beine","21. Mär 2025, 20:44","21. Mär 2025, 22:03","","Beinbeuger (Maschine)",,"",0,"Aufwärmsatz",52,5,,,
+"Beine","21. Mär 2025, 20:44","21. Mär 2025, 22:03","","Beinbeuger (Maschine)",,"",1,"Arbeitssatz",60,5,,,`,
+    );
+
+    assert.equal(parsed.source, 'hevy');
+    assert.equal(parsed.diagnostics.undatedRows, 0);
+
+    const workout = parsed.workouts[0]!;
+    assert.equal(workout.startedAt, local(2025, 3, 21, 20, 44));
+    assert.deepEqual(
+      workout.exercises[0]!.sets.map((set) => set.setType),
+      ['warmup', 'normal'],
+    );
+  });
+
   it('refuses translated headers in a sentence rather than importing nothing', () => {
-    // The aliases are English, which is why the import screen says to switch
-    // the source app's language before exporting. What matters is that the
-    // refusal names the missing column instead of producing an empty import
+    // Month names and set types are read in twenty-one languages now, but the
+    // column headings are still matched against English aliases, which is the
+    // one thing the export guide still has to warn about. What matters is that
+    // the refusal names the missing column instead of producing an empty import
     // the user would read as "my file was fine and Lift lost it".
     assert.throws(
       () => parseWorkoutCsv('Datum;Übung;Gewicht (kg);Wiederholungen\n21.05.2025;Kniebeuge;102,5;5'),

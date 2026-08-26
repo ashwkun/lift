@@ -579,7 +579,7 @@ function Skipped({ diagnostics }: { diagnostics: WorkoutsPreview['parsed']['diag
 
   if (diagnostics.undatedRows > 0) {
     lines.push(
-      `${diagnostics.undatedRows.toLocaleString()} rows had no readable date and were left out. If the source app is not set to English, its month names will not be recognised.`,
+      `${diagnostics.undatedRows.toLocaleString()} rows had no readable date and were left out. If the source app writes dates in a language Lift does not read yet, its month names will not be recognised.`,
     );
   }
   if (diagnostics.blankRows > 0) {
