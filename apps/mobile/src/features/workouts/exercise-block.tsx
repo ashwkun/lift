@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  buildWarmupRamp,
   calculatePlates,
   defaultPlates,
   DISTANCE_UNITS,
@@ -7,12 +8,14 @@ import {
   formatWeight,
   isWorkingSet,
   nearestLoadable,
+  POSITION_STEP,
   TRACKING_FIELDS,
   WEIGHT_UNITS,
   type DistanceUnit,
   type SetType,
   type Suggestion,
   type SupersetPlacement,
+  type WarmupSet,
   type WeightUnit,
 } from '@lift/shared';
 import { useMemo } from 'react';
@@ -30,7 +33,12 @@ import { radius, spacing, stroke, useColors } from '@/theme';
 import { pairWithPrevious } from './previous';
 import { SetRow } from './set-row';
 import { SupersetChip } from './superset';
-import { hasRestOverride, resolveRestSeconds, type WorkoutExerciseDetail } from './repository';
+import {
+  addSet,
+  hasRestOverride,
+  resolveRestSeconds,
+  type WorkoutExerciseDetail,
+} from './repository';
 import { suggestForExercise, type ProgressionInput } from './suggestion';
 
 export interface ExerciseBlockProps {
@@ -237,6 +245,111 @@ export function ExerciseBlock({
 
     return describePlates(next.weightKg, barWeightKg, weightUnit);
   }, [detail.exercise.equipment, detail.sets, barWeightKg, weightUnit]);
+
+  /*
+   * The ramp up to that weight, and the reason there is one tap here instead of
+   * four rows of typing.
+   *
+   * Offered only while the block is untouched: nothing logged and no warm-up in
+   * it already. A block holding warm-ups has a ramp, and a block with a set
+   * checked off has started, so pushing three rows in above a set the user has
+   * already performed would reorder the session under their thumb for no gain.
+   * That also makes the control self-retiring, which is why it needs no dismiss
+   * affordance and no stored preference: it disappears the moment it is used
+   * or the moment the session moves past it.
+   *
+   * `buildWarmupRamp` says no far more often than it says yes: five of the
+   * eight tracking types have no ramp to build, both bodyweight variants are
+   * refused on purpose, and equipment without a load step gets nothing. None of
+   * that is decided here. An empty ramp draws no line, and the reasoning for
+   * each refusal lives in one place, next to the arithmetic it guards.
+   *
+   * The style is fixed at `standard` because there is nowhere honest to keep a
+   * choice yet: a per-user preference belongs in the settings blob, and until
+   * it is there, a picker on this line would ask the same question before every
+   * exercise of every session.
+   */
+  const warmup = useMemo(() => {
+    if (detail.sets.some((set) => set.isCompleted || !isWorkingSet(set.setType))) return null;
+
+    const working = detail.sets.find((set) => set.weightKg != null && set.weightKg > 0);
+    if (working?.weightKg == null) return null;
+
+    return buildWarmupRamp({
+      workingKg: working.weightKg,
+      workingReps: working.reps,
+      barKg: barWeightKg,
+      inventory: defaultPlates(weightUnit),
+      trackingType: detail.exercise.trackingType,
+      equipment: detail.exercise.equipment,
+    });
+  }, [
+    detail.exercise.equipment,
+    detail.exercise.trackingType,
+    detail.sets,
+    barWeightKg,
+    weightUnit,
+  ]);
+
+  const warmupLine = warmup?.sets.length ? describeWarmup(warmup.sets, weightUnit) : null;
+
+  /**
+   * Writes the ramp as `warmup` rows, above the sets already in the block.
+   *
+   * Fractional positions, which is exactly what the REAL column is for: the
+   * warm-ups have to render *before* the working sets and `addSet` with no
+   * position appends to the end. Renumbering the working sets down instead
+   * would be an oplog entry and a row on the wire per set, to say something
+   * about sets that did not change, which is the cost `ordering.ts` was written
+   * to avoid. So the gap below the first set is divided and nothing already on
+   * disk is touched.
+   *
+   * `setType: 'warmup'` is the whole reason this is safe to write in bulk:
+   * `isWorkingSet` keeps these rows out of volume, PR detection and every 1RM
+   * estimate, so a ramp cannot flatter a chart or invent a record.
+   *
+   * This is the one write in this file that does not leave through a callback,
+   * and the exception is deliberate rather than tidy. Both screens that render
+   * this block funnel their writes through `useWriteGuard`, and reaching that
+   * from here would mean a new prop on a component neither screen can be edited
+   * to pass right now. The cost is that a failure does not join their count of
+   * lost writes, so it is reported here instead, as a dialog, rather than
+   * failing silently: a warm-up that never reached the disk is a set the user
+   * will do and not have.
+   */
+  const addWarmup = () => {
+    if (!warmup?.sets.length) return;
+    haptics.added();
+
+    const rungs = warmup.sets;
+    const first = detail.sets[0]?.position ?? POSITION_STEP;
+    const gap = POSITION_STEP / (rungs.length + 1);
+
+    void (async () => {
+      try {
+        // Sequential rather than `Promise.all`, so a disk that has already
+        // refused one row is not handed two more. Every position is computed
+        // before the loop starts, so no step here reads what the last wrote,
+        // which is the usual reason to await in a loop and not the reason here.
+        for (const [index, rung] of rungs.entries()) {
+          await addSet(detail.workoutExercise.id, {
+            position: first - (rungs.length - index) * gap,
+            setType: 'warmup',
+            weightKg: rung.weightKg,
+            reps: rung.reps,
+          });
+        }
+      } catch {
+        haptics.rejected();
+        void showDialog({
+          title: 'Warm-up not added',
+          message:
+            'The device would not accept the write. ' +
+            'Any rows that did arrive can be deleted from the list below.',
+        });
+      }
+    })();
+  };
 
   const confirmRemove = () => {
     void (async () => {
@@ -472,6 +585,30 @@ export function ExerciseBlock({
         </Text>
       )}
 
+      {/* Directly under the plate line, because it is the same arithmetic
+          answering the next question along: that line says what to load for the
+          set you are walking to, this one says what to load on the way there.
+          Tertiary and unboxed, at the volume of the recalled note and the
+          suggestion above the headings. The accent is budgeted at roughly one
+          element per view (`theme/tokens.ts`) and this screen has spent it.
+
+          It prints the whole ramp rather than reading "Add warm-up", because
+          one tap writes three rows and taking each one back is a swipe and a
+          confirmation. The weights should be read before the tap, not after. */}
+      {warmupLine && (
+        <Pressable
+          onPress={addWarmup}
+          style={({ pressed }) => [styles.warmup, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={warmupLine.label}
+          accessibilityHint="Adds these as warm-up sets above the sets below"
+        >
+          <Text variant="numeric" color="textTertiary">
+            {warmupLine.text}
+          </Text>
+        </Pressable>
+      )}
+
       {rows.map(({ set, workingIndex, previous }) => (
         <SetRow
           key={set.id}
@@ -676,6 +813,33 @@ function describePlates(
   };
 }
 
+/**
+ * One line for the ramp: every rung, in the order they are walked.
+ *
+ * `Warm-up 40 × 8 · 60 × 5 · 80 × 3`. The same separators as the plate line
+ * directly above it, because it is the same kind of statement: a list of
+ * loadings read left to right, not a sentence about them.
+ *
+ * The spoken label is built alongside the printed one rather than derived from
+ * it, for the reason `describePlates` gives: `×` and `·` are read out
+ * inconsistently. It also leads with the count, because a control that writes
+ * rows into a log has to say how many before it is pressed rather than after.
+ */
+function describeWarmup(
+  sets: readonly WarmupSet[],
+  unit: WeightUnit,
+): { text: string; label: string } {
+  const show = (kg: number) => formatWeight(kg, unit, { withUnit: false });
+  const count = `${sets.length} warm-up ${sets.length === 1 ? 'set' : 'sets'}`;
+
+  return {
+    text: `Warm-up ${sets.map((set) => `${show(set.weightKg)} × ${set.reps}`).join(' · ')}`,
+    label:
+      `Add ${count}: ` +
+      sets.map((set) => `${show(set.weightKg)} ${unit} for ${set.reps} reps`).join(', '),
+  };
+}
+
 const styles = StyleSheet.create({
   block: { paddingVertical: spacing.md },
   header: {
@@ -749,6 +913,9 @@ const styles = StyleSheet.create({
   unitHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
   checkSpacer: { width: 38 },
   plateLine: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  // The same box as the plate line it sits under, so the two read as one block
+  // of arithmetic rather than as a line and a control.
+  warmup: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   addSet: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.sm,

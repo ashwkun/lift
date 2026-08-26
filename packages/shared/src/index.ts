@@ -11,6 +11,7 @@ export * from './ordering.ts';
 export * from './plates.ts';
 export * from './supersets.ts';
 export * from './sync.ts';
+export * from './warmup.ts';
 
 // The exercise catalog is deliberately *not* re-exported here. It is ~6,800
 // rows of generated data, and a barrel export pulled it into the module graph
