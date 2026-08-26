@@ -156,10 +156,51 @@ async function pushPending(deviceId: string): Promise<{
       updatedAt: entry.updatedAt,
     }));
 
-    const response = await apiFetch<SyncPushResponse>('/api/sync/push', {
-      mutations,
-      deviceId,
-    });
+    let response: SyncPushResponse;
+    try {
+      response = await apiFetch<SyncPushResponse>('/api/sync/push', {
+        mutations,
+        deviceId,
+      });
+    } catch (error) {
+      /**
+       * A 400 has to cost the head entry an attempt before it propagates.
+       *
+       * Every other way this batch can fail eventually retires something: a
+       * conflict retires the entry it names, and a response that decides
+       * nothing charges the head below. A thrown error charged nothing, so
+       * `attempts` stayed at zero, MAX_ATTEMPTS was never reached, and a batch
+       * the server will not parse was re-sent on every sync forever with the
+       * whole queue stuck behind it. The head is the one to charge for the same
+       * reason it is below: mutations go up in causal order, so it is the one
+       * that can be holding the others up.
+       *
+       * Only 400, and deliberately not 5xx.
+       *
+       * A 400 is the request envelope failing validation. That is decided for
+       * the whole request before any mutation is looked at, so no per-mutation
+       * conflict can come back and nothing else here can ever retire it. It is
+       * also deterministic: retrying the same bytes gets the same answer, so
+       * the attempts are not being spent on bad luck.
+       *
+       * A 5xx says the server broke, not that this row is bad, which is the
+       * same thing a transport failure says and that is exempt by construction
+       * (it does not throw a `SyncHttpError` at all). Charging it would mean a
+       * Postgres restart, a failed deploy or five minutes of 502s from a proxy
+       * quietly retiring five perfectly good mutations, and a retired entry
+       * stops being sent: the workout stays on the phone and never reaches the
+       * account. The case that argued for charging 5xx, a single payload the
+       * schema refuses taking the batch down with it, is now answered by the
+       * server instead. Each mutation runs in its own savepoint, so a bad row
+       * comes back as an `invalid` conflict and is retired by the loop below
+       * rather than becoming a 500 at all.
+       */
+      const head = entries[0];
+      if (error instanceof SyncHttpError && error.status === 400 && head) {
+        await recordFailedAttempt([head.seq], 'The server could not read this change.');
+      }
+      throw error;
+    }
 
     // Applied entries are done with. Drop them from the log.
     if (response.applied.length > 0) {
