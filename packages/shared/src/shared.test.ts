@@ -16,7 +16,7 @@ import { EXERCISE_LIBRARY, findDuplicateExerciseIds, scoreExerciseMatch, slugify
 import { isUuid, uuidv7, uuidv7Timestamp } from './ids.ts';
 import * as barrel from './index.ts';
 import { calculatePlates, DEFAULT_PLATES_KG } from './plates.ts';
-import { shouldOverwrite } from './sync.ts';
+import { clampUpdatedAt, CLOCK_SKEW_TOLERANCE_MS, shouldOverwrite } from './sync.ts';
 import { TRACKING_TYPES, USES_BODYWEIGHT } from './types.ts';
 import {
   formatDuration,
@@ -354,6 +354,32 @@ describe('sync conflict resolution', () => {
 
   it('keeps the incumbent on a tie, making replays idempotent', () => {
     assert.equal(shouldOverwrite(1000, 1000), false);
+  });
+});
+
+describe('clock skew clamping', () => {
+  const now = 1_700_000_000_000;
+
+  it('leaves an honest timestamp alone', () => {
+    assert.equal(clampUpdatedAt(now - 5000, now), now - 5000);
+  });
+
+  it('tolerates a device a little fast, so it still wins the writes it should', () => {
+    const slightlyAhead = now + 60_000;
+    assert.equal(clampUpdatedAt(slightlyAhead, now), slightlyAhead);
+  });
+
+  it('caps a clock set into the future at the tolerance', () => {
+    const nextYear = now + 365 * 24 * 60 * 60 * 1000;
+    assert.equal(clampUpdatedAt(nextYear, now), now + CLOCK_SKEW_TOLERANCE_MS);
+  });
+
+  it('leaves a later honest edit able to win against a clamped one', () => {
+    // The whole point: without the clamp the future-stamped row is unbeatable,
+    // and every real edit after it is answered `stale` and then destroyed.
+    const stored = clampUpdatedAt(now + 10 * 365 * 24 * 60 * 60 * 1000, now);
+    const honestEditLater = now + CLOCK_SKEW_TOLERANCE_MS + 1;
+    assert.equal(shouldOverwrite(clampUpdatedAt(honestEditLater, honestEditLater), stored), true);
   });
 });
 

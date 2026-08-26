@@ -125,6 +125,37 @@ export function shouldOverwrite(incomingUpdatedAt: number, existingUpdatedAt: nu
   return incomingUpdatedAt > existingUpdatedAt;
 }
 
+/**
+ * How far ahead of the server a client's clock is allowed to run.
+ *
+ * Generous on purpose. A phone a few minutes fast is ordinary, and clamping an
+ * honest write would make that device lose every conflict instead of winning
+ * the ones it should. What this bounds is the pathological case: a clock set to
+ * next year.
+ */
+export const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
+ * Bounds a client-authored `updatedAt` to something the server can believe.
+ *
+ * Last-write-wins is only as trustworthy as the clocks feeding it, and
+ * `updatedAt` arrives as an unbounded integer from a device whose clock the
+ * user can set. A row stamped a year into the future wins every comparison
+ * forever: every honest later edit comes back `stale`, and the client's
+ * response to `stale` is to overwrite its local copy and drop the oplog entry,
+ * so the user's edit is destroyed with no error and nothing left to retry. One
+ * wrong clock is enough, because `touch()` stamps every local write.
+ *
+ * Clamping rather than rejecting is deliberate. A skewed device is still
+ * holding the only copy of that training data, so the write must land; it just
+ * must not land in the future. The clamped value is what gets compared *and*
+ * what gets stored, because storing the raw value while comparing the clamped
+ * one would reintroduce the bug on the next write.
+ */
+export function clampUpdatedAt(clientUpdatedAt: number, serverNow: number): number {
+  return Math.min(clientUpdatedAt, serverNow + CLOCK_SKEW_TOLERANCE_MS);
+}
+
 /** Rows every syncable table carries. */
 export interface SyncMetadata {
   id: string;
