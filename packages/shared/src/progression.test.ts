@@ -29,6 +29,16 @@ function straight(weightKg: number | null, reps: number, count = 3): PerformedSe
   return Array.from({ length: count }, () => set(weightKg, reps));
 }
 
+/** `count` identical working sets, each rated at the same effort. */
+function rated(
+  weightKg: number | null,
+  reps: number,
+  rpe: number,
+  count = 3,
+): PerformedSet[] {
+  return Array.from({ length: count }, () => set(weightKg, reps, { rpe }));
+}
+
 /** Sessions newest-first, a day apart, which is the order the engine documents. */
 function sessions(...entries: PerformedSet[][]): ExerciseSession[] {
   return entries.map((sets, index) => ({ startedAt: NOW - index * DAY, sets }));
@@ -568,4 +578,207 @@ test('no usable history falls back to eight to twelve', () => {
     inferRepRange(sessions([set(100, 10, { isCompleted: false })])),
     { minReps: 8, maxReps: 12 },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Autoregulating on effort
+//
+// Every fixture here would be an `add_reps` without its RPE column, which is
+// the only place the two rules are allowed to reach. The pair of them is
+// deliberately narrow: they fire at the ends of the scale, they need every set
+// in the session to agree, and they move the suggestion one step along the axis
+// it was already on.
+// ---------------------------------------------------------------------------
+
+test('an unrated history is answered exactly as it was before RPE existed', () => {
+  const silent = suggest(sessions(straight(100, 10)));
+  const explicit = suggest(sessions(straight(100, 10).map((s) => ({ ...s, rpe: null }))));
+
+  assert.deepEqual(explicit, silent, 'an absent rpe and a null one are the same fact');
+  assert.equal(silent.kind, 'add_reps');
+  assert.equal(silent.reason, 'Two reps off the top of the range');
+});
+
+test('reps to spare on every set take the load now instead of walking up the band', () => {
+  // Four reps in reserve at every set, six weeks of "add one rep" away from a
+  // step this lifter could take today.
+  const suggestion = suggest(sessions(rated(100, 10, 6)));
+
+  assert.equal(suggestion.kind, 'add_weight');
+  assert.deepEqual(suggestion.sets, [
+    { workingIndex: 1, weightKg: 102.5, reps: 10 },
+    { workingIndex: 2, weightKg: 102.5, reps: 10 },
+    { workingIndex: 3, weightKg: 102.5, reps: 10 },
+  ]);
+  assert.equal(suggestion.reason, 'Every set at RPE 6 or easier: add load now');
+});
+
+test('the early load keeps the reps rather than resetting to the bottom of the band', () => {
+  const early = suggest(sessions(rated(100, 11, 6)));
+  const cleared = suggest(sessions(straight(100, 12)));
+
+  assert.deepEqual(
+    early.sets.map((entry) => entry.reps),
+    [11, 11, 11],
+    'the increment is paid for out of the reserve, not out of three reps',
+  );
+  assert.deepEqual(
+    cleared.sets.map((entry) => entry.reps),
+    [8, 8, 8],
+    'a cleared range still pays for the step with the reps',
+  );
+});
+
+test('one hard set vetoes the early load', () => {
+  const suggestion = suggest(
+    sessions([set(100, 10, { rpe: 6 }), set(100, 10, { rpe: 6 }), set(100, 10, { rpe: 8 })]),
+  );
+
+  assert.equal(suggestion.kind, 'add_reps', 'the last set was at target. There is no spare load');
+  assert.deepEqual(
+    suggestion.sets.map((entry) => entry.weightKg),
+    [100, 100, 100],
+  );
+});
+
+test('one unrated set leaves the whole session unread', () => {
+  const suggestion = suggest(
+    sessions([set(100, 10, { rpe: 6 }), set(100, 10, { rpe: 6 }), set(100, 10)]),
+  );
+
+  assert.equal(
+    suggestion.kind,
+    'add_reps',
+    'a session rated once and then forgotten about is not a session that was easy',
+  );
+});
+
+test('nothing left in reserve is not asked for another rep', () => {
+  const suggestion = suggest(sessions(rated(100, 10, 10)));
+
+  assert.equal(suggestion.kind, 'hold');
+  assert.deepEqual(suggestion.sets, [
+    { workingIndex: 1, weightKg: 100, reps: 10 },
+    { workingIndex: 2, weightKg: 100, reps: 10 },
+    { workingIndex: 3, weightKg: 100, reps: 10 },
+  ]);
+  assert.equal(suggestion.reason, 'Every set at RPE 10 or harder: repeat this weight');
+});
+
+test('one set with something left in it stops the hold', () => {
+  const suggestion = suggest(
+    sessions([set(100, 10, { rpe: 10 }), set(100, 10, { rpe: 10 }), set(100, 10, { rpe: 8 })]),
+  );
+
+  assert.equal(suggestion.kind, 'add_reps', 'the third set had two reps in it. Ask for one');
+  assert.deepEqual(
+    suggestion.sets.map((entry) => entry.reps),
+    [11, 11, 11],
+  );
+});
+
+test('a cleared range still takes the weight, however hard it was', () => {
+  const suggestion = suggest(sessions(rated(100, 12, 10)));
+
+  assert.equal(suggestion.kind, 'add_weight', 'the step is what brings the next RPE back down');
+  assert.deepEqual(suggestion.sets, [
+    { workingIndex: 1, weightKg: 102.5, reps: 8 },
+    { workingIndex: 2, weightKg: 102.5, reps: 8 },
+    { workingIndex: 3, weightKg: 102.5, reps: 8 },
+  ]);
+  assert.equal(suggestion.reason, 'Cleared 12 reps on every set');
+});
+
+test('a stall is still a stall at RPE 10', () => {
+  const short = rated(100, 6, 10);
+  const suggestion = suggest(sessions(short, short, short));
+
+  assert.equal(suggestion.kind, 'back_off', 'back_off is already the most cautious answer there is');
+  assert.equal(suggestion.reason, 'Short of 8 reps for three sessions. Take 10% off');
+});
+
+test('an easy session under the band is held, not loaded', () => {
+  // Contradictory evidence: short of the range, and reportedly easy. The engine
+  // was going to hold, and neither rule is allowed to reach a hold.
+  const suggestion = suggest(sessions(rated(100, 6, 6)));
+
+  assert.equal(suggestion.kind, 'hold');
+  assert.deepEqual(
+    suggestion.sets.map((entry) => entry.weightKg),
+    [100, 100, 100],
+  );
+  assert.equal(suggestion.reason, 'Short of 8 reps: repeat this weight');
+});
+
+test('work with nothing to load is never handed an early increment', () => {
+  const suggestion = suggest(sessions(rated(null, 10, 6)), {
+    trackingType: 'bodyweight_reps',
+    incrementKg: defaultIncrementKg('bodyweight'),
+  });
+
+  assert.equal(suggestion.kind, 'add_reps');
+  assert.deepEqual(
+    suggestion.sets.map((entry) => entry.weightKg),
+    [null, null, null],
+    'there is no 2.5 kg to add to a push-up, whatever the RPE says',
+  );
+});
+
+test('assistance comes off early too, rather than going on', () => {
+  const suggestion = suggest(sessions(rated(40, 10, 6)), {
+    trackingType: 'assisted_bodyweight',
+  });
+
+  assert.equal(suggestion.kind, 'add_weight');
+  assert.deepEqual(
+    suggestion.sets.map((entry) => entry.weightKg),
+    [37.5, 37.5, 37.5],
+    'reps to spare on assisted work means less help, not more',
+  );
+  assert.equal(suggestion.reason, 'Every set at RPE 6 or easier: take help off');
+});
+
+test('a target of ten moves both thresholds up the scale with it', () => {
+  const early = suggest(sessions(rated(100, 10, 8)), { targetRpe: 10 });
+  assert.equal(early.kind, 'add_weight', 'two in reserve is spare capacity when the target is zero');
+  assert.equal(early.reason, 'Every set at RPE 8 or easier: add load now');
+
+  // The brake would need RPE 12 to fire against a target of 10, and the scale
+  // stops at 10, so a maximal session is simply the normal week again.
+  const maximal = suggest(sessions(rated(100, 10, 10)), { targetRpe: 10 });
+  assert.equal(maximal.kind, 'add_reps');
+});
+
+test('a target off the end of the scale is clamped rather than believed', () => {
+  const suggestion = suggest(sessions(rated(100, 10, 8)), { targetRpe: 99 });
+
+  assert.equal(suggestion.kind, 'add_weight', 'clamped to 10, which is the target above');
+  assert.equal(suggestion.reason, 'Every set at RPE 8 or easier: add load now');
+});
+
+test('an effort off the scale is dropped, not clamped onto the end of it', () => {
+  for (const rpe of [47, 0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const suggestion = suggest(sessions(rated(100, 10, rpe)));
+    assert.equal(
+      suggestion.kind,
+      'add_reps',
+      `an rpe of ${rpe} is a mis-mapped import, not an effort`,
+    );
+  }
+});
+
+test('the two effort lines are captions like every other reason', () => {
+  const reasons = [
+    suggest(sessions(rated(100, 10, 6))).reason,
+    suggest(sessions(rated(100, 10, 10))).reason,
+    suggest(sessions(rated(40, 10, 6)), { trackingType: 'assisted_bodyweight' }).reason,
+    suggest(sessions(rated(100, 10, 6.5)), { targetRpe: 8.5 }).reason,
+  ];
+
+  for (const reason of reasons) {
+    assert.ok(!reason.includes('\n'), `"${reason}" is more than one line`);
+    assert.ok(!reason.endsWith('.'), `"${reason}" ends in a full stop`);
+    assert.match(reason, /^[A-Z0-9]/, `"${reason}" is not sentence case`);
+    assert.ok(reason.length < 60, `"${reason}" is too long for a caption`);
+  }
 });

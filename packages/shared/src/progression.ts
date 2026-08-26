@@ -11,6 +11,12 @@
  * exercise's own history, which is the only question a tracker is entitled to
  * answer without being asked.
  *
+ * It will autoregulate on effort where the user has recorded any, and only
+ * there. RPE moves a suggestion one step in the direction the numbers already
+ * pointed: forward to the load when every set was logged with reps to spare,
+ * back to a repeat when none of them had any. A history with no RPE in it gets
+ * the same answer it got before that existed, which is what most histories are.
+ *
  * Pure and unit-agnostic, kilograms in and kilograms out, so the same function
  * can run inside the logging screen's render and inside a test with no
  * database anywhere.
@@ -24,7 +30,7 @@ import {
   type SetType,
   type TrackingType,
 } from './types.ts';
-import { roundToIncrement } from './units.ts';
+import { roundToIncrement, trimZeros } from './units.ts';
 
 // ---------------------------------------------------------------------------
 // Inputs
@@ -36,6 +42,21 @@ export interface PerformedSet {
   reps: number | null;
   setType: SetType;
   isCompleted: boolean;
+  /**
+   * How hard the set was, on the 1-10 RPE scale, where 10 is a set with
+   * nothing left and 8 leaves two reps in reserve.
+   *
+   * Optional, where the three above it are `T | null`, and the difference is
+   * deliberate rather than sloppy. Those are the measurements a set *is*: a
+   * caller that leaves one out is withholding a fact the engine needs, so the
+   * type makes them say `null` and mean it. Effort is a note somebody chose to
+   * leave, and most people never do. Optional lets a draft, a routine target or
+   * a warm-up builder stay silent without writing `rpe: null` at every
+   * construction site to assert the thing the engine already assumes. Absent
+   * and null mean exactly the same thing here: nobody recorded an effort, so
+   * the engine reasons the way it always has.
+   */
+  rpe?: number | null;
 }
 
 /** One past session of a single exercise. */
@@ -67,6 +88,15 @@ export interface ProgressionConfig {
   stallSessions?: number;
   /** How much load a back-off keeps, as a fraction. 0.9 means "drop 10%". */
   backOffFraction?: number;
+  /**
+   * The effort each working set is meant to be taken to, on the 1-10 RPE
+   * scale. Defaults to `DEFAULT_TARGET_RPE`.
+   *
+   * Read only for a session whose working sets *all* carry an RPE, so a user
+   * who logs no effort never meets this number and never notices it is wrong
+   * for them.
+   */
+  targetRpe?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +106,12 @@ export interface ProgressionConfig {
 export type SuggestionKind =
   /** Same load, one more rep: the normal week. */
   | 'add_reps'
-  /** Top of the rep range cleared on every set: load goes up, reps reset. */
+  /**
+   * The load goes up. Either the top of the rep range was cleared on every set,
+   * in which case the reps reset to the bottom of the band, or every set was
+   * logged well under the target effort, in which case the reps stay where they
+   * were and the increment is paid for out of the reserve the RPE reported.
+   */
   | 'add_weight'
   /** Repeat last session. Mid-range, or not enough agreement to move. */
   | 'hold'
@@ -211,15 +246,49 @@ const UNOPINIONATED_TRACKING: ReadonlySet<TrackingType> = new Set<TrackingType>(
 const DEFAULT_STALL_SESSIONS = 3;
 const DEFAULT_BACK_OFF_FRACTION = 0.9;
 
+/**
+ * The ends of the RPE scale this app stores, matching `parseRpe` in the CSV
+ * importer so a value that survived an import is a value the engine will read.
+ */
+const MIN_RPE = 1;
+const MAX_RPE = 10;
+
+/**
+ * The effort a working set is assumed to be taken to when nobody has said.
+ *
+ * RPE 8 is two reps in reserve, which is where a set that is meant to be
+ * repeated three times and again next week generally belongs. It is a default
+ * about training rather than a claim about this user, and it is only ever read
+ * for a session whose sets all carry an RPE: someone who has already told the
+ * app how hard they were working.
+ */
+const DEFAULT_TARGET_RPE = 8;
+
+/**
+ * How far from the target an effort has to sit before the engine acts on it,
+ * in points of RPE, which are reps in reserve.
+ *
+ * Two, and symmetric, which puts both triggers at the far ends of the scale
+ * rather than either side of the target: with the default target of 8, load
+ * goes up early only at RPE 6 or under, and a rep is withheld only at RPE 10.
+ * A tighter margin would have the engine re-plan a session off the difference
+ * between an 8 and an 8.5, and that difference is inside the noise of a number
+ * a human guesses while out of breath between sets. It is the same argument
+ * `MIN_BAND_WIDTH` makes about reps: one is not a signal, four is.
+ */
+const RPE_SLACK = 2;
+
 /** Loads are user-typed decimals; compare them with a hair of room. */
 const EPSILON = 1e-9;
 
-/** One completed working set, reduced to the two numbers the engine reasons about. */
+/** One completed working set, reduced to the numbers the engine reasons about. */
 interface ReadSet {
   workingIndex: number;
   /** Null when the exercise carries no load, or none was ever recorded. */
   loadKg: number | null;
   reps: number;
+  /** Null when no effort was recorded, which is the usual case. */
+  rpe: number | null;
 }
 
 /**
@@ -253,6 +322,20 @@ function readLoad(set: PerformedSet, trackingType: TrackingType): number | null 
 }
 
 /**
+ * The effort worth reading off a set, or null when there isn't one.
+ *
+ * Out-of-range values are dropped rather than clamped. A 47 in this column is a
+ * mis-mapped CSV import, not a very hard set, and reading it as a 10 would
+ * quietly withhold reps from someone whose file had the wrong header on it. The
+ * importer's `parseRpe` refuses the same numbers at the same two bounds.
+ */
+function usableRpe(set: PerformedSet): number | null {
+  const rpe = set.rpe;
+  if (rpe == null || !Number.isFinite(rpe)) return null;
+  return rpe >= MIN_RPE && rpe <= MAX_RPE ? rpe : null;
+}
+
+/**
  * A session reduced to its completed working sets, numbered the way the logging
  * screen numbers them.
  *
@@ -272,6 +355,7 @@ function readSets(session: ExerciseSession, trackingType: TrackingType): ReadSet
       workingIndex: sets.length + 1,
       loadKg: readLoad(set, trackingType),
       reps,
+      rpe: usableRpe(set),
     });
   }
 
@@ -346,6 +430,55 @@ function isStalled(history: readonly ReadSet[][], stallSessions: number, sign: n
   return true;
 }
 
+/**
+ * Which of the two effort rules moved the suggestion, if either did.
+ *
+ * Carried rather than re-derived in `writeReason`, because re-deriving means
+ * restating both thresholds in a second place, and the day the two copies
+ * disagree the app prints a sentence that does not describe the number beside
+ * it. Null is by far the common case: nobody logged an effort, or one was
+ * logged and it said nothing worth acting on.
+ */
+type EffortRule = 'early_load' | 'at_the_limit' | null;
+
+/** The span of effort a session was logged at. Both ends, because they differ. */
+interface Effort {
+  /** The RPE of the easiest set: every set was at least this hard. */
+  easiest: number;
+  /** The RPE of the hardest set: no set was harder than this. */
+  hardest: number;
+}
+
+/**
+ * What the session says about effort, but only when *every* working set in it
+ * says something.
+ *
+ * All or nothing, for the same reason the weight only moves when every set
+ * cleared the top: a session where set one is marked RPE 6 and the other three
+ * are blank is not a session that was easy, it is a session someone rated once
+ * and then got on with. Averaging over the sets that happen to carry a number
+ * would let a single tap on the first set of the day re-plan the whole exercise.
+ *
+ * Both ends are kept because the two rules below need opposite ones, and each
+ * needs the end that makes it harder to fire. Adding load early asks about the
+ * *hardest* set, so one grinding set is enough to veto it. Withholding a rep
+ * asks about the *easiest*, so one grinding set is not enough to trigger it.
+ */
+function readEffort(sets: readonly ReadSet[]): Effort | null {
+  if (sets.length === 0) return null;
+
+  let easiest = MAX_RPE;
+  let hardest = MIN_RPE;
+
+  for (const set of sets) {
+    if (set.rpe === null) return null;
+    easiest = Math.min(easiest, set.rpe);
+    hardest = Math.max(hardest, set.rpe);
+  }
+
+  return { easiest, hardest };
+}
+
 // ---------------------------------------------------------------------------
 // The engine
 // ---------------------------------------------------------------------------
@@ -417,6 +550,10 @@ export function suggestProgression(
   const requested = finiteOr(config.backOffFraction, DEFAULT_BACK_OFF_FRACTION);
   const backOffFraction =
     requested > 0 && requested < 1 ? requested : DEFAULT_BACK_OFF_FRACTION;
+  const targetRpe = Math.min(
+    MAX_RPE,
+    Math.max(MIN_RPE, finiteOr(config.targetRpe, DEFAULT_TARGET_RPE)),
+  );
 
   // Assistance is the one number in the app that runs backwards: 40 kg of help
   // is harder work than 45. Both the comparison and the step carry the sign, or
@@ -460,13 +597,59 @@ export function suggestProgression(
   else if (canStepLoad && isStalled(history, stallSessions, sign)) kind = 'back_off';
   else kind = 'hold';
 
+  /*
+   * What the effort column has to say, where there is one.
+   *
+   * Null for almost everybody, and null is the whole safety story: a history
+   * with no RPE in it produces exactly the answer it produced before this block
+   * existed. Nothing below reads a rep, a load or a stall, so a user who never
+   * types an effort cannot tell this code is here.
+   *
+   * The rules only ever rewrite an `add_reps`, and they move it one step along
+   * the axis it was already on: forward to the load, or back to a repeat. The
+   * tidier rule, braking on effort whatever the reps did, was written and
+   * thrown away. It is the one version of this that can trap somebody: a lifter
+   * who clears the top of the band at RPE 10 and is then told to repeat it has
+   * no way out at all, because the load step is itself what brings the next
+   * session's effort back down towards the target. So a cleared range still
+   * takes the weight, whatever it cost. And `back_off` is left alone because it
+   * is already the most cautious answer the engine has.
+   */
+  const effort = readEffort(last);
+  let effortRule: EffortRule = null;
+
+  if (kind === 'add_reps' && effort !== null) {
+    if (canStepLoad && effort.hardest <= targetRpe - RPE_SLACK) {
+      // Two whole reps in reserve past the target, on the set that was hardest.
+      // Double progression would walk this lifter to the top of the band one
+      // rep a week to earn a step they could have taken today, and every one of
+      // those weeks is spent under a load they have already told us is easy.
+      kind = 'add_weight';
+      effortRule = 'early_load';
+    } else if (effort.easiest >= targetRpe + RPE_SLACK) {
+      // Nothing in reserve on any set. "One more rep at the same weight" is not
+      // a target here, it is a rep that did not exist last time and has been
+      // asked for anyway. The engine already answers "hold" when the load is
+      // too heavy for the band; this is the same fact arriving by the other
+      // road, from what the lifter felt rather than from what they counted.
+      kind = 'hold';
+      effortRule = 'at_the_limit';
+    }
+  }
+
   const suggestedSets: SetSuggestion[] = last.map((set) => {
     switch (kind) {
       case 'add_weight':
         return {
           workingIndex: set.workingIndex,
           weightKg: stepLoad(set.loadKg ?? 0, incrementKg, sign),
-          reps: minReps,
+          // Dropping to the bottom of the band is right when the *top* of it
+          // was cleared: there the step is paid for out of the reps. The early
+          // load is paid for out of the reps in reserve the RPE just reported,
+          // so cutting the rep count as well would hand back more than the
+          // increment costs. 3×10 at RPE 6 answered with 3×8 is less work than
+          // was just done in every respect but the 2.5 kg.
+          reps: effortRule === 'early_load' ? set.reps : minReps,
         };
 
       case 'back_off':
@@ -497,6 +680,8 @@ export function suggestProgression(
       stallSessions,
       backOffFraction,
       sign,
+      effort,
+      effortRule,
     }),
     sets: suggestedSets,
   };
@@ -513,6 +698,8 @@ interface ReasonContext {
   stallSessions: number;
   backOffFraction: number;
   sign: number;
+  effort: Effort | null;
+  effortRule: EffortRule;
 }
 
 /**
@@ -524,10 +711,19 @@ interface ReasonContext {
  * full stop, because it is a caption, not prose.
  */
 function writeReason(kind: SuggestionKind, ctx: ReasonContext): string {
-  const { last, minReps, maxReps, stallSessions, backOffFraction, sign } = ctx;
+  const { last, minReps, maxReps, stallSessions, backOffFraction, sign, effort, effortRule } = ctx;
 
   switch (kind) {
     case 'add_weight':
+      // The effort line names the *hardest* set, because that is the one the
+      // rule actually cleared: "nothing harder than 6" is the fact, where "RPE
+      // 6" alone would read as an average and invite the user to check it
+      // against a set that was a 5.
+      if (effortRule === 'early_load' && effort) {
+        return sign < 0
+          ? `Every set at RPE ${formatRpe(effort.hardest)} or easier: take help off`
+          : `Every set at RPE ${formatRpe(effort.hardest)} or easier: add load now`;
+      }
       return sign < 0
         ? `Cleared ${maxReps} reps on every set: less help next time`
         : `Cleared ${maxReps} reps on every set`;
@@ -561,6 +757,12 @@ function writeReason(kind: SuggestionKind, ctx: ReasonContext): string {
     }
 
     case 'hold': {
+      // Named off the *easiest* set for the mirror of the reason above: the
+      // rule fires on the whole session clearing the bar, so the sentence
+      // quotes the set that only just did.
+      if (effortRule === 'at_the_limit' && effort) {
+        return `Every set at RPE ${formatRpe(effort.easiest)} or harder: repeat this weight`;
+      }
       const under = last.filter((set) => set.reps < minReps).length;
       if (under === last.length) return `Short of ${minReps} reps: repeat this weight`;
       const count = `${capitalize(countWord(under))} of ${countWord(last.length)}`;
@@ -575,6 +777,11 @@ function writeReason(kind: SuggestionKind, ctx: ReasonContext): string {
 
 function finiteOr(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isFinite(value) ? value : fallback;
+}
+
+/** `8.5` stays; `8.0` reads as `8`. The same rule the coach prompt prints by. */
+function formatRpe(rpe: number): string {
+  return trimZeros(rpe.toFixed(1));
 }
 
 const COUNT_WORDS = [

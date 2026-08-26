@@ -16,8 +16,16 @@ import {
   type TrackingType,
   type WeightUnit,
 } from '@lift/shared';
-import { memo, useCallback, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
+} from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
   Easing,
@@ -31,12 +39,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { NumericField, Text } from '@/components/ui';
+import { Button, NumericField, Text } from '@/components/ui';
 import type { WorkoutSet } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { canLogSet } from '@/features/workouts/repository';
 import { showConfirm } from '@/store/dialog';
-import { radius, spacing, useColors } from '@/theme';
+import { font, fontSize, radius, spacing, useColors, type Palette } from '@/theme';
 
 export interface SetRowProps {
   set: WorkoutSet;
@@ -89,8 +97,25 @@ function formatPrevious(
   if (fields.reps && previous.reps != null) {
     parts.push(parts.length > 0 ? `× ${previous.reps}` : `${previous.reps} reps`);
   }
+  // Effort last, and only where there is one. This column is read at a glance
+  // between sets, so the ninety-odd percent of rows that carry no RPE have to
+  // read exactly as they always have. `@8` is how the number is written
+  // everywhere else in lifting, and it is what this row's own chip says two
+  // columns to the right, so the two never have to be reconciled by the reader.
+  //
+  // It is the only reason an imported history shows an effort at all before the
+  // user has logged one of their own: years of Hevy rows land in the previous
+  // column long before they land under a chip.
+  if (fields.reps && previous.rpe != null && parts.length > 0) {
+    parts.push(`@${formatRpe(previous.rpe)}`);
+  }
 
   return parts.length > 0 ? parts.join(' ') : '—';
+}
+
+/** `8.5` stays; `8.0` reads as `8`. The same rule the coach prompt prints by. */
+function formatRpe(rpe: number): string {
+  return trimZeros(rpe.toFixed(1));
 }
 
 /**
@@ -178,10 +203,310 @@ const CHECK_HIT_SLOP = { top: 7, bottom: 7, left: 6, right: spacing.lg };
 const INDEX_HIT_SLOP = { top: 4, bottom: 4, left: spacing.lg, right: 0 };
 
 /**
+ * Mirrors CHECK_HIT_SLOP for the effort chip, which is the same 30pt plate one
+ * column to the left. The right edge is 0 rather than generous: it faces the
+ * check plate's own 6pt of left slop across an 8pt gap, and a slop that reached
+ * into it would be handed to the later sibling anyway. Which is the check
+ * plate, and that is the direction a near-miss should fall.
+ */
+const EFFORT_HIT_SLOP = { top: 7, bottom: 7, left: spacing.xs, right: 0 };
+
+/**
  * Deleting a set is a swipe, and a screen reader cannot swipe. The action hangs
  * off the two controls a user lands on when they reach the row.
  */
 const DELETE_ACTIONS = [{ name: 'delete', label: 'Delete set' }];
+
+/**
+ * The check plate carries one more, because rating a set is a long press and a
+ * screen reader cannot long-press either.
+ *
+ * Offered whether or not the set is checked off, where the long press is not:
+ * an action chosen from a menu cannot misfire, so there is nothing to protect
+ * here, and a user driving the app by rotor should not be the one who has to
+ * complete the set first.
+ */
+const CHECK_ACTIONS = [...DELETE_ACTIONS, { name: 'effort', label: 'Rate effort' }];
+
+// ---------------------------------------------------------------------------
+// Effort
+// ---------------------------------------------------------------------------
+
+/**
+ * The scale the app stores, matching `parseRpe` in the CSV importer so a value
+ * that survived an import is a value this dialog can show and step.
+ */
+const MIN_RPE = 1;
+const MAX_RPE = 10;
+
+/**
+ * Half a point, which is the finest anybody rates a set to. The scale below 6
+ * is reachable by stepping down or by typing, and it is where an imported RIR
+ * column lands, but it is not where the button is aimed: eight presses from the
+ * seed down to RPE 6 would be a control nobody used twice.
+ */
+const RPE_STEP = 0.5;
+
+/**
+ * Where the dialog opens on a set that carries no effort yet.
+ *
+ * 8 rather than blank, and it is the whole reason this is one long press and
+ * one tap rather than one long press and five taps. It is also the modal value
+ * in every RPE-carrying log this app has imported. Nothing is written until
+ * Save, so the number is a proposal on screen rather than a figure the app has
+ * quietly recorded on somebody's behalf.
+ */
+const DEFAULT_RPE = 8;
+
+/**
+ * What a screen reader gets instead of the two buttons, exactly as
+ * `TimePickerModal` and the measurement sheet do it: one `adjustable` element,
+ * because announcing "minus button, 8, plus button" makes the user hunt for the
+ * step, where `adjustable` puts it on the gesture the platform already reserves.
+ */
+const RPE_ACTIONS: AccessibilityActionInfo[] = [
+  { name: 'increment', label: 'Harder' },
+  { name: 'decrement', label: 'Easier' },
+];
+
+/**
+ * The scale said back in the units it is actually defined in.
+ *
+ * RPE is reps in reserve and then almost never taught that way, so half the
+ * people who log it are guessing at what an 8 is. One line under the figure is
+ * cheaper than a help screen nobody opens, and it moves as the stepper moves,
+ * which is what makes it teach rather than decorate.
+ */
+function describeReserve(rpe: number): string {
+  const reserve = MAX_RPE - rpe;
+  if (reserve <= 0) return 'Nothing left in reserve';
+  if (reserve === 0.5) return 'Half a rep in reserve';
+  return `${trimZeros(reserve.toFixed(1))} ${reserve === 1 ? 'rep' : 'reps'} in reserve`;
+}
+
+/** What the dialog is holding. Null while it is closed, which is nearly always. */
+interface EffortDraft {
+  /** What Save would write. Always a number inside the scale. */
+  rpe: number;
+  /**
+   * What the field shows, which is a different thing while somebody is typing
+   * in it: an empty field is a number being replaced rather than a zero, and
+   * "1" is both a valid effort and the first keystroke of "10". Carried beside
+   * the value rather than derived from it, for the reason `TimeField` spells
+   * out: deriving fills the field back in under the cursor.
+   */
+  text: string;
+}
+
+function seedEffort(rpe: number | null): EffortDraft {
+  const value = rpe ?? DEFAULT_RPE;
+  return { rpe: value, text: formatRpe(value) };
+}
+
+interface EffortDialogProps {
+  /** "Set 3", "Warm-up". Named in the dialog and in every label inside it. */
+  setName: string;
+  colors: Palette;
+  draft: EffortDraft;
+  /** Whether the set already carries an effort, so there is something to clear. */
+  clearable: boolean;
+  onStep: (delta: 1 | -1) => void;
+  onChangeText: (text: string) => void;
+  /** The field lost the cursor: re-spell whatever is stored. */
+  onSettleText: () => void;
+  onCancel: () => void;
+  /** Null takes the effort back off the set. */
+  onSubmit: (rpe: number | null) => void;
+}
+
+/**
+ * A stepper and a field, never a wheel.
+ *
+ * Same card, backdrop and button row as `TimePickerModal`, and the same reason
+ * for the control inside it: swipe and scroll gestures do not work inside a
+ * React Native `Modal` here, so a picker that cannot fail to scroll is one that
+ * does not scroll. The header of `components/ui/time-picker` records that whole
+ * investigation. This file does not repeat it, it obeys it.
+ *
+ * Called as a function and named in lower case to say so, rather than mounted
+ * as `<EffortDialog />`, which is what it plainly wants to be. The React
+ * Compiler's `react-hooks/immutability` rule starts reporting this file's
+ * Reanimated shared values (`done.value`, `pop.value`, assigned from the
+ * check-off handler exactly as Reanimated documents) as illegal mutations the
+ * moment a second capitalised, JSX-returning function appears anywhere in the
+ * module. One component in the file and it says nothing; two and it fails the
+ * build over code neither of them touches. The choice was between silencing a
+ * false positive on the most delicate function in the app and keeping this a
+ * plain call, which is what `renderRightActions` above already is, so it is a
+ * plain call. It holds no state and calls no hook, so there is nothing here
+ * that needs a component to be correct.
+ *
+ * The right home is `components/ui`, beside the time picker, where it would be
+ * a component again and reusable by the routine editor's target RPE. It is here
+ * because this change was scoped to one file.
+ */
+function renderEffortDialog({
+  setName,
+  colors,
+  draft,
+  clearable,
+  onStep,
+  onChangeText,
+  onSettleText,
+  onCancel,
+  onSubmit,
+}: EffortDialogProps) {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
+      {/*
+        `accessible={false}` on both Pressables, deliberately: Pressable
+        defaults to accessible, which would collapse the whole dialog into one
+        element and take the stepper and the buttons away from a screen reader.
+        See `PromptModal` and `TimePickerModal`, which carry the same pair for
+        the same reason.
+      */}
+      <Pressable
+        accessible={false}
+        style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+        onPress={onCancel}
+      >
+        {/* Swallows taps inside the card so they don't dismiss the dialog. */}
+        <Pressable
+          accessible={false}
+          accessibilityViewIsModal
+          style={[styles.card, { backgroundColor: colors.surfaceElevated }]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <Text variant="subheading" accessibilityRole="header">
+            Effort
+          </Text>
+          <Text variant="label" color="textSecondary">
+            {setName}
+          </Text>
+
+          <View style={styles.effortField}>
+            <Text variant="overline" color="textTertiary">
+              RPE
+            </Text>
+
+            <View
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel="Effort"
+              accessibilityValue={{ text: `RPE ${formatRpe(draft.rpe)}` }}
+              accessibilityActions={RPE_ACTIONS}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === 'increment') onStep(1);
+                if (event.nativeEvent.actionName === 'decrement') onStep(-1);
+              }}
+              style={[styles.stepper, { backgroundColor: colors.surfaceMuted }]}
+            >
+              {renderStepperButton({
+                label: 'Easier',
+                glyph: '−',
+                colors,
+                onPress: () => onStep(-1),
+              })}
+
+              <TextInput
+                value={draft.text}
+                onChangeText={onChangeText}
+                // Settles how a half-typed figure is written once the cursor
+                // leaves. The value is already committed; this is spelling.
+                onBlur={onSettleText}
+                keyboardType="decimal-pad"
+                selectTextOnFocus
+                maxLength={4}
+                placeholder={formatRpe(DEFAULT_RPE)}
+                placeholderTextColor={colors.textTertiary}
+                // Hidden from the screen reader: the adjustable wrapper above
+                // announces the same value, and reaching the raw field would
+                // announce it twice under two different roles.
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+                returnKeyType="done"
+                style={[styles.stepperValue, { color: colors.text }]}
+              />
+
+              {renderStepperButton({
+                label: 'Harder',
+                glyph: '+',
+                colors,
+                onPress: () => onStep(1),
+              })}
+            </View>
+
+            <Text variant="caption" color="textTertiary">
+              {describeReserve(draft.rpe)}
+            </Text>
+          </View>
+
+          {/* Every button names what it acts on: out of context a screen reader
+              announces the visible word alone, and "Save" with no object is the
+              same announcement in every dialog the app has. */}
+          <View style={styles.dialogActions}>
+            {clearable && (
+              <Button
+                title="Clear"
+                accessibilityLabel={`Clear effort, ${setName}`}
+                variant="ghost"
+                onPress={() => onSubmit(null)}
+                style={styles.dialogAction}
+              />
+            )}
+            <Button
+              title="Cancel"
+              accessibilityLabel={`Cancel, ${setName} effort`}
+              variant="ghost"
+              onPress={onCancel}
+              style={styles.dialogAction}
+            />
+            <Button
+              title="Save"
+              accessibilityLabel={`Save effort, ${setName}`}
+              onPress={() => onSubmit(draft.rpe)}
+              style={styles.dialogAction}
+            />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * One end of the stepper. A local copy of the button `TimePickerModal` and the
+ * measurement sheet each carry, because neither exports theirs and this is the
+ * third place to want one. It takes its palette as an argument for the same
+ * reason the dialog above does: it is a call, not a component.
+ */
+function renderStepperButton({
+  label,
+  glyph,
+  colors,
+  onPress,
+}: {
+  label: string;
+  glyph: string;
+  colors: Palette;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.stepperButton,
+        { backgroundColor: pressed ? colors.surfacePressed : 'transparent' },
+      ]}
+    >
+      <Text variant="subheading" color="textSecondary">
+        {glyph}
+      </Text>
+    </Pressable>
+  );
+}
 
 export const SetRow = memo(function SetRow({
   set,
@@ -197,6 +522,11 @@ export const SetRow = memo(function SetRow({
   onChangeSetType,
 }: SetRowProps) {
   const colors = useColors();
+
+  // Null while the effort dialog is closed, which is the state twenty-five rows
+  // on a busy screen are all in: no dialog is rendered until one is asked for,
+  // and one piece of state answers both "is it open" and "what is in it".
+  const [effort, setEffort] = useState<EffortDraft | null>(null);
 
   // 0 = open, 1 = checked off. Seeded from the current value so a screen opened
   // on a half-finished workout renders its state rather than animating into it.
@@ -376,6 +706,82 @@ export const SetRow = memo(function SetRow({
     [confirmDelete],
   );
 
+  const openEffort = useCallback(() => setEffort(seedEffort(set.rpe)), [set.rpe]);
+
+  const handleCheckAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      if (event.nativeEvent.actionName === 'effort') openEffort();
+      else handleAccessibilityAction(event);
+    },
+    [handleAccessibilityAction, openEffort],
+  );
+
+  /*
+   * The dialog's own handlers, and none of them is a `useCallback`.
+   *
+   * Nothing here crosses a memo boundary: the dialog is rendered by a call
+   * inside this component rather than mounted beside it, so a stable identity
+   * would save exactly nothing and cost a dependency array per handler. The
+   * row's handlers above are memoised because they are props on children that
+   * re-render fifty times a session; these exist only while a dialog is open.
+   */
+  const stepEffort = (delta: 1 | -1) => {
+    if (!effort) return;
+
+    // Snapped to the half-point grid rather than added blindly, so an imported
+    // 7.3 lands back on it. The field is there for anyone who wants 7.3 and
+    // means it, exactly as the minute stepper leaves 07:03 reachable.
+    const snapped =
+      delta > 0
+        ? (Math.floor(effort.rpe / RPE_STEP) + 1) * RPE_STEP
+        : (Math.ceil(effort.rpe / RPE_STEP) - 1) * RPE_STEP;
+
+    const next = Math.min(MAX_RPE, Math.max(MIN_RPE, snapped));
+    if (next === effort.rpe) return;
+
+    haptics.selection();
+    setEffort({ rpe: next, text: formatRpe(next) });
+  };
+
+  const typeEffort = (raw: string) => {
+    if (!effort) return;
+
+    // A decimal pad still offers a minus sign and a second separator on some
+    // keyboards, and neither is part of an effort.
+    const cleaned = raw.replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 4);
+    const parsed = Number(cleaned);
+
+    /*
+     * The two ends of the scale are not the same kind of wrong, and the
+     * argument is `TimeField`'s. Too small is usually a prefix: "1" is both a
+     * valid effort and the first keystroke of "10", so it is held on screen
+     * uncommitted, and the blur writes back whatever is actually stored. Too
+     * big is never a prefix, since no second digit rescues an 11, so it clamps
+     * at once rather than sitting there as a figure the dialog has quietly
+     * declined to save. An empty field and a stray second "." are the same
+     * case: a keystroke on the way somewhere, not an instruction to forget the
+     * number already logged.
+     */
+    if (cleaned === '' || !Number.isFinite(parsed) || parsed < MIN_RPE) {
+      setEffort({ ...effort, text: cleaned });
+      return;
+    }
+
+    const clamped = Math.min(parsed, MAX_RPE);
+    setEffort({ rpe: clamped, text: clamped === parsed ? cleaned : formatRpe(clamped) });
+  };
+
+  const settleEffort = () => {
+    if (effort) setEffort({ ...effort, text: formatRpe(effort.rpe) });
+  };
+
+  const submitEffort = (next: number | null) => {
+    setEffort(null);
+    if (next === set.rpe) return;
+    haptics.selection();
+    onChange({ rpe: next });
+  };
+
   const weightValue =
     set.weightKg == null ? '' : formatWeight(set.weightKg, weightUnit, { withUnit: false });
   const distanceValue = set.distanceKm == null ? '' : asDistanceField(set.distanceKm, distanceUnit);
@@ -517,14 +923,66 @@ export const SetRow = memo(function SetRow({
             />
           )}
 
+          {/*
+            The effort chip, and it is here only when the set carries one.
+
+            RPE is not a column. Most people never log it, and a permanent cell
+            would spend 38 of a 360dp row's points on a figure that is null on
+            nine rows in ten, squeezing the previous column past the width where
+            "100 kg × 5" still fits. So there is nothing to see until there is
+            something to say, which also makes an imported Hevy history visible
+            the first time it is opened rather than only through the previous
+            column beside it.
+
+            Gated on `fields.reps` with the entry below it: RPE *is* a rep
+            count, it is defined by the reps left in reserve, and a 5 km run has
+            none. That the two tracking types carrying three numeric fields are
+            exactly the ones where a fourth cell would overflow a narrow row is
+            a happy consequence rather than the reason.
+          */}
+          {fields.reps && set.rpe != null && (
+            <Pressable
+              onPress={openEffort}
+              hitSlop={EFFORT_HIT_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={`${setName}, RPE ${formatRpe(set.rpe)}`}
+              accessibilityHint="Changes the effort"
+              style={({ pressed }) => [
+                styles.effortCell,
+                // `surfaceMuted`, the fill the numeric fields carry: this reads
+                // as one more thing logged about the set rather than as a
+                // status, which is what an accent tint would claim.
+                { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+              ]}
+            >
+              <Text variant="caption" color="textSecondary" style={styles.effortText}>
+                {`@${formatRpe(set.rpe)}`}
+              </Text>
+            </Pressable>
+          )}
+
           <Pressable
             onPress={handleToggle}
+            // Rating a set is a long press on the plate that says the set is
+            // done, which is the moment the effort is actually known, and it is
+            // the gesture this row already spends on secondary actions: the set
+            // number deletes the same way.
+            //
+            // Wired only once the set is checked off, and that is not a nicety.
+            // A Pressable carrying an `onLongPress` swallows a press held past
+            // half a second, and the check-off is the one gesture this app
+            // exists to perform: a slow thumb on an unchecked plate has to log
+            // the set, not open a dialog. Completed, the press it could swallow
+            // is an un-check, which is a rare deliberate correction and a
+            // Cancel away. You cannot rate a set you have not done, so the rule
+            // reads the same from the outside as it does from in here.
+            onLongPress={fields.reps && set.isCompleted ? openEffort : undefined}
             hitSlop={CHECK_HIT_SLOP}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: set.isCompleted }}
             accessibilityLabel={`Complete ${setName}`}
-            accessibilityActions={DELETE_ACTIONS}
-            onAccessibilityAction={handleAccessibilityAction}
+            accessibilityActions={fields.reps ? CHECK_ACTIONS : DELETE_ACTIONS}
+            onAccessibilityAction={handleCheckAccessibilityAction}
           >
             <Animated.View
               style={[styles.checkCell, { backgroundColor: colors.surfaceMuted }, checkStyle]}
@@ -546,6 +1004,19 @@ export const SetRow = memo(function SetRow({
           </Pressable>
         </View>
       </ReanimatedSwipeable>
+
+      {effort &&
+        renderEffortDialog({
+          setName,
+          colors,
+          draft: effort,
+          clearable: set.rpe != null,
+          onStep: stepEffort,
+          onChangeText: typeEffort,
+          onSettleText: settleEffort,
+          onCancel: () => setEffort(null),
+          onSubmit: submitEffort,
+        })}
     </Animated.View>
   );
 });
@@ -590,6 +1061,20 @@ const styles = StyleSheet.create({
   // than pushing the affordance out of the cell.
   previousText: { flexShrink: 1 },
   input: { flex: 0 },
+  // The same 30pt plate as the check cell beside it, so the two read as one
+  // pair rather than as a chip that wandered in. `minWidth` rather than a fixed
+  // width: "@10" is a character wider than "@8" and the cell may have it.
+  effortCell: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Tabular figures for the same reason every other number in a set row has
+  // them: @8 and @10 sit in a column down the block and must not jitter.
+  effortText: { fontVariant: ['tabular-nums'] },
   checkCell: {
     width: 38,
     height: 30,
@@ -613,4 +1098,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xxl,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  effortField: { gap: spacing.xs },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radius.md,
+    padding: spacing.xs,
+  },
+  // Past the touch minimum in both axes on its own frame, exactly as the time
+  // picker's and the measurement sheet's are. The buttons sit close enough to
+  // the field between them that slop is not available to either: it would
+  // overlap, and the later sibling silently wins the hit test.
+  stepperButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  stepperValue: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: fontSize.xxl,
+    ...font('bold'),
+    fontVariant: ['tabular-nums'],
+    // Android reserves extra room above the ascender and below the descender
+    // from the font's own metrics, which at this size pushes the digits off the
+    // centre line the buttons beside them sit on. Harmless on iOS.
+    paddingVertical: 0,
+    includeFontPadding: false,
+  },
+  dialogActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  dialogAction: { flex: 1 },
 });
