@@ -55,6 +55,12 @@
  * three grounds and on each role's own tint, a readable foreground on every
  * filled control including its pressed state, and 5:1 for the calendar's four
  * ramp stops. Changing one by eye is very likely to break one of those.
+ *
+ * That last paragraph was a claim before it was a check. `audit-palette.mjs`
+ * read only `tokens.ts`, so these six were measured once, by hand, and then
+ * never again: three values were sitting under the bar by the time anything
+ * ran over them, two in Spotify and one in Solarized. It reads this file now
+ * and audits every theme in `THEMES`. `node scripts/audit-palette.mjs`.
  */
 
 import type { Palette } from './tokens';
@@ -241,11 +247,14 @@ export const catppuccinPalette: Palette = {
  * off the accent, the same gap `darkPalette` settled on between its lime and
  * its check plate, and the warm pair is spaced as everywhere else.
  *
- * `danger` lands rosier than #E22134 because a red on this canvas has to clear
- * AA against its own tint: the same lift `darkPalette` documents under its own
- * #EC5A62, and it ends up in much the same place. The neutrals are Spotify's
+ * `danger` lands rosier than #E22134, and further from it than any other port
+ * moves its red. Two floors stack here. A red on this canvas has to clear AA
+ * against its own tint, which is the lift `darkPalette` documents under its own
+ * #EC5A62; then it has to clear AA again on `surfaceMuted`, which in this one
+ * palette is a mid grey rather than a near-black. The neutrals are Spotify's
  * real greys, except `surfaceMuted`, which the calendar ramp pulls lighter than
- * the #282828 Spotify uses for cards.
+ * the #282828 Spotify uses for cards. That token is the reason both warm roles
+ * below carry their own notes.
  *
  * Trademark, since this one is a company and not a community project: the name
  * and the colour are Spotify's. Fine for a private build; worth a rename before
@@ -272,12 +281,34 @@ export const spotifyPalette: Palette = {
   successPressed: '#6FB633',
   successSurface: 'rgba(121, 198, 56, 0.15)',
 
-  warning: '#FF812B',
-  warningSurface: 'rgba(255, 129, 43, 0.15)',
+  /*
+   * Lifted from #FF812B, which measured 4.43 on `surfaceMuted` and failed.
+   *
+   * The other repair is more obvious and is not available: take `surfaceMuted`
+   * down to the #282828 Spotify uses for a card and every role on it gains most
+   * of a stop. That token is where the calendar's ramp starts, and the ramp's
+   * second stop is the tightest pairing in this palette: 5.06 against a 5:1
+   * bar at #3C3C3C, 4.93 at #383838. The surface is pinned, so the roles move.
+   * Hue is unchanged at 24°, which is what keeps it clear of `record`. Now 4.61.
+   */
+  warning: '#FF8735',
+  warningSurface: 'rgba(255, 135, 53, 0.15)',
 
-  danger: '#EB6975',
-  dangerPressed: '#E8515E',
-  dangerSurface: 'rgba(235, 105, 117, 0.15)',
+  /*
+   * The same repair as `warning` and a much bigger step: #EB6975 measured 3.58
+   * on `surfaceMuted`, which was the worst pairing anywhere in these eight
+   * palettes. See `warning` for why the surface could not come down instead.
+   *
+   * What that costs is honesty about the colour: this is a light rose and not a
+   * red. Spotify's own #E22134 was never a candidate here, at 2.36 on the same
+   * fill, and the interface it is quoted from does not print it on grey either.
+   * Now 4.64, and still the deepest role in the palette.
+   */
+  danger: '#F08B94',
+  // Holds the same lightness step down that the old pair had, so the press is
+  // the size it always was. `textOnDanger` reads 6.66 on it.
+  dangerPressed: '#ED737E',
+  dangerSurface: 'rgba(240, 139, 148, 0.15)',
 
   record: '#DDAC00',
   recordSurface: 'rgba(221, 172, 0, 0.15)',
@@ -453,8 +484,23 @@ export const solarizedPalette: Palette = {
   dangerPressed: '#9C1A24',
   dangerSurface: 'rgba(179, 30, 42, 0.12)',
 
-  record: '#765A00',
-  recordSurface: 'rgba(118, 90, 0, 0.12)',
+  /*
+   * One step deeper than #765A00, which measured 4.4962 on `surfaceMuted`:
+   * that rounds to the 4.50 it needs and is not it.
+   *
+   * The gold is the only role on the wrong side of the line because it was the
+   * lightest of the five, and on a light theme lightest means least contrast.
+   * All five now sit between 4.50 and 4.64 on this fill, packed against the bar
+   * because that is what this palette is: Solarized's published accents measure
+   * below AA on Solarized's own paper (`yellow` reads 2.22 here), so each of
+   * them is already as deep as it can go before it stops being the colour it
+   * quotes.
+   *
+   * Raising `surfaceMuted` would fix it too. Rejected: that token is where the
+   * calendar's ramp starts, so it moves four stops to repair one role.
+   */
+  record: '#745800',
+  recordSurface: 'rgba(116, 88, 0, 0.12)',
 
   textOnAccent: '#FFFFFF',
   textOnSuccess: '#FFFFFF',

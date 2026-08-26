@@ -124,11 +124,61 @@ const VARIANTS: Record<TextVariant, TextStyle> = {
   },
 };
 
+/**
+ * How far each role is allowed to follow the OS font-size setting.
+ *
+ * Nothing capped this before, so Android's 200% accessibility scale and iOS's
+ * largest Dynamic Type size were both applied in full to type that was never
+ * laid out for them. Uncapped is the right default for a paragraph and the
+ * wrong one for a figure in a column, which is the whole of the rule below.
+ *
+ * **Text that owns its line takes the entire range.** `body`, `bodyMedium`,
+ * `label` and `caption` are the reading sizes: they wrap, and what contains
+ * them grows with them. 2 is the ceiling because it is everything Android can
+ * ask for. iOS can ask for roughly 3.1 at its largest accessibility size, and
+ * this is the point at which that request is clamped rather than refused.
+ *
+ * **Text in a box that does not follow it stops earlier.** The figure roles are
+ * columnar. A weight sits in a 72pt input beside a reps field, and `set-row.tsx`
+ * draws its index cell at 32pt and its check plate at 38x30, none of which
+ * follow the font scale. A clipped weight is worse than a small one: "13" and
+ * "137" are both plausible lifts, and only one of them is the set you did.
+ * `overline` takes the same ceiling because it is nearly always the heading
+ * above one of those columns, and a heading that outgrows its column is the
+ * same bug seen from above.
+ *
+ * The headline roles are graded down rather than pinned at one number, so the
+ * ladder stays a ladder: `display` is larger than `title` at every scale, and
+ * `body` never overtakes `subheading`, which it would at 2 against a fixed 1.4.
+ * Leaving them at 2 would have been simpler and is wrong for its own reason:
+ * `display` is 38pt, and at 76 a page title is one word per line.
+ *
+ * `lineHeight` needs no separate cap. Both platforms multiply it by the same
+ * effective multiplier this bounds, so the leading follows the size it was set
+ * against instead of clipping under it.
+ */
+const MAX_FONT_SCALE: Record<TextVariant, number> = {
+  display: 1.4,
+  title: 1.5,
+  heading: 1.6,
+  subheading: 1.8,
+  body: 2,
+  bodyMedium: 2,
+  label: 2,
+  caption: 2,
+  overline: 1.6,
+  numeric: 1.6,
+  numericLarge: 1.6,
+};
+
 export function Text({ variant = 'body', color = 'text', align, style, ...rest }: TextProps) {
   const colors = useColors();
 
   return (
     <RNText
+      // Before the spread, so a call site that knows its own constraint can
+      // still name one. These are defaults, not a policy.
+      maxFontSizeMultiplier={MAX_FONT_SCALE[variant]}
       style={[VARIANTS[variant], { color: colors[color] }, align ? { textAlign: align } : null, style]}
       {...rest}
     />
