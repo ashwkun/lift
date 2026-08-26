@@ -83,10 +83,14 @@ export default function ProfileScreen() {
          * lifted. Keeping it a step above the ruled band beneath states the
          * hierarchy that three identical tiles flattened.
          *
-         * That step is now 24px against the band's 17, where it used to be 40
-         * against 24. A lifetime volume is a number you look up, not one you
-         * monitor, and at the display size it was the loudest thing in the app
-         * on a screen whose actual job is to get you to settings and exports.
+         * That step is 28px against the band's 17. It has been 40 (too loud:
+         * it made a number you look up once look like the point of the app)
+         * and 22 (too quiet: at one step off the band it read as a fourth
+         * column rather than the thing the band breaks down). 28 is `title`,
+         * the size the app already uses for a screen's own name, which is what
+         * this figure is doing here. `adjustsFontSizeToFit` is what makes it
+         * safe: a seven-figure volume in pounds on a phone set to a large
+         * system text size shrinks rather than truncating or wrapping.
          *
          * The accent goes on the kicker, not on the figure. In the light
          * palette the accent is a dark olive chosen to be legible as text, so
@@ -99,10 +103,10 @@ export default function ProfileScreen() {
           <Text variant="overline" color="accent">
             Lifetime volume
           </Text>
-          <Text variant="heading" color="text" numberOfLines={1} adjustsFontSizeToFit>
+          <Text variant="title" color="text" numberOfLines={1} adjustsFontSizeToFit>
             {volume}
             {volumeUnit ? (
-              <Text variant="label" color="textTertiary">
+              <Text variant="subheading" color="textTertiary">
                 {` ${volumeUnit}`}
               </Text>
             ) : null}

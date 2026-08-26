@@ -216,9 +216,14 @@ function Figure({
 
   return (
     <View style={styles.figure}>
-      <Text variant="overline" color="textTertiary" numberOfLines={1}>
-        {label}
-      </Text>
+      {/* Two lines: "Working sets" does not fit a third of a phone set
+          uppercase, and a clipped label reads as a bug. The wrapper takes the
+          slack so all three figures stay on one baseline. */}
+      <View style={styles.figureLabel}>
+        <Text variant="overline" color="textTertiary" numberOfLines={2}>
+          {label}
+        </Text>
+      </View>
       <Text variant="numericLarge" numberOfLines={1}>
         {value}
         {unit ? <Text variant="caption" color="textTertiary">{` ${unit}`}</Text> : null}
@@ -349,11 +354,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.md,
   },
-  figures: { flexDirection: 'row', alignItems: 'flex-start' },
+  // `stretch`, so a label that wraps lengthens its column rather than pushing
+  // its own figure off the baseline the other two sit on.
+  figures: { flexDirection: 'row', alignItems: 'stretch' },
   // Equal thirds, so the three figures sit on a grid rather than being spaced
   // to the width of their own digits: a volume that crosses 10,000 mid-session
   // must not shove the reps column sideways.
   figure: { flex: 1, gap: spacing.xs },
+  figureLabel: { flex: 1 },
   rule: { marginTop: spacing.xs },
   breakdown: { gap: spacing.sm },
   muscleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

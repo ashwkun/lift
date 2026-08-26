@@ -330,9 +330,19 @@ export function StatBand({ items, style }: StatBandProps) {
     <View style={[styles.statBand, style]}>
       {items.map((item, index) => (
         <View key={item.label} style={[styles.statColumn, index > 0 && styles.statColumnInner]}>
-          <Text variant="overline" color="textTertiary" numberOfLines={1}>
-            {item.label}
-          </Text>
+          {/*
+           * Two lines, not one. A third of a phone is not enough for "Week
+           * streak" or "Last 3 months" set uppercase at this tracking, and a
+           * clipped label ("WEEK STRE…") reads as a bug; on a device with the
+           * system text size turned up even "Sessions" runs out of room. The
+           * wrapper takes the slack so every figure in the row still sits on
+           * one baseline however many lines the labels above them need.
+           */}
+          <View style={styles.statLabel}>
+            <Text variant="overline" color="textTertiary" numberOfLines={2}>
+              {item.label}
+            </Text>
+          </View>
           <Text
             numberOfLines={1}
             style={[styles.statValue, item.lead ? { color: colors.accent } : null]}
@@ -574,8 +584,14 @@ const styles = StyleSheet.create({
   },
   // Equal columns, with the first flush to the screen margin so the band sits
   // on the same grid as the section headers above and below it.
-  statColumn: { flex: 1, gap: spacing.xs, paddingRight: spacing.lg },
-  statColumnInner: { paddingLeft: spacing.lg },
+  // The gutter is `md` rather than `lg`: four pixels a side back is four
+  // characters of label on a small phone, and this band is read down the
+  // columns, which the labels themselves already separate.
+  statColumn: { flex: 1, gap: spacing.xs, paddingRight: spacing.md },
+  statColumnInner: { paddingLeft: spacing.md },
+  // Takes the slack when one label wraps and its neighbours do not, which is
+  // what keeps the figures on a shared baseline.
+  statLabel: { flex: 1 },
   statValue: {
     // One size, whether the band holds two figures or four.
     //
