@@ -15,7 +15,7 @@ import {
 import { EXERCISE_LIBRARY, findDuplicateExerciseIds, scoreExerciseMatch, slugify } from './exercises/index.ts';
 import { isUuid, uuidv7, uuidv7Timestamp } from './ids.ts';
 import * as barrel from './index.ts';
-import { calculatePlates, DEFAULT_PLATES_KG } from './plates.ts';
+import { calculatePlates, DEFAULT_PLATES_KG, DEFAULT_PLATES_LB } from './plates.ts';
 import { clampUpdatedAt, CLOCK_SKEW_TOLERANCE_MS, shouldOverwrite } from './sync.ts';
 import { TRACKING_TYPES, USES_BODYWEIGHT } from './types.ts';
 import {
@@ -343,6 +343,17 @@ describe('calculatePlates', () => {
   it('never suggests an unpairable odd plate', () => {
     const result = calculatePlates(45, 20, [{ weightKg: 25, count: 1 }]);
     assert.equal(result.plates.length, 0);
+  });
+
+  it('loads a weight it built itself, in pounds', () => {
+    // A pound plate in kilograms is never round, so a remainder that is
+    // exactly one plate lands a float's width under it. The solver used to
+    // skip that plate and report its own answer as unloadable.
+    const barKg = 20.4117;
+    const target = 45.3591;
+    const result = calculatePlates(target, barKg, DEFAULT_PLATES_LB);
+    assert.ok(result.exact, `expected loadable, short by ${result.remainderKg}`);
+    assert.ok(Math.abs(result.achievedKg - target) < 1e-6);
   });
 });
 

@@ -92,7 +92,19 @@ export function calculatePlates(
   const plates: LoadedPlate[] = [];
 
   for (const spec of sorted) {
-    if (remainingPerSide < spec.weightKg) continue;
+    /**
+     * `- EPSILON`, matching the tolerance the line below already applies.
+     *
+     * Without it this test is exact where every other comparison here is not,
+     * and the gap shows up in pounds. A pound plate converted to kilograms is
+     * never round, so a remainder that should be exactly one plate lands a
+     * float's width under it and the plate is skipped: `calculatePlates` can be
+     * handed a weight it built itself and report it as unloadable, leaving a
+     * remainder of the very plate it just used. Reachable at ordinary gym
+     * numbers, not only at contrived ones: a 45 lb bar with 25s and 2.5s
+     * reproduces it.
+     */
+    if (remainingPerSide < spec.weightKg - EPSILON) continue;
 
     const pairsOwned = Math.floor(spec.count / 2);
     if (pairsOwned === 0) continue;
