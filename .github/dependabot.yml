@@ -1,0 +1,92 @@
+version: 2
+
+# Keeps the dependency graph and the workflows moving, on a schedule rather
+# than whenever someone remembers.
+#
+# The reason this matters more here than in most repositories: update.yml and
+# rollback.yml hold EXPO_TOKEN, and an update published with that token reaches
+# every installed app on its next launch with no review and no store in
+# between. A compromised transitive dependency that runs during `pnpm install`
+# on those runners is one step from that token.
+#
+# Two ecosystems, and no `renovate.json`. Dependabot is already wired into this
+# repository's host and needs no third-party app installation, which is one
+# fewer thing holding write access to the code.
+
+updates:
+  # ---------------------------------------------------------------- npm -----
+  - package-ecosystem: npm
+    # The workspace root. Dependabot reads pnpm-workspace.yaml from here and
+    # covers apps/* and packages/* through it, so this must not be split into
+    # one entry per project: separate entries would each try to update the one
+    # shared pnpm-lock.yaml and conflict with each other every week.
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    # Small on purpose. A queue of twenty open update PRs is a queue nobody
+    # reads, and the groups below already collapse the bulk of them.
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional, because scripts/release.mjs parses these subjects to
+      # build CHANGELOG.md. `chore` puts them under Internal, which is where a
+      # dependency bump belongs in a note someone reads to decide whether to
+      # update their phone.
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+
+    groups:
+      # The Expo SDK is one artefact wearing forty package names. expo,
+      # expo-router, expo-sqlite, expo-updates and react-native are version
+      # locked against each other by the SDK release, so bumping any one of
+      # them alone produces an install that resolves and an app that does not
+      # run. As separate PRs they are also unmergeable in any order.
+      #
+      # react and react-dom are in here for the same reason: the SDK pins them
+      # (see the root package.json, which carries all three), and React moving
+      # without React Native is not a combination this app is ever tested in.
+      #
+      # Note that expo-sqlite lands in this group, and pnpm-workspace.yaml
+      # patches it at an exact version. A bump silently strands that patch, and
+      # what that costs is in the comment beside it: every query result over
+      # 255 bytes truncated mid-JSON on the web build. ci.yml has a "Check the
+      # patched dependency" step that fails the PR when the two disagree, which
+      # is the signal to re-cut the patch rather than to widen the version key.
+      expo-sdk:
+        patterns:
+          - expo
+          - expo-*
+          - "@expo/*"
+          - react
+          - react-dom
+          - react-native
+          - react-native-*
+          - "@react-native/*"
+          - "@react-native-*/*"
+
+      # Everything else, minor and patch only, as a single weekly PR. A major
+      # is deliberately left out so it arrives on its own and gets read.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # ------------------------------------------------------- github-actions ---
+  # The half that closes the tag-floating hole. Every `uses:` in this
+  # repository is pinned to a commit SHA with its version in a trailing
+  # comment, which stops a compromised or retagged `v4` from reaching a runner
+  # that holds EXPO_TOKEN. Pinning without this entry only trades one problem
+  # for another: the actions then never move at all and quietly rot. Dependabot
+  # understands the SHA-plus-comment form and rewrites both parts together.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns:
+          - "*"

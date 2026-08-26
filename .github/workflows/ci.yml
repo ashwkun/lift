@@ -30,19 +30,64 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a commit SHA with the version in the trailing comment, the
+      # same as the other three workflows. The full reasoning is in
+      # android.yml; .github/dependabot.yml is what keeps the pins current.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Must precede setup-node so that `cache: pnpm` can find the binary.
       # Version comes from the root package.json `packageManager` field.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
 
+      # Six files carry the version and nothing used to compare them, so drift
+      # was invisible until a release asset came out named after the wrong one.
+      # Pure Node, no install, so it answers in seconds and answers first.
+      # scripts/release.mjs is also what writes those six and CHANGELOG.md.
+      - name: Verify versions agree
+        run: node scripts/release.mjs check
+
+      # Pure Node like the check above, so it runs before the dependency work
+      # rather than after it. It re-measures every contrast ratio tokens.ts and
+      # palettes.ts state beside their values, across all eight themes in
+      # THEMES. The failure it exists to catch is a colour nudged by eye that
+      # takes a role under AA on one theme out of eight, which nothing else in
+      # this repo would notice: three had already happened before it ran.
+      - name: Audit the palettes
+        run: node scripts/audit-palette.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # patches/expo-sqlite@57.0.1.patch is load-bearing rather than tidying:
+      # the reasoning is in pnpm-workspace.yaml beside the entry, and the cost
+      # of losing it is that every query result over 255 bytes comes back
+      # truncated mid-JSON on the web build, so each screen renders its empty
+      # state. It fails as an app that looks like it has no data, never as an
+      # error, which is why it is worth a check of its own.
+      #
+      # pnpm keys a patch on an exact version. A bump to 57.0.2 leaves the
+      # patch naming a package that is no longer installed, and dependabot
+      # groups expo-sqlite with the rest of the Expo SDK, so that bump arrives
+      # inside a forty-package pull request where nothing else would catch it.
+      - name: Check the patched dependency
+        run: |
+          patched=$(sed -n 's/^ *expo-sqlite@\([0-9][^:]*\):.*/\1/p' pnpm-workspace.yaml)
+          # `|| echo` rather than letting `bash -e` take the step down on the
+          # node error: an expo-sqlite that will not resolve at all is a real
+          # failure, but it is worth reporting through the message below rather
+          # than as a resolver stack trace.
+          installed=$(node -p "require(require.resolve('expo-sqlite/package.json', { paths: ['apps/mobile', '.'] })).version" 2>/dev/null || echo "(does not resolve)")
+          echo "patched:   ${patched:-(none found in pnpm-workspace.yaml)}"
+          echo "installed: $installed"
+          if [ "$patched" != "$installed" ]; then
+            echo "::error title=The expo-sqlite patch is not being applied::pnpm-workspace.yaml patches expo-sqlite@$patched but $installed is what is installed. Re-cut it with 'pnpm patch expo-sqlite@$installed', apply the same two fixes, and update patchedDependencies. Do not simply widen the version key: the patch is written against specific lines."
+            exit 1
+          fi
 
       # Load-bearing, and it has to come first. `@lift/shared` resolves through
       # its exports map: Metro takes the `react-native` condition and reads the
@@ -104,11 +149,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -155,6 +200,55 @@ jobs:
         run: cat "$RUNNER_TEMP/api.log" || true
 
   # -------------------------------------------------------------------------
+  # Advisories and Expo's own configuration check. Neither is allowed to fail a
+  # build, and the reason differs for each.
+  #
+  # `pnpm audit` reports against the whole tree, and most of that tree is dev
+  # dependencies that never run anywhere but a laptop and a runner. A high
+  # advisory in a build tool is worth reading on a Monday; it is not worth
+  # standing between a fix and the phones waiting for it. `expo-doctor` checks
+  # a list of things this repository deliberately does differently, notably the
+  # patched expo-sqlite and the gitignored `android/`, so a clean result is not
+  # something to hold a release to either.
+  #
+  # Read them. The point of a non-blocking job is that somebody looks, not that
+  # nobody does.
+  supply-chain:
+    name: Advisories and expo-doctor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Neutral rather than red, so the checks that do block stay meaningful.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Before the install, because it reads the lockfile and the registry
+      # rather than node_modules, so it still reports if the install fails.
+      - name: Advisories
+        continue-on-error: true
+        run: pnpm audit --audit-level moderate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `dlx` fetches expo-doctor at head rather than pinning it, which nothing
+      # else in these workflows is allowed to do. It is tolerable here and
+      # nowhere else: this job takes no secrets, has `contents: read` from the
+      # workflow above, and produces nothing that anything else consumes.
+      - name: expo-doctor
+        continue-on-error: true
+        working-directory: apps/mobile
+        run: pnpm dlx expo-doctor
+
+  # -------------------------------------------------------------------------
   # All three images are built from this repository by Dokploy on deploy, from
   # whatever git resolves to. Building them here means a Dockerfile that no
   # longer builds is a failed check rather than a failed deploy.
@@ -164,7 +258,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Build the API image
         run: docker build -f apps/api/Dockerfile -t lift-api:ci .

@@ -63,29 +63,65 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      # Every action in this repository is pinned to a commit SHA, with the
+      # release it points at in the trailing comment.
+      #
+      # A tag is a mutable pointer: whoever controls the action's repository
+      # can move `v4` onto different code at any time, and none of the four
+      # workflows here would notice. This one runs with `contents: write` and
+      # signs and publishes the file people install; update.yml and
+      # rollback.yml hold EXPO_TOKEN, and an update published with that token
+      # reaches every phone on its next launch with no review in between.
+      #
+      # Pinning alone would only trade a moving target for a rotting one, so
+      # .github/dependabot.yml moves these weekly. It reads the trailing
+      # comment to know which version a SHA stands for and rewrites both
+      # together, which is why the comment is not decoration: keep it accurate
+      # if you ever change a pin by hand.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Must precede setup-node so that `cache: pnpm` can find the binary.
       # Version comes from the root package.json `packageManager` field.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: 17
 
       # Restores the Gradle cache and writes a build report to the job summary.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       # The runner ships an Android SDK, but Gradle may pull a build-tools or
       # platform revision that has no license on record yet.
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
+      # Six files carry the version and nothing used to compare them. It
+      # matters here in particular because `Stage APK` below names the release
+      # asset from app.json and reads none of the other five: a bump that
+      # missed app.json ships `lift-0.14.1-...apk` for what is really 0.15.0,
+      # and a bump that touched only app.json leaves five manifests behind.
+      # Neither shows up as anything but a green build.
+      #
+      # On a tag push this also compares the tag against the tree, which is the
+      # failure that is impossible to fix after the fact: the tag is what the
+      # OTA workflow publishes against and what someone is told to download.
+      #
+      # Pure Node and no install, so it costs seconds and runs before the forty
+      # minutes of Gradle rather than after.
+      - name: Verify versions agree
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            node scripts/release.mjs check --expect "$GITHUB_REF_NAME"
+          else
+            node scripts/release.mjs check
+          fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -291,7 +327,24 @@ jobs:
             echo "runtime version and no other. See the OTA Update workflow."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      # The comparison the `du -h` above never had.
+      #
+      # Both minification flags are appended by a shell step to a
+      # gradle.properties that `expo prebuild` regenerates on every run, so
+      # nothing fails if one of them stops taking effect. The APK just gets big
+      # again: v0.8.0 shipped at 58.9 MB for arm64-v8a alone, against roughly
+      # 31 MB now. This reads the zip directory and compares the total against
+      # scripts/perf/apk-baseline.json, and names the two causes it can
+      # recognise rather than only the symptom, since "the APK grew 40%" is a
+      # much slower thing to act on than "R8 is no longer running".
+      #
+      # Runs after Stage APK so it measures the same file that is uploaded, and
+      # writes its breakdown to the job summary before it decides, so a
+      # regression is diagnosable from the summary alone.
+      - name: Check APK size
+        run: node scripts/perf/apk-size.mjs "${{ steps.stage.outputs.path }}" --abis "$RN_ARCHS"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.stage.outputs.name }}
           path: ${{ steps.stage.outputs.path }}
@@ -301,8 +354,29 @@ jobs:
       # Artifacts are zipped and need a logged-in GitHub session to download,
       # which is awkward on a phone. Tagged builds also publish the raw APK as
       # a release asset so it can be downloaded directly in a mobile browser.
+      #
+      # `--generate-notes` derives a body from merged pull requests and this
+      # project has none, so every release note so far has been a bare compare
+      # link. The commit subjects were the notes all along; scripts/release.mjs
+      # collects them into CHANGELOG.md and `notes` lifts one section out.
+      #
+      # The fallback is deliberate and is why this is a variable rather than a
+      # second command: an extraction that finds nothing leaves the publish
+      # exactly as it has always been rather than replacing a thin release note
+      # with no release at all.
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" --generate-notes || gh release upload "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" --clobber
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          node scripts/release.mjs notes "${GITHUB_REF_NAME}" > "$notes" || true
+          # An `if` rather than `[ -s ... ] && ...`, because these blocks run
+          # under `bash -e`: a false test at statement level would abort the
+          # step, and it would abort it on exactly the path the fallback is
+          # here to cover.
+          notes_arg=--generate-notes
+          if [ -s "$notes" ]; then
+            notes_arg="--notes-file=$notes"
+          fi
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" "$notes_arg" || gh release upload "${GITHUB_REF_NAME}" "${{ steps.stage.outputs.path }}" --clobber

@@ -82,7 +82,21 @@ browser the first time.
 
 Builds are produced by [`.github/workflows/android.yml`](.github/workflows/android.yml):
 push a `v*` tag to cut a release, or run the workflow by hand from the
-Actions tab to get an APK as a build artifact. Two things to know:
+Actions tab to get an APK as a build artifact.
+
+Cut the version first, rather than editing the files by hand:
+
+```bash
+node scripts/release.mjs set 0.15.0   # or major/minor/patch
+```
+
+Six files carry the version and CI fails if they disagree. That command
+rewrites all six and regenerates `CHANGELOG.md` from the commit log, which is
+also where the release notes come from: `--generate-notes` derives them from
+merged pull requests and this repository has none, so tags cut before this
+existed have empty notes. `node scripts/release.mjs` on its own only checks.
+
+Two things to know about the APK itself:
 
 - **arm64-v8a only** by default, which covers any phone from the last decade.
   The workflow's `architectures` input builds the other ABIs if you need them.

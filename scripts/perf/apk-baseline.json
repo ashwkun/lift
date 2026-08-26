@@ -1,0 +1,37 @@
+{
+  "_readme": [
+    "What a release APK is allowed to weigh, read by scripts/perf/apk-size.mjs.",
+    "Keyed by ABI set, because an all-four-ABI build is roughly three times an",
+    "arm64-only one and comparing the two is noise rather than a regression.",
+    "",
+    "The numbers below were measured from the v0.14.1 release asset, which is",
+    "the first build carrying both minification flags. They are the point the",
+    "APK workflow's own comments describe: 3 dex files rather than the 6 an",
+    "unminified build produces, and lib/ deflated rather than STORED. Anything",
+    "that undoes either shows up here as tens of percent, not as noise.",
+    "",
+    "tolerancePercent is headroom for a feature release, not a target. Raise it",
+    "only with the reason in the commit message. To move a baseline, run",
+    "'node scripts/perf/apk-size.mjs <apk> --update' against a build you have",
+    "installed and opened, and commit the result alongside the change that grew",
+    "it, so the diff says what bought the megabytes."
+  ],
+  "tolerancePercent": 5,
+  "builds": {
+    "arm64-v8a": {
+      "recordedFrom": "lift-0.14.1-29-1b1d0f0.apk",
+      "recordedAt": "2026-08-26",
+      "totalBytes": 32416171,
+      "dexFiles": 3,
+      "buckets": {
+        "dex": 8191221,
+        "lib": 8474333,
+        "bundle": 8004092,
+        "assets": 17043,
+        "res": 3778684,
+        "arsc": 2311932,
+        "other": 1411175
+      }
+    }
+  }
+}

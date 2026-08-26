@@ -1,0 +1,63 @@
+name: CodeQL
+
+# Static analysis for the JavaScript and TypeScript in this repository.
+#
+# Separate from ci.yml on purpose. CodeQL builds its own database and takes
+# minutes rather than seconds, and it needs `security-events: write`, which is
+# a permission the quality gate has no business holding. Keeping it apart means
+# ci.yml stays fast enough to be worth waiting for on every push.
+#
+# Findings land in the Security tab rather than as a failed check. That is the
+# right default for a project with one maintainer: a false positive should not
+# block a release, and a real one should not be lost in a log.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Analysis improves without the code changing, because the query pack does.
+  # A repository that only ever scans on push learns about a new query class
+  # the next time someone happens to commit, which for a quiet week is never.
+  schedule:
+    - cron: "37 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      # Only this job holds it, and only to file what it finds.
+      security-events: write
+
+    steps:
+      # Pinned to a commit SHA with the version in the trailing comment, the
+      # same as every other workflow here. See the full note in android.yml;
+      # .github/dependabot.yml is what keeps the pins current.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: github/codeql-action/init@42947a340483f03ba47bb1a039b2c519aab3df85 # v3.37.8
+        with:
+          languages: javascript-typescript
+          # `security-and-quality` over the default `security-extended`. The
+          # extra quality queries are the half worth having on a codebase this
+          # size, and the noise they add goes to a tab rather than to a gate.
+          queries: security-and-quality
+
+      # No build step. This is an interpreted-language database, and the two
+      # compiled artefacts here are Android's, which CodeQL is not being asked
+      # to look at. Autobuild would try `gradlew` and spend ten minutes finding
+      # that out.
+      - uses: github/codeql-action/analyze@42947a340483f03ba47bb1a039b2c519aab3df85 # v3.37.8
+        with:
+          category: "/language:javascript-typescript"
