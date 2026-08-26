@@ -1,7 +1,7 @@
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts } from 'expo-font';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -383,7 +383,51 @@ function StartupSpinner() {
  * a route push here would go nowhere. Writing the file needs reads only, which
  * a database that opened can still serve even when migrating it failed.
  */
-function StartupError({ error, onRetry }: { error: Error; onRetry: () => void }) {
+/**
+ * What renders when a screen throws, rather than the app closing.
+ *
+ * expo-router wraps a route in its `Try` boundary *only* when that route's
+ * module exports `ErrorBoundary`, and `ExpoRoot` installs no default. Without
+ * this export a render throw after boot went to the native fatal handler, which
+ * in a release build closes the app mid-session: the user is holding a session
+ * they have been logging for forty minutes and the app is simply gone. The
+ * careful `StartupError` below only ever covered the database failing to open.
+ *
+ * It offers the same backup escape hatch for the same reason: the crash may be
+ * repeatable, and the training log on this device may be the only copy.
+ *
+ * `useColors` is safe here despite this rendering outside `AppThemeProvider`.
+ * `ThemeContext` carries a real default palette, so the boundary cannot itself
+ * throw on a missing provider, which is the one thing a crash screen must not
+ * do.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <>
+      <StartupError error={error} onRetry={() => void retry()} title="Lift hit an error" />
+      {/*
+        Its own `DialogHost`, because the one in `RootLayout` is not mounted
+        here. expo-router's boundary replaces the tree it was wrapping, so the
+        export button's only way of reporting where the file went, or that the
+        export failed, would otherwise be a dialog with nowhere to render: the
+        button would appear to do nothing on the one screen where doing nothing
+        is least acceptable. `DialogHost` needs `useColors`, which has a default
+        palette, and a plain RN `Modal`, so it works outside every provider.
+      */}
+      <DialogHost />
+    </>
+  );
+}
+
+function StartupError({
+  error,
+  onRetry,
+  title = "Couldn't start Lift",
+}: {
+  error: Error;
+  onRetry: () => void;
+  title?: string;
+}) {
   const colors = useColors();
   const [exporting, setExporting] = useState(false);
 
@@ -411,7 +455,7 @@ function StartupError({ error, onRetry }: { error: Error; onRetry: () => void })
   return (
     <View style={[styles.centered, { backgroundColor: colors.background }]}>
       <Text variant="subheading" align="center">
-        Couldn&apos;t start Lift
+        {title}
       </Text>
       <Text variant="body" color="textSecondary" align="center" style={styles.errorDetail}>
         {error.message}
