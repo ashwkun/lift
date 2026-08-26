@@ -13,10 +13,24 @@ import {
   type MuscleGroup,
   type SetLike,
 } from '@lift/shared';
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { exercises, workoutExercises, workoutSets, workouts } from '@/db/schema';
+import { exercises, workoutExercises, workoutSets, workouts, type Workout } from '@/db/schema';
 
 import {
   advance,
@@ -627,6 +641,195 @@ async function getMuscleBreakdown(since: Date | null): Promise<{
     peakMuscleSets: muscles[0]?.sets ?? 0,
     weeks,
   };
+}
+
+// ---------------------------------------------------------------------------
+// History search
+// ---------------------------------------------------------------------------
+
+/**
+ * What the history list is narrowed to.
+ *
+ * Both parts empty means "no filter", which is a different fact from "nothing
+ * matched" and has to stay distinguishable: the first restores the dashboard,
+ * the second draws an empty state. `isHistoryFilterActive` is the one place
+ * that decides which of the two the screen is in.
+ */
+export interface HistoryFilter {
+  /** Free text, matched against exercise names and the session's own name and notes. */
+  text: string;
+  /** Primary muscles, of which the session must have trained at least one. */
+  muscles: readonly MuscleGroup[];
+}
+
+/**
+ * One session, in exactly the columns a history row draws.
+ *
+ * Structurally what `WorkoutCard` renders, but declared from the table rather
+ * than imported from the component: a repository that types its results off a
+ * view is a repository that cannot be read without the view.
+ */
+export type HistoryMatch = Pick<
+  Workout,
+  | 'id'
+  | 'name'
+  | 'startedAt'
+  | 'durationSeconds'
+  | 'totalVolumeKg'
+  | 'totalSets'
+  | 'prCount'
+>;
+
+/** Column selection producing `HistoryMatch`. */
+const historyMatchColumns = {
+  id: workouts.id,
+  name: workouts.name,
+  startedAt: workouts.startedAt,
+  durationSeconds: workouts.durationSeconds,
+  totalVolumeKg: workouts.totalVolumeKg,
+  totalSets: workouts.totalSets,
+  prCount: workouts.prCount,
+} as const;
+
+/**
+ * How many words of a query are honoured.
+ *
+ * Every token adds three more `LIKE` terms (session name, session notes,
+ * exercise name), so a stray paste into the field would otherwise compile a
+ * statement with hundreds of them and run it against every session in the log.
+ * Dropping the tail only ever *widens* the result, since the tokens are ANDed,
+ * so the failure mode of the cap is a few extra rows rather than a missing one.
+ * Nobody narrows a training log past four words.
+ */
+const MAX_SEARCH_TOKENS = 4;
+
+function searchTokens(text: string): string[] {
+  return text.split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_TOKENS);
+}
+
+/** True when the filter asks for anything at all. Whitespace is not a query. */
+export function isHistoryFilterActive(filter: HistoryFilter): boolean {
+  return filter.text.trim().length > 0 || filter.muscles.length > 0;
+}
+
+/**
+ * `column` contains every token, in any order.
+ *
+ * One `%token%` per word and ANDed, rather than one `%whole query%`, so
+ * "barbell bench" finds "Bench Press (Barbell)". People type the words they
+ * remember, not the order the catalog names them in. It is the same rule
+ * `createExerciseMatcher` applies to the catalog search, so a query behaves the
+ * same way whichever field it is typed into.
+ *
+ * No `lower()` around the column: SQLite's `LIKE` already folds ASCII case, and
+ * wrapping a column in a function is what rules out ever indexing it. The gap
+ * is accented names, where SQLite's own `lower()` does not fold either, so the
+ * wrapper would buy nothing for the cost.
+ */
+function containsTokens(column: AnyColumn, tokens: string[]): SQL | undefined {
+  return and(
+    // `%` and `_` are `LIKE` wildcards: a search for "50%" would otherwise
+    // match every session ever logged. `escape` is the only way to spell them
+    // literally, and it has to be attached to each term.
+    ...tokens.map((token) => sql`${column} like ${`%${escapeLike(token)}%`} escape '\\'`),
+  );
+}
+
+function escapeLike(token: string): string {
+  return token.replace(/[\\%_]/g, '\\$&');
+}
+
+/**
+ * Sessions matching `filter`, newest first, capped at `limit`.
+ *
+ * Spans the whole log whatever the history screen's range control is set to.
+ * The one search anybody runs here is "when did I last do this", and answering
+ * it with "not in the last three months" because a segmented control two cards
+ * up was left on `3m` would be a search that lies by omission.
+ *
+ * Runs in SQLite rather than over the rows the screen already holds. History
+ * pages 25 sessions at a time, so a client-side filter would search the visible
+ * page and confidently report "no matches" for the bench session from March:
+ * broken on exactly the size of log that makes anyone want a search box.
+ *
+ * The exercise and muscle tests are correlated `exists` subqueries rather than
+ * a join up to `exercises` with a `distinct`. A join fans one session out to a
+ * row per matching exercise, so `limit 25` stops meaning 25 sessions, and the
+ * `distinct` needed to put that right forces every matching row in the log to
+ * be materialised and sorted before the limit can apply. `exists` keeps the
+ * outer row count equal to the session count, stops at the first matching
+ * exercise per session, and reaches it through `workout_exercises_workout_idx`.
+ *
+ * Deleted rows are excluded at both levels: a session keeps its exercises when
+ * one is removed from it, and matching on a removed exercise would return a
+ * session whose detail screen does not mention it.
+ */
+export async function searchWorkouts(
+  filter: HistoryFilter,
+  limit: number,
+): Promise<HistoryMatch[]> {
+  const tokens = searchTokens(filter.text);
+
+  // No filter is not the same question as one nothing matches, and this
+  // function only answers the second. Callers gate on `isHistoryFilterActive`.
+  if (tokens.length === 0 && filter.muscles.length === 0) return [];
+
+  const conditions: (SQL | undefined)[] = [
+    isNotNull(workouts.finishedAt),
+    isNull(workouts.deletedAt),
+  ];
+
+  if (tokens.length > 0) {
+    conditions.push(
+      or(
+        containsTokens(workouts.name, tokens),
+        containsTokens(workouts.notes, tokens),
+        exists(
+          db
+            .select({ matched: sql`1` })
+            .from(workoutExercises)
+            .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
+            .where(
+              and(
+                eq(workoutExercises.workoutId, workouts.id),
+                isNull(workoutExercises.deletedAt),
+                containsTokens(exercises.name, tokens),
+              ),
+            ),
+        ),
+      ),
+    );
+  }
+
+  if (filter.muscles.length > 0) {
+    conditions.push(
+      exists(
+        db
+          .select({ matched: sql`1` })
+          .from(workoutExercises)
+          .innerJoin(exercises, eq(workoutExercises.exerciseId, exercises.id))
+          .where(
+            and(
+              eq(workoutExercises.workoutId, workouts.id),
+              isNull(workoutExercises.deletedAt),
+              // Primary muscle only. The breakdown above the list counts an
+              // assisting muscle at `SECONDARY_SET_WEIGHT` because it is
+              // measuring volume, but a filter is a yes or a no: "chest"
+              // returning every pressing session that happens to involve
+              // triceps is a filter that has not filtered.
+              inArray(exercises.primaryMuscle, [...filter.muscles]),
+            ),
+          ),
+      ),
+    );
+  }
+
+  return db
+    .select(historyMatchColumns)
+    .from(workouts)
+    .where(and(...conditions))
+    .orderBy(desc(workouts.startedAt))
+    .limit(limit);
 }
 
 /** Calendar dates with a completed workout, for the activity heatmap. */
