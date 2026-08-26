@@ -13,7 +13,7 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -22,6 +22,7 @@ import {
   EmptyState,
   HeaderAction,
   ListRow,
+  PromptModal,
   Screen,
   StatBand,
   Text,
@@ -40,6 +41,12 @@ import {
 import { haptics } from '@/features/feedback/haptics';
 import { cancelRestNotification } from '@/features/notifications/rest';
 import { clearSessionNotice } from '@/features/notifications/live';
+import {
+  applySessionToRoutine,
+  diffSessionAgainstRoutine,
+  saveSessionAsRoutine,
+  type RoutineDiff,
+} from '@/features/routines/repository';
 import { discardWorkout, finishWorkout } from '@/features/workouts/repository';
 import { useTicker } from '@/hooks/use-ticker';
 import { showAlert, showConfirm } from '@/store/dialog';
@@ -76,6 +83,7 @@ export default function SaveWorkoutScreen() {
   const bodyweightKg = useSettings((state) => state.bodyweightKg);
   const formula = useSettings((state) => state.oneRepMaxFormula);
   const weightUnit = useSettings((state) => state.weightUnit);
+  const promptRoutineUpdate = useSettings((state) => state.promptRoutineUpdate);
 
   // The same query the logging screen runs, for the same reason: there is only
   // ever one open session, so this screen is a singleton and takes no id in its
@@ -311,6 +319,132 @@ export default function SaveWorkoutScreen() {
     })();
   }, [workout]);
 
+  /*
+   * The routine side of the session, and why it is asked here.
+   *
+   * This screen is the one moment the app holds the finished shape of a session
+   * and the user's attention at once. The logging screen's header would be a
+   * tidier home for "Save as routine", but the other half of the loop cannot be
+   * asked there at all: mid-session, "has this drifted from its routine?" has an
+   * answer that is still moving, and every checked box changes it.
+   *
+   * `routineNotice` is what happened, and it replaces whichever card asked. A
+   * card that stays put after being answered invites the same tap twice, which
+   * here means a second copy of the routine in the list.
+   */
+  const [routineDiff, setRoutineDiff] = useState<RoutineDiff | null>(null);
+  const [routineNotice, setRoutineNotice] = useState<string | null>(null);
+  const [naming, setNaming] = useState(false);
+  const [routineBusy, setRoutineBusy] = useState(false);
+
+  /*
+   * Asked once per visit, which is once per mount.
+   *
+   * The diff reads which exercises were performed and how many sets of each, and
+   * nothing on this screen can change either: the only way back to the sets is
+   * the back chevron, which pops this screen and mounts it again on the way in.
+   * Following the live query instead would re-run the diff's queries on every
+   * re-emission to be told the same answer.
+   *
+   * The empty `workoutId` is the guard rather than a separate loading flag: it
+   * is '' until the first read lands, and there is nothing to diff against.
+   */
+  useEffect(() => {
+    if (!workoutId || !promptRoutineUpdate) return;
+
+    let live = true;
+
+    void diffSessionAgainstRoutine(workoutId)
+      .then((diff) => {
+        if (live) setRoutineDiff(diff);
+      })
+      // An offer that cannot be computed is simply not made. Nothing on this
+      // screen depends on it, and Save is unaffected either way.
+      .catch(() => undefined);
+
+    return () => {
+      live = false;
+    };
+  }, [workoutId, promptRoutineUpdate]);
+
+  /*
+   * At most three sentences, then a count.
+   *
+   * A session that wandered a long way from its routine produces a change per
+   * exercise, and eight of those is a paragraph on a screen whose job is to save
+   * a workout. Three is enough to recognise what happened; the routine editor is
+   * where the rest of the detail belongs.
+   */
+  const routineSummary = useMemo(() => {
+    if (!routineDiff) return '';
+
+    const sentences = routineDiff.changes.slice(0, 3).map((change) => change.summary);
+    const rest = routineDiff.changes.length - sentences.length;
+    if (rest > 0) sentences.push(`And ${rest} more ${rest === 1 ? 'change' : 'changes'}.`);
+
+    return sentences.join(' ');
+  }, [routineDiff]);
+
+  /*
+   * The routine is rewritten on the tap, not folded into Save.
+   *
+   * Deferring it would mean carrying an intent across a write that can fail and
+   * then deciding whether to put the question back afterwards, and it would make
+   * the same card mean two different things depending on how the save went. The
+   * cost of writing now is the user who updates the routine and then discards
+   * the session, and that trade is worth taking: a routine is an editable
+   * template rather than a record, and the sets it was just given are the ones
+   * that were performed whether or not the log of them is kept.
+   */
+  const handleUpdateRoutine = useCallback(() => {
+    if (!workout || !routineDiff || routineBusy) return;
+
+    setRoutineBusy(true);
+
+    void (async () => {
+      try {
+        await applySessionToRoutine(workout.id);
+        haptics.selection();
+        setRoutineDiff(null);
+        setRoutineNotice(`${routineDiff.routineName} now matches this session.`);
+      } catch {
+        haptics.rejected();
+        void showAlert(
+          'Could not update the routine',
+          `${routineDiff.routineName} is unchanged. Your session is untouched either way.`,
+        );
+      } finally {
+        setRoutineBusy(false);
+      }
+    })();
+  }, [workout, routineDiff, routineBusy]);
+
+  const handleSaveAsRoutine = useCallback(
+    (value: string) => {
+      setNaming(false);
+      if (!workout || routineBusy) return;
+
+      setRoutineBusy(true);
+
+      void (async () => {
+        try {
+          const routine = await saveSessionAsRoutine(workout.id, value);
+          haptics.selection();
+          setRoutineNotice(`Saved as ${routine.name}. It is waiting on the Workout tab.`);
+        } catch {
+          haptics.rejected();
+          void showAlert(
+            'Could not save the routine',
+            'Nothing was written, and this session is still here to save.',
+          );
+        } finally {
+          setRoutineBusy(false);
+        }
+      })();
+    },
+    [workout, routineBusy],
+  );
+
   // Declared once and rendered in both branches, like the summary screen: a
   // native-stack screen reads its options as the push animation starts, so
   // setting them only in the loaded branch slides a differently titled header in
@@ -418,6 +552,70 @@ export default function SaveWorkoutScreen() {
           weightUnit={weightUnit}
         />
 
+        {/* Directly under the figures rather than down beside Discard, because
+            it is the only thing on the screen with a deadline: Save is in the
+            header, and once it is pressed this offer is gone. The name field and
+            the description are edits, not questions. */}
+        {routineDiff && (
+          <Card style={styles.routine}>
+            <Text variant="subheading" accessibilityRole="header">
+              {`Update ${routineDiff.routineName}?`}
+            </Text>
+            <Text variant="label" color="textSecondary">
+              {routineSummary}
+            </Text>
+            {/* `secondary`, which is the companion slot: this screen's primary
+                action is Save, and Save is in the header. A `primary` here would
+                be the second thing on one view claiming to be the first. */}
+            <View style={styles.routineActions}>
+              <Button
+                title="Not now"
+                accessibilityLabel={`Leave ${routineDiff.routineName} as it is`}
+                variant="ghost"
+                disabled={routineBusy}
+                onPress={() => setRoutineDiff(null)}
+                style={styles.routineAction}
+              />
+              <Button
+                title="Update"
+                accessibilityLabel={`Update ${routineDiff.routineName}`}
+                variant="secondary"
+                loading={routineBusy}
+                onPress={handleUpdateRoutine}
+                style={styles.routineAction}
+              />
+            </View>
+          </Card>
+        )}
+
+        {/*
+         * Offered only to a session that came from no routine.
+         *
+         * One that did already has one, and the answer to "I changed it" is the
+         * card above rather than a second near-identical routine in a list the
+         * user has to tell apart afterwards. Saving a variant off a routine
+         * session is a real thing to want, and the place for it is the routine
+         * editor, which can say which routine it is copying.
+         */}
+        {!workout.routineId && !routineNotice && (
+          <Card padded={false}>
+            <ListRow
+              icon="list-outline"
+              title="Save as routine"
+              subtitle="Start from what you just did next time."
+              onPress={() => setNaming(true)}
+            />
+          </Card>
+        )}
+
+        {routineNotice && (
+          <Card style={styles.routine}>
+            <Text variant="label" color="textSecondary">
+              {routineNotice}
+            </Text>
+          </Card>
+        )}
+
         <TextField
           label="Description"
           accessibilityLabel="Workout description"
@@ -461,6 +659,20 @@ export default function SaveWorkoutScreen() {
           style={styles.discard}
         />
       </ScrollView>
+
+      {/* Seeded from the field above rather than from the stored row: someone
+          who has just renamed this session to "Push A" has already told the app
+          what the routine should be called. */}
+      <PromptModal
+        visible={naming}
+        title="Save as routine"
+        message="The exercises you performed and the sets you completed, ready to start from."
+        initialValue={name.trim() || workout.name}
+        placeholder="Routine name"
+        maxLength={60}
+        onCancel={() => setNaming(false)}
+        onConfirm={handleSaveAsRoutine}
+      />
     </Screen>
   );
 }
@@ -515,5 +727,10 @@ const styles = StyleSheet.create({
   // centres its text vertically on Android otherwise, so a one-line note floats
   // in the middle of the box. Matches the per-exercise note editor.
   description: { height: 120, paddingTop: spacing.md, textAlignVertical: 'top' },
+  // `Card` pads but does not space its children, since most of them are list
+  // rows that own their own edges. These are stacked text and buttons.
+  routine: { gap: spacing.md },
+  routineActions: { flexDirection: 'row', gap: spacing.sm },
+  routineAction: { flex: 1 },
   discard: { marginTop: spacing.xxl },
 });

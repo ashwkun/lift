@@ -53,7 +53,8 @@ const SOUND_OUTPUTS: readonly ListPickerOption<RestSoundOutput>[] = [
 /**
  * Everything that changes what a session does, in the order it happens: the
  * rest timer's master switch, its settings, when the reminder to come in fires,
- * and what the phone itself does once you are here.
+ * what the phone itself does once you are here, and what the app asks for on
+ * the way out.
  */
 export default function WorkoutSettingsScreen() {
   const settings = useSettings();
@@ -254,6 +255,33 @@ export default function WorkoutSettingsScreen() {
             onChange={(value) => update('keepAwakeDuringWorkout', value)}
           />
         </Card>
+
+        {/*
+         * A card of its own rather than a fourth row above.
+         *
+         * The card it would have joined is what the *phone* does while you lift,
+         * and this is the last question of the session rather than a device
+         * behaviour. It also needs the footnote under it: this is the only switch
+         * on the page that removes a route entirely rather than changing one, so
+         * what it leaves behind is worth saying.
+         */}
+        <Card padded={false} style={settingsStyles.sectionStacked}>
+          <SettingToggle
+            icon="repeat-outline"
+            label="Offer routine updates"
+            // Names the moment, not the mechanism. "When sets change mid-workout"
+            // describes when the app notices; the user needs to know when they
+            // will be asked, which is once, on the save screen.
+            description="Asks on the save screen when a session drifts from its routine."
+            value={settings.promptRoutineUpdate}
+            onChange={(value) => update('promptRoutineUpdate', value)}
+          />
+        </Card>
+        <Footnote>
+          Only the shape counts: an exercise added or dropped, or a set gained or lost. The weights
+          and times you actually hit are never treated as a change, or the question would be asked
+          after every session. Saving a session as a new routine is always offered.
+        </Footnote>
       </Reveal>
 
       <TimePickerModal

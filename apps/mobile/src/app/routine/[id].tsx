@@ -1,9 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  formatDuration,
+  fromDisplayDistance,
   fromDisplayWeight,
   normalizeSupersets,
+  parseDuration,
   reorder,
+  toDisplayDistance,
   toDisplayWeight,
+  TRACKING_FIELDS,
+  trimZeros,
+  type DistanceUnit,
   type PositionedRow,
   type SupersetAssignment,
 } from '@lift/shared';
@@ -65,6 +72,29 @@ import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
  */
 const ADD_SET_SLOP = { top: 8, bottom: 8 };
 
+/**
+ * How a stored distance and a stored time are spelled back into their fields.
+ *
+ * Both mirror the pair `set-row.tsx` keeps module-private, and they have to: a
+ * target typed here and the number typed against it in the gym are the same
+ * number, so a routine that rendered 2000 m differently from the logging screen
+ * would be prescribing something the logger cannot agree it did.
+ *
+ * Two decimals and trimmed zeros absorb the float noise a unit round trip
+ * leaves behind, since a mile-entered 3 comes back 2.999999999999 and an
+ * untrimmed "3.00" reappears as characters to delete before typing.
+ * `normalizeDuration` exists because seconds are always re-spelled as M:SS, so
+ * a typed "4" returns as "0:04" and a field without it would match none of its
+ * own echoes and go inert.
+ */
+const asDistanceField = (km: number, unit: DistanceUnit) =>
+  trimZeros(toDisplayDistance(km, unit).toFixed(2));
+
+const normalizeDuration = (text: string) => {
+  const seconds = parseDuration(text);
+  return seconds == null ? '' : formatDuration(seconds);
+};
+
 export default function RoutineEditorScreen() {
   const scrollEdge = useScrollEdge();
 
@@ -82,18 +112,26 @@ export default function RoutineEditorScreen() {
   const appUnits = useAppUnits();
 
   /*
-   * The unit one prescribed row is written in.
+   * The units one prescribed row is written in.
    *
    * Per exercise rather than per routine: a target typed here and the number
    * typed against it in a session have to be the same number, and reading in
    * kilos what will be entered in pounds is how a routine ends up prescribing a
    * 100 kg dumbbell press. A function rather than a value computed in the map,
-   * because it is wanted at three points inside one JSX block and lifting the
+   * because it is wanted at several points inside one JSX block and lifting the
    * block into a body to hold a `const` would re-indent a hundred lines to say
    * the same thing.
    */
-  const weightUnitFor = (entry: RoutineExerciseDetail) =>
-    resolveExerciseUnits(entry.exercise, appUnits).weightUnit;
+  const unitsFor = (entry: RoutineExerciseDetail) => resolveExerciseUnits(entry.exercise, appUnits);
+
+  /**
+   * Which numeric columns this exercise prescribes in.
+   *
+   * The same switch the logging screen performs, for the same reason and off the
+   * same table: a plank has no weight to prescribe and a row has no reps. A
+   * function rather than a `const`, for the reason above it.
+   */
+  const fieldsFor = (entry: RoutineExerciseDetail) => TRACKING_FIELDS[entry.exercise.trackingType];
 
   const [detail, setDetail] = useState<RoutineDetail | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -436,15 +474,43 @@ export default function RoutineEditorScreen() {
                 </Pressable>
               </View>
 
+              {/* The columns an exercise is prescribed in are the exercise's
+                  own, not the editor's. This used to be a fixed weight-and-reps
+                  pair whatever the movement, so a plank was prescribed a rep
+                  count it has no use for, had nowhere to say "60 seconds", and
+                  then started its session as a blank weight-and-reps row. */}
               <View style={styles.columnHeader}>
                 <Text variant="overline" color="textTertiary" style={styles.setCell}>
                   Set
                 </Text>
+                {fieldsFor(entry).weight && (
+                  <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                    {unitsFor(entry).weightUnit}
+                  </Text>
+                )}
+                {fieldsFor(entry).duration && (
+                  <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                    Time
+                  </Text>
+                )}
+                {fieldsFor(entry).distance && (
+                  <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                    {unitsFor(entry).distanceUnit}
+                  </Text>
+                )}
+                {fieldsFor(entry).reps && (
+                  <Text variant="overline" color="textTertiary" style={styles.targetCell}>
+                    Reps
+                  </Text>
+                )}
+                {/* Outside the switch, because effort is prescribable for every
+                    movement: "ten at RPE 8" and "hold it until there are two
+                    left in the tank" are the same instruction, and no tracking
+                    type excludes having one. Never more than three columns
+                    beside it either, since no tracking type asks for weight,
+                    reps and distance at once. */}
                 <Text variant="overline" color="textTertiary" style={styles.targetCell}>
-                  {weightUnitFor(entry)}
-                </Text>
-                <Text variant="overline" color="textTertiary" style={styles.targetCell}>
-                  Reps
+                  RPE
                 </Text>
                 <View style={styles.removeSpacer} />
               </View>
@@ -454,34 +520,112 @@ export default function RoutineEditorScreen() {
                   <Text variant="numeric" color="textSecondary" style={styles.setCell}>
                     {setIndex + 1}
                   </Text>
+                  {fieldsFor(entry).weight && (
+                    <NumericField
+                      value={
+                        set.targetWeightKg == null
+                          ? ''
+                          : String(
+                              Math.round(
+                                toDisplayWeight(set.targetWeightKg, unitsFor(entry).weightUnit) * 10,
+                              ) / 10,
+                            )
+                      }
+                      placeholder="—"
+                      accessibilityLabel={`Set ${setIndex + 1}, target weight in ${unitsFor(entry).weightUnit}`}
+                      onChangeText={(text) => {
+                        const parsed = text === '' ? null : Number(text.replace(',', '.'));
+                        if (parsed !== null && !Number.isFinite(parsed)) return;
+                        void updateRoutineSet(set.id, {
+                          targetWeightKg:
+                            parsed === null
+                              ? null
+                              : fromDisplayWeight(parsed, unitsFor(entry).weightUnit),
+                        }).then(reload);
+                      }}
+                    />
+                  )}
+                  {fieldsFor(entry).duration && (
+                    <NumericField
+                      value={
+                        set.targetDurationSeconds == null
+                          ? ''
+                          : formatDuration(set.targetDurationSeconds)
+                      }
+                      placeholder="—"
+                      normalize={normalizeDuration}
+                      keyboardType="numbers-and-punctuation"
+                      accessibilityLabel={`Set ${setIndex + 1}, target time`}
+                      onChangeText={(text) => {
+                        if (text === '') {
+                          void updateRoutineSet(set.id, { targetDurationSeconds: null }).then(
+                            reload,
+                          );
+                          return;
+                        }
+                        // A stray "." or a fourth colon is a keystroke on the
+                        // way somewhere, not an instruction to forget the time
+                        // already prescribed. The logging field reads it the
+                        // same way, through the same parser.
+                        const parsed = parseDuration(text);
+                        if (parsed == null) return;
+                        void updateRoutineSet(set.id, { targetDurationSeconds: parsed }).then(
+                          reload,
+                        );
+                      }}
+                    />
+                  )}
+                  {fieldsFor(entry).distance && (
+                    <NumericField
+                      value={
+                        set.targetDistanceKm == null
+                          ? ''
+                          : asDistanceField(set.targetDistanceKm, unitsFor(entry).distanceUnit)
+                      }
+                      placeholder="—"
+                      accessibilityLabel={`Set ${setIndex + 1}, target distance in ${unitsFor(entry).distanceUnit}`}
+                      onChangeText={(text) => {
+                        const parsed = text === '' ? null : Number(text.replace(',', '.'));
+                        if (parsed !== null && !Number.isFinite(parsed)) return;
+                        // Stored in kilometres whatever the column is headed,
+                        // which is the rule everywhere: a miles user typing
+                        // 2000 m worth of rowing has to get the same target
+                        // back that a kilometres user typing 2 does.
+                        void updateRoutineSet(set.id, {
+                          targetDistanceKm:
+                            parsed === null
+                              ? null
+                              : fromDisplayDistance(parsed, unitsFor(entry).distanceUnit),
+                        }).then(reload);
+                      }}
+                    />
+                  )}
+                  {fieldsFor(entry).reps && (
+                    <NumericField
+                      value={set.targetReps == null ? '' : String(set.targetReps)}
+                      placeholder="—"
+                      keyboardType="number-pad"
+                      accessibilityLabel={`Set ${setIndex + 1}, target reps`}
+                      onChangeText={(text) => {
+                        const parsed = text === '' ? null : Number.parseInt(text, 10);
+                        if (parsed !== null && !Number.isFinite(parsed)) return;
+                        void updateRoutineSet(set.id, { targetReps: parsed }).then(reload);
+                      }}
+                    />
+                  )}
                   <NumericField
-                    value={
-                      set.targetWeightKg == null
-                        ? ''
-                        : String(
-                            Math.round(
-                              toDisplayWeight(set.targetWeightKg, weightUnitFor(entry)) * 10,
-                            ) / 10,
-                          )
-                    }
+                    value={set.targetRpe == null ? '' : trimZeros(set.targetRpe.toFixed(1))}
                     placeholder="—"
+                    accessibilityLabel={`Set ${setIndex + 1}, target RPE`}
                     onChangeText={(text) => {
                       const parsed = text === '' ? null : Number(text.replace(',', '.'));
                       if (parsed !== null && !Number.isFinite(parsed)) return;
-                      void updateRoutineSet(set.id, {
-                        targetWeightKg:
-                          parsed === null ? null : fromDisplayWeight(parsed, weightUnitFor(entry)),
-                      }).then(reload);
-                    }}
-                  />
-                  <NumericField
-                    value={set.targetReps == null ? '' : String(set.targetReps)}
-                    placeholder="—"
-                    keyboardType="number-pad"
-                    onChangeText={(text) => {
-                      const parsed = text === '' ? null : Number.parseInt(text, 10);
-                      if (parsed !== null && !Number.isFinite(parsed)) return;
-                      void updateRoutineSet(set.id, { targetReps: parsed }).then(reload);
+                      // Off the scale is ignored rather than clamped, the way
+                      // the time field ignores an unparseable string: an 88 on
+                      // the way to 8.8 is a keystroke, and clamping it would
+                      // store a 10 nobody typed and prescribe it in the gym.
+                      if (parsed !== null && (parsed < 1 || parsed > 10)) return;
+                      void updateRoutineSet(set.id, { targetRpe: parsed }).then(reload);
                     }}
                   />
                   <Pressable
@@ -499,9 +643,16 @@ export default function RoutineEditorScreen() {
                 hitSlop={ADD_SET_SLOP}
                 onPress={() => {
                   const last = entry.sets[entry.sets.length - 1];
+                  // Every target the row above carries, not two of them. A
+                  // second set of a plank should arrive prescribing the same
+                  // minute; the copy stopping at weight and reps is what made
+                  // an added set on a duration or distance exercise blank.
                   void addRoutineSet(entry.routineExercise.id, {
                     targetReps: last?.targetReps ?? null,
                     targetWeightKg: last?.targetWeightKg ?? null,
+                    targetDurationSeconds: last?.targetDurationSeconds ?? null,
+                    targetDistanceKm: last?.targetDistanceKm ?? null,
+                    targetRpe: last?.targetRpe ?? null,
                   }).then(reload);
                 }}
                 style={({ pressed }) => [

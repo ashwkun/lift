@@ -27,6 +27,7 @@ import {
   type RoutineExercise,
   type RoutineSet,
 } from '@/db/schema';
+import { getWorkoutDetail, type WorkoutDetail } from '@/features/workouts/repository';
 
 export interface RoutineExerciseDetail {
   routineExercise: RoutineExercise;
@@ -202,21 +203,44 @@ export async function addExerciseToRoutine(
   routineId: string,
   exerciseId: string,
 ): Promise<RoutineExercise> {
-  const now = Date.now();
+  const row = await insertRoutineExercise(routineId, exerciseId);
 
-  const siblings = await db
-    .select({ position: routineExercises.position })
-    .from(routineExercises)
-    .where(and(eq(routineExercises.routineId, routineId), isNull(routineExercises.deletedAt)));
+  // A routine exercise with no sets is meaningless, so seed one.
+  await addRoutineSet(row.id);
+
+  return row;
+}
+
+/**
+ * The insert on its own, carrying whatever prescription came with the exercise.
+ *
+ * Split out because its two callers disagree about exactly one thing. Adding an
+ * exercise by hand wants an empty set to type into; copying a finished session
+ * into a routine already knows every set it is about to write, and would have to
+ * delete the seeded one first. A `seedSet: false` option would have expressed
+ * the same split while leaving both callers reading a name that promises a set
+ * they may not get.
+ */
+async function insertRoutineExercise(
+  routineId: string,
+  exerciseId: string,
+  options: {
+    position?: number;
+    notes?: string | null;
+    restSeconds?: number | null;
+    supersetGroup?: number | null;
+  } = {},
+): Promise<RoutineExercise> {
+  const now = Date.now();
 
   const row = {
     id: uuidv7(),
     routineId,
     exerciseId,
-    position: siblings.reduce((max, item) => Math.max(max, item.position), 0) + 1,
-    notes: null,
-    restSeconds: null,
-    supersetGroup: null,
+    position: options.position ?? (await nextExercisePosition(routineId)),
+    notes: options.notes ?? null,
+    restSeconds: options.restSeconds ?? null,
+    supersetGroup: options.supersetGroup ?? null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -226,39 +250,57 @@ export async function addExerciseToRoutine(
   await db.insert(routineExercises).values(row);
   await trackUpsert('routine_exercises', row);
 
-  // A routine exercise with no sets is meaningless, so seed one.
-  await addRoutineSet(row.id);
-
   return row;
 }
 
+async function nextExercisePosition(routineId: string): Promise<number> {
+  const siblings = await db
+    .select({ position: routineExercises.position })
+    .from(routineExercises)
+    .where(and(eq(routineExercises.routineId, routineId), isNull(routineExercises.deletedAt)));
+
+  return siblings.reduce((max, item) => Math.max(max, item.position), 0) + 1;
+}
+
+/**
+ * Adds a prescribed set.
+ *
+ * Every target the table carries is writable here. Three of them used to be
+ * hardcoded null, which made the columns decorative: `copyRoutineIntoWorkout`
+ * has always seeded a session from all five, so a routine could store a target
+ * time or distance in principle and had no way to be given one. That is what
+ * made "Plank 3 x 60s" and "Row 2000 m" unwritable, and it started every
+ * duration or distance exercise in a routine as a blank weight-and-reps row.
+ *
+ * `position` is optional for the same reason `addExerciseToWorkout`'s is: an
+ * interactive add appends and wants the sibling query, while a copy already
+ * knows the order it is writing and would otherwise pay for a select per set to
+ * be told what it just decided.
+ */
 export async function addRoutineSet(
   routineExerciseId: string,
   input: {
+    position?: number;
     setType?: SetType;
     targetReps?: number | null;
     targetWeightKg?: number | null;
+    targetDurationSeconds?: number | null;
+    targetDistanceKm?: number | null;
+    targetRpe?: number | null;
   } = {},
 ): Promise<RoutineSet> {
   const now = Date.now();
 
-  const siblings = await db
-    .select({ position: routineSets.position })
-    .from(routineSets)
-    .where(
-      and(eq(routineSets.routineExerciseId, routineExerciseId), isNull(routineSets.deletedAt)),
-    );
-
   const row = {
     id: uuidv7(),
     routineExerciseId,
-    position: siblings.reduce((max, item) => Math.max(max, item.position), 0) + 1,
+    position: input.position ?? (await nextSetPosition(routineExerciseId)),
     setType: input.setType ?? ('normal' as const),
     targetReps: input.targetReps ?? null,
     targetWeightKg: input.targetWeightKg ?? null,
-    targetDurationSeconds: null,
-    targetDistanceKm: null,
-    targetRpe: null,
+    targetDurationSeconds: input.targetDurationSeconds ?? null,
+    targetDistanceKm: input.targetDistanceKm ?? null,
+    targetRpe: input.targetRpe ?? null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -271,9 +313,30 @@ export async function addRoutineSet(
   return row;
 }
 
+async function nextSetPosition(routineExerciseId: string): Promise<number> {
+  const siblings = await db
+    .select({ position: routineSets.position })
+    .from(routineSets)
+    .where(
+      and(eq(routineSets.routineExerciseId, routineExerciseId), isNull(routineSets.deletedAt)),
+    );
+
+  return siblings.reduce((max, item) => Math.max(max, item.position), 0) + 1;
+}
+
 export async function updateRoutineSet(
   setId: string,
-  patch: Partial<Pick<RoutineSet, 'targetReps' | 'targetWeightKg' | 'setType' | 'targetRpe'>>,
+  patch: Partial<
+    Pick<
+      RoutineSet,
+      | 'setType'
+      | 'targetReps'
+      | 'targetWeightKg'
+      | 'targetDurationSeconds'
+      | 'targetDistanceKm'
+      | 'targetRpe'
+    >
+  >,
 ): Promise<void> {
   await db
     .update(routineSets)
@@ -364,4 +427,298 @@ export async function deleteRoutine(routineId: string): Promise<void> {
     .where(eq(routines.id, routineId));
 
   await trackDelete('routines', routineId, deletedAt);
+}
+
+// ---------------------------------------------------------------------------
+// Sessions and routines
+// ---------------------------------------------------------------------------
+
+/** One exercise of a session, restated as the prescription it would make. */
+interface PrescribedExercise {
+  exerciseId: string;
+  position: number;
+  notes: string | null;
+  restSeconds: number | null;
+  supersetGroup: number | null;
+  sets: {
+    setType: SetType;
+    targetReps: number | null;
+    targetWeightKg: number | null;
+    targetDurationSeconds: number | null;
+    targetDistanceKm: number | null;
+    targetRpe: number | null;
+  }[];
+}
+
+/**
+ * What a session prescribes, read the way `finishWorkout` reads it.
+ *
+ * Completed sets only, and an exercise with nothing completed dropped entirely:
+ * the same two rules the finish applies when it closes a session out. Both
+ * writers below are reached from the save screen, which sits *in front of* that
+ * cleanup, so a third rule here would make "save as routine" and "save, then
+ * save as routine" produce two different routines from one session.
+ */
+function prescriptionFromSession(detail: WorkoutDetail): PrescribedExercise[] {
+  return detail.exercises.flatMap((entry) => {
+    const performed = entry.sets.filter((set) => set.isCompleted);
+    if (performed.length === 0) return [];
+
+    return [
+      {
+        exerciseId: entry.exercise.id,
+        position: entry.workoutExercise.position,
+        notes: entry.workoutExercise.notes,
+        restSeconds: entry.workoutExercise.restSeconds,
+        supersetGroup: entry.workoutExercise.supersetGroup,
+        sets: performed.map((set) => ({
+          setType: set.setType,
+          targetReps: set.reps,
+          targetWeightKg: set.weightKg,
+          targetDurationSeconds: set.durationSeconds,
+          targetDistanceKm: set.distanceKm,
+          targetRpe: set.rpe,
+        })),
+      },
+    ];
+  });
+}
+
+/** Writes a prescription into a routine that currently holds no exercises. */
+async function fillRoutine(routineId: string, prescription: PrescribedExercise[]): Promise<void> {
+  const written: SupersetAssignment[] = [];
+
+  for (const planned of prescription) {
+    const link = await insertRoutineExercise(routineId, planned.exerciseId, {
+      position: planned.position,
+      notes: planned.notes,
+      restSeconds: planned.restSeconds,
+      supersetGroup: planned.supersetGroup,
+    });
+
+    written.push({ id: link.id, supersetGroup: link.supersetGroup });
+
+    // Positions are handed down rather than queried per set: the order is the
+    // order they were performed in, which this loop already holds.
+    let position = 1;
+    for (const set of planned.sets) {
+      await addRoutineSet(link.id, { position, ...set });
+      position += 1;
+    }
+  }
+
+  /*
+   * Grouping survives the round trip, but only where it is still a group.
+   *
+   * A superset abandoned halfway through (the first exercise performed, the
+   * second never started) arrives here as one exercise still carrying its group
+   * id, which is a superset of one. `normalizeSupersets` is the same sweep the
+   * editor runs after a drag, and it is the only thing that notices. Usually it
+   * returns nothing and this writes no rows.
+   */
+  await applyRoutineSupersetGroups(normalizeSupersets(written));
+}
+
+/**
+ * Turns a session into a new routine.
+ *
+ * The half of the Hevy loop that runs forwards: a workout built by hand in the
+ * gym becomes the thing you start from next week. It writes a *new* routine and
+ * never touches an existing one, so it is safe to offer from the save screen
+ * beside the session that is still open.
+ */
+export async function saveSessionAsRoutine(workoutId: string, name: string): Promise<Routine> {
+  const detail = await getWorkoutDetail(workoutId);
+  if (!detail) throw new Error(`Workout ${workoutId} not found`);
+
+  const prescription = prescriptionFromSession(detail);
+  if (prescription.length === 0) throw new Error('This session has no completed sets');
+
+  // The session's own name is the fallback, rather than `createRoutine`'s "New
+  // Routine": someone who cleared the field meant "call it what the session is
+  // called", and a routine list of identical "New Routine" rows is what the
+  // generic default produces here.
+  const routine = await createRoutine({ name: name.trim() || detail.workout.name });
+  await fillRoutine(routine.id, prescription);
+
+  return routine;
+}
+
+/** A sentence about one difference between a session and its routine. */
+export interface RoutineChange {
+  /** The exercise it is about, or null when it is about the routine as a whole. */
+  exerciseName: string | null;
+  /** Written out ready to render: "Bench Press gained a set." */
+  summary: string;
+}
+
+export interface RoutineDiff {
+  routineId: string;
+  routineName: string;
+  /** Never empty: `diffSessionAgainstRoutine` returns null instead. */
+  changes: RoutineChange[];
+}
+
+/** An exercise slot on one side of the comparison. */
+interface DiffSlot {
+  key: string;
+  name: string;
+  setCount: number;
+}
+
+/*
+ * Why the key carries an occurrence number.
+ *
+ * Both the routine editor and the logging screen allow the same lift twice, and
+ * a leg day that squats at the start and again at the end is a real programme
+ * rather than a mistake. Keyed on the exercise id alone, the second occurrence
+ * reads as removed and the first as having gained every set of both, so the card
+ * would announce two changes to a session that matched its routine exactly.
+ */
+function slotsOf(rows: { exerciseId: string; name: string; setCount: number }[]): DiffSlot[] {
+  const seen = new Map<string, number>();
+
+  return rows.map((row) => {
+    const occurrence = (seen.get(row.exerciseId) ?? 0) + 1;
+    seen.set(row.exerciseId, occurrence);
+    return { key: `${row.exerciseId}#${occurrence}`, name: row.name, setCount: row.setCount };
+  });
+}
+
+/**
+ * How a session differs from the routine it was started from, or null.
+ *
+ * Null covers every case with nothing to ask about: a session that came from no
+ * routine, one whose routine has since been deleted, and one that matched its
+ * routine. A caller can therefore render the answer without restating any of
+ * those tests.
+ *
+ * **Structure, not numbers.** The tempting version compares every target as
+ * well, and it would fire on every session anybody has ever had, because nobody
+ * hits a prescription exactly. A card that appears every single time is a card
+ * dismissed unread, which costs the one session where it had something to say.
+ * So the question asked here is whether this was a different *shape* of workout,
+ * and only which exercises were performed, how many sets of each, and in what
+ * order count as an answer.
+ *
+ * `applySessionToRoutine` still carries the numbers across once the user says
+ * yes. "Update the routine" means "make it what I just did", and a routine left
+ * prescribing last month's weights under a set count it had just accepted would
+ * be the worse half of both answers.
+ */
+export async function diffSessionAgainstRoutine(workoutId: string): Promise<RoutineDiff | null> {
+  const detail = await getWorkoutDetail(workoutId);
+  if (!detail?.workout.routineId) return null;
+
+  const source = await getRoutineDetail(detail.workout.routineId);
+  if (!source || source.routine.deletedAt !== null) return null;
+
+  const before = slotsOf(
+    source.exercises.map((entry) => ({
+      exerciseId: entry.exercise.id,
+      name: entry.exercise.name,
+      setCount: entry.sets.length,
+    })),
+  );
+
+  const after = slotsOf(
+    prescriptionFromSession(detail).map((planned) => ({
+      exerciseId: planned.exerciseId,
+      // `prescriptionFromSession` deals in ids, and the name is only ever needed
+      // for a sentence, so it is looked up here rather than carried through a
+      // structure the writers have no use for it in.
+      name:
+        detail.exercises.find((entry) => entry.exercise.id === planned.exerciseId)?.exercise.name ??
+        'This exercise',
+      setCount: planned.sets.length,
+    })),
+  );
+
+  const beforeByKey = new Map(before.map((slot) => [slot.key, slot]));
+  const afterKeys = new Set(after.map((slot) => slot.key));
+
+  const changes: RoutineChange[] = [];
+
+  for (const slot of after) {
+    const was = beforeByKey.get(slot.key);
+
+    if (!was) {
+      changes.push({ exerciseName: slot.name, summary: `Added ${slot.name}.` });
+      continue;
+    }
+
+    const delta = slot.setCount - was.setCount;
+    if (delta === 0) continue;
+
+    const magnitude = Math.abs(delta) === 1 ? 'a set' : `${Math.abs(delta)} sets`;
+    changes.push({
+      exerciseName: slot.name,
+      summary: `${slot.name} ${delta > 0 ? 'gained' : 'lost'} ${magnitude}.`,
+    });
+  }
+
+  for (const slot of before) {
+    if (!afterKeys.has(slot.key)) {
+      changes.push({ exerciseName: slot.name, summary: `Dropped ${slot.name}.` });
+    }
+  }
+
+  /*
+   * Order is only worth mentioning on its own.
+   *
+   * Adding or dropping an exercise moves everything after it, so reported
+   * alongside those it is noise about a change the user already made on purpose.
+   * With the membership identical it is the only thing that happened, and it is
+   * the difference between a routine you can follow top to bottom and one you
+   * cannot.
+   */
+  if (changes.length === 0 && before.some((slot, index) => slot.key !== after[index]?.key)) {
+    changes.push({
+      exerciseName: null,
+      summary: 'The exercises are in a different order.',
+    });
+  }
+
+  if (changes.length === 0) return null;
+
+  return { routineId: source.routine.id, routineName: source.routine.name, changes };
+}
+
+/**
+ * Rewrites a routine to match the session that came from it.
+ *
+ * Replaced rather than merged, and the routine's own row is what survives: its
+ * id, its name, its folder and its notes are untouched, so every workout that
+ * ever pointed at it still does and the home widget keeps its entry. Everything
+ * below that is the session's.
+ *
+ * A merge was the alternative and it has no defensible rule. Faced with a
+ * routine prescribing four sets and a session holding three, "keep the larger"
+ * ignores a deliberate cut and "keep the session" is what a replace already
+ * does, and the two disagree per exercise on the same screen. Replacing states
+ * one thing the user can predict: the routine now says what you just did.
+ *
+ * Does nothing, rather than throwing, when the session came from no routine or
+ * from one since deleted. This is called from a card the user tapped some
+ * seconds ago, and either condition means the question it asked has stopped
+ * being a question.
+ */
+export async function applySessionToRoutine(workoutId: string): Promise<void> {
+  const detail = await getWorkoutDetail(workoutId);
+  const routineId = detail?.workout.routineId;
+  if (!detail || !routineId) return;
+
+  const source = await getRoutineDetail(routineId);
+  if (!source || source.routine.deletedAt !== null) return;
+
+  const prescription = prescriptionFromSession(detail);
+  // An empty session would otherwise empty the routine, which is a deletion
+  // wearing the label of an update.
+  if (prescription.length === 0) return;
+
+  for (const entry of source.exercises) {
+    await removeExerciseFromRoutine(entry.routineExercise.id);
+  }
+
+  await fillRoutine(routineId, prescription);
 }
