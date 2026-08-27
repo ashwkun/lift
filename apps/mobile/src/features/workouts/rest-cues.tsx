@@ -12,7 +12,11 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, AppState } from 'react-native';
 
 import { haptics } from '@/features/feedback/haptics';
-import { systemRestBellPending } from '@/features/notifications/rest';
+import {
+  cancelRestNotification,
+  systemRestBellPending,
+  systemRestBellRangSince,
+} from '@/features/notifications/rest';
 import {
   playCountdownBeep,
   playRestBell,
@@ -69,10 +73,90 @@ const ANNOUNCE_FROM = 10;
  */
 const RESUME_GRACE_MS = 1500;
 
+/**
+ * How long zero waits for the system bell before the app rings its own.
+ *
+ * On the notification and alarm routes the bell is the OS's to ring, and on
+ * Android the OS is holding an *inexact* alarm: `expo-notifications` asks for an
+ * exact one only when the app holds the exact-alarm permission, which this app
+ * does not declare. An inexact alarm is a request the system is free to batch,
+ * and in a gym, on a phone that has been sitting still long enough to look idle,
+ * it lands anywhere from immediately to fifteen seconds late.
+ *
+ * So the bell is no longer simply handed over and forgotten. It is handed over
+ * for this long, and if the OS has not rung by then the app rings the same bell
+ * itself. A second of silence at zero is inside the rhythm the countdown has
+ * already set; ten is the user deciding the timer is broken.
+ */
+const SYSTEM_BELL_GRACE_MS = 1000;
+
+/**
+ * How far before the tick that reaches zero a system bell still counts.
+ *
+ * The countdown is a once-a-second tick, so the deadline can pass up to a second
+ * before this hook notices it has. An alarm that landed in that gap has already
+ * rung, and without this window the fallback would put a second bell on top of
+ * one the user just heard.
+ */
+const SYSTEM_BELL_EARLY_MS = 1500;
+
+/** The armed fallback bell, if one is waiting on the OS. */
+let fallbackBell: ReturnType<typeof setTimeout> | null = null;
+
+function disarmFallbackBell(): void {
+  if (fallbackBell === null) return;
+
+  clearTimeout(fallbackBell);
+  fallbackBell = null;
+}
+
+/**
+ * Rings the bell for `deadline`, or gives the OS its beat and then rings it.
+ *
+ * Module-level rather than a hook, and holding its handle in a module variable,
+ * because there is one rest period and one `RestCues` in the app. The effect
+ * that calls this re-runs every second, so the armed timer cannot be cleaned up
+ * by that effect: it would be cancelled by the tick that arrives alongside it.
+ * It is disarmed instead at the two moments that actually invalidate it, which
+ * are the period ending and the tree being torn down.
+ */
+function ringRestBell(deadline: number): void {
+  disarmFallbackBell();
+
+  if (!systemRestBellPending()) {
+    void playRestBell();
+    return;
+  }
+
+  // Backgrounded, the OS bell is the entire alert: it arrives with a banner, on
+  // the volume the user picked, and a background delivery never reaches JS, so
+  // there is no receipt to wait for and nothing here that could tell a late
+  // bell from one that is about to ring.
+  if (AppState.currentState !== 'active') return;
+
+  fallbackBell = setTimeout(() => {
+    fallbackBell = null;
+
+    if (systemRestBellRangSince(deadline - SYSTEM_BELL_EARLY_MS)) return;
+
+    // A period that has since been skipped, or a new one started inside the
+    // grace window. Either way the bell would be for a deadline nobody is
+    // waiting on, and the cancellation below would take the new period's alert
+    // down with it.
+    if (useTimer.getState().restEndsAt !== deadline) return;
+
+    // The alert is ours now. Left scheduled it would arrive whenever the system
+    // got round to it, which is a second bell for a rest that is already over.
+    void cancelRestNotification();
+    void playRestBell();
+  }, SYSTEM_BELL_GRACE_MS);
+}
+
 export function RestCues() {
   const restEndsAt = useTimer((state) => state.restEndsAt);
   const soundEnabled = useSettings((state) => state.soundEnabled);
   const countdownCues = useSettings((state) => state.restTimerCountdownCues);
+  const backgroundBeeps = useSettings((state) => state.restTimerBackgroundBeeps);
 
   const running = restEndsAt !== null;
   const now = useTicker(1000, running);
@@ -90,8 +174,15 @@ export function RestCues() {
     return () => subscription.remove();
   }, []);
 
-  // The decoded cues outlive any one workout, but not the app being torn down.
-  useEffect(() => releaseRestSounds, []);
+  // The decoded cues outlive any one workout, but not the app being torn down,
+  // and neither does a bell still waiting on the OS.
+  useEffect(
+    () => () => {
+      disarmFallbackBell();
+      releaseRestSounds();
+    },
+    [],
+  );
 
   // Decoded when the period starts rather than when the first beep is due: see
   // `primeRestSounds`. Keyed on `running` so it costs one call per rest period
@@ -103,6 +194,7 @@ export function RestCues() {
   useEffect(() => {
     if (restEndsAt === null) {
       previous.current = null;
+      disarmFallbackBell();
       return;
     }
 
@@ -120,11 +212,11 @@ export function RestCues() {
       // Guarded on `prior` so extending an already-finished timer and letting it
       // lapse again is the only way to hear this twice.
       if (prior > 0) {
-        // Only when the bell is ours to ring. On the notification and alarm
+        // Not unconditionally the app's to play. On the notification and alarm
         // routes the OS is about to play the same tone through the same
-        // deadline (`systemRestBellPending`), and two bells a frame apart is
-        // worse than either of them alone.
-        if (soundEnabled && !systemRestBellPending()) void playRestBell();
+        // deadline, and two bells a frame apart is worse than either of them
+        // alone, so `ringRestBell` gives it a beat to do so first.
+        if (soundEnabled) ringRestBell(restEndsAt);
         haptics.restComplete();
         AccessibilityInfo.announceForAccessibility('Rest complete');
       }
@@ -150,10 +242,22 @@ export function RestCues() {
     // the seven beeps and drop the one at the end". The haptic countdown has
     // its own toggle because it is felt rather than heard, and one of the two
     // is usable in a quiet gym where the other is not.
-    if (remaining < prior && soundEnabled && beepsAt(remaining)) {
+    //
+    // Gated on the app being on screen too, unless the user has asked for the
+    // countdown in their pocket. This clock does not stop when the workout is
+    // backgrounded: the session's foreground service keeps the process alive,
+    // so the beeps carried on out of a phone that had been put down, from an
+    // app that was showing nothing. The bell is unaffected either way, which is
+    // the honest division. It is the alert, and it is scheduled with the OS.
+    if (
+      remaining < prior &&
+      soundEnabled &&
+      beepsAt(remaining) &&
+      (backgroundBeeps || AppState.currentState === 'active')
+    ) {
       void playCountdownBeep();
     }
-  }, [restEndsAt, now, soundEnabled, countdownCues]);
+  }, [restEndsAt, now, soundEnabled, countdownCues, backgroundBeeps]);
 
   return null;
 }

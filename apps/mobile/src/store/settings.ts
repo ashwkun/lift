@@ -63,6 +63,18 @@ export interface Settings {
   soundEnabled: boolean;
   /** Which of the phone's volume sliders the rest bell rings on. */
   restTimerSoundOutput: RestSoundOutput;
+  /**
+   * Whether the countdown beeps follow the phone into a pocket.
+   *
+   * The bell at zero always does: it is handed to the OS and arrives whether or
+   * not the app is on screen. The seven beeps in front of it are the app
+   * talking, and it keeps talking once backgrounded because the workout's
+   * foreground service keeps the countdown running. Some people want exactly
+   * that, and some want the phone quiet the moment they put it down. Neither is
+   * derivable from `soundEnabled`, which is a question about the cue rather
+   * than about where it follows you.
+   */
+  restTimerBackgroundBeeps: boolean;
   hapticsEnabled: boolean;
   /** Keep the screen on during an active workout. */
   keepAwakeDuringWorkout: boolean;
@@ -138,6 +150,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // who never finds the row. `notification` rather than `alarm` because it is
   // the quieter of the two fixes.
   restTimerSoundOutput: 'notification',
+  // On, which is what the app has always done. The countdown is worth most to
+  // someone who is not looking at the screen, and the row exists for the people
+  // who disagree rather than to change the answer for everyone.
+  restTimerBackgroundBeeps: true,
   hapticsEnabled: true,
   keepAwakeDuringWorkout: true,
 
@@ -312,6 +328,7 @@ async function persist(state: Settings): Promise<void> {
     restTimerCountdownCues: state.restTimerCountdownCues,
     soundEnabled: state.soundEnabled,
     restTimerSoundOutput: state.restTimerSoundOutput,
+    restTimerBackgroundBeeps: state.restTimerBackgroundBeeps,
     hapticsEnabled: state.hapticsEnabled,
     keepAwakeDuringWorkout: state.keepAwakeDuringWorkout,
     oneRepMaxFormula: state.oneRepMaxFormula,

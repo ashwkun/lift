@@ -198,6 +198,20 @@ export default function WorkoutSettingsScreen() {
           />
           <Divider inset={spacing.lg} />
           <SettingToggle
+            icon="eye-off-outline"
+            label="Beep in your pocket"
+            // Named for where the difference is heard rather than for the app
+            // state it is keyed on. The bell is deliberately left out of it:
+            // that one rings from a pocket whatever this row says, which is the
+            // entire reason it is scheduled with the phone rather than played.
+            description="Carries the countdown on with the app off screen."
+            value={settings.restTimerBackgroundBeeps}
+            onChange={(value) => update('restTimerBackgroundBeeps', value)}
+            disabled={restOff || !settings.soundEnabled}
+            disabledReason={restOff ? 'The rest timer is off.' : 'The alert sound is off.'}
+          />
+          <Divider inset={spacing.lg} />
+          <SettingToggle
             icon="pulse-outline"
             label="Countdown buzz"
             description="A tap on each of the last three seconds."

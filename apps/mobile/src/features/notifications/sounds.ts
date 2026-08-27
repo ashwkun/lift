@@ -9,9 +9,11 @@
  *
  * The beep has no notification counterpart and cannot have one. It fires seven
  * times in the last ten seconds, and seven scheduled notifications per set is
- * not a countdown, it is a notification channel someone turns off. It is an
- * in-app cue only, which is the honest scope: if the phone is in a pocket the
- * bell at zero is the alert, and that one *is* scheduled.
+ * not a countdown, it is a notification channel someone turns off. It is played
+ * from here or not at all, on screen or in a pocket: the workout's foreground
+ * service keeps this clock running either way, and `restTimerBackgroundBeeps`
+ * is where the user says which of the two they wanted. The bell at zero is the
+ * alert regardless, and that one *is* scheduled.
  */
 
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';

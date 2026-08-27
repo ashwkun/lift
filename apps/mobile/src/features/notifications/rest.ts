@@ -13,7 +13,10 @@
  * it. A foregrounded delivery with no banner and no shade entry is the one way
  * to get a sound out of the OS rather than out of the app, which is what puts it
  * on the ring or alarm slider instead of the music one. `RestCues` steps aside
- * when this is going to happen: see `systemRestBellPending`.
+ * when this is going to happen: see `systemRestBellPending`, and
+ * `SYSTEM_BELL_GRACE_MS` there for how long it steps aside *for*. Android holds
+ * this alert as an inexact alarm and is free to sit on it, so stepping aside
+ * indefinitely is how a bell ends up ringing fifteen seconds into the next set.
  */
 
 import { Platform } from 'react-native';
@@ -86,6 +89,12 @@ let deliverable = false;
 /** Whether a bell is currently scheduled with the OS. */
 let pending = false;
 
+/** When the OS last rang the bell, as epoch ms. Zero until it has. */
+let lastSystemBellAt = 0;
+
+/** The delivery listener's handle, so it is installed exactly once. */
+let bellWatch: { remove: () => void } | null = null;
+
 /** The channel `ensureRestChannel` last wrote, so it only writes on a change. */
 let preparedChannel: string | null = null;
 
@@ -96,7 +105,8 @@ let preparedChannel: string | null = null;
  * user picked a system route, a bell is scheduled, and the OS is in a position
  * to deliver it. Any one of them missing and `RestCues` plays the bell itself,
  * which is the same bell through the music slider: quieter than intended, but
- * never nothing.
+ * never nothing. A bell the OS simply fails to ring on time lands in the same
+ * place, a beat later, by the same route.
  *
  * The other half of this rule lives in `presentation.ts`, which is what makes a
  * foregrounded delivery ring instead of doing nothing. The two have to agree, or
@@ -104,6 +114,44 @@ let preparedChannel: string | null = null;
  */
 export function systemRestBellPending(): boolean {
   return pending && deliverable && useSettings.getState().restTimerSoundOutput !== 'media';
+}
+
+/**
+ * Watches for the bell actually being delivered.
+ *
+ * This only ever fires with the app foregrounded: a delivery that lands while
+ * the app is backgrounded is presented by the system and never reaches JS. That
+ * is the same window `RestCues` runs its fallback in, so the two agree by
+ * construction rather than by coincidence.
+ *
+ * The other candidate for this was the presentation handler in
+ * `./presentation`, which is where the decision to ring is actually made. It
+ * would have meant an import back into this module from one this module already
+ * imports, and the receipt is the same event either way.
+ */
+function watchSystemRestBell(): void {
+  if (bellWatch) return;
+
+  const Notifications = getNotifications();
+  if (!Notifications) return;
+
+  bellWatch = Notifications.addNotificationReceivedListener((notification) => {
+    if (notification.request.content.data?.type !== REST_BELL_TYPE) return;
+
+    pending = false;
+    lastSystemBellAt = Date.now();
+  });
+}
+
+/**
+ * Whether the OS has rung the bell at or since `sinceMs`.
+ *
+ * Callers pass a window rather than the deadline itself, because the two clocks
+ * do not agree to the millisecond: the countdown is a once-a-second tick, and
+ * the alarm behind it can land either side of the tick that reaches zero.
+ */
+export function systemRestBellRangSince(sinceMs: number): boolean {
+  return lastSystemBellAt >= sinceMs;
 }
 
 function channelKindFor(): ChannelKind {
@@ -183,6 +231,7 @@ async function ensureRestChannel(): Promise<string | undefined> {
  */
 export async function prepareRestNotifications(): Promise<boolean> {
   configureNotificationHandler();
+  watchSystemRestBell();
 
   // Indistinguishable from a denied permission to every caller, which is the
   // point: the timer bar already renders the same way when this returns false.
