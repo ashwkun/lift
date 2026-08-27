@@ -8,6 +8,12 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.15.1](https://github.com/pawan67/lift/compare/v0.15.0...v0.15.1) - 2026-08-27
+
+### Fixes
+
+- **mobile:** ask for an alarm the phone will keep, and stop promising a beep it cannot ([cc81565](https://github.com/pawan67/lift/commit/cc81565b5f1962a3563d46eb9a81628758c9e4fb))
+
 ## [0.15.0](https://github.com/pawan67/lift/compare/v0.14.1...v0.15.0) - 2026-08-27
 
 ### Features
