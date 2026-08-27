@@ -64,17 +64,16 @@ export interface Settings {
   /** Which of the phone's volume sliders the rest bell rings on. */
   restTimerSoundOutput: RestSoundOutput;
   /**
-   * Whether the countdown beeps follow the phone into a pocket.
+   * Whether the last ten seconds are counted out loud.
    *
-   * The bell at zero always does: it is handed to the OS and arrives whether or
-   * not the app is on screen. The seven beeps in front of it are the app
-   * talking, and it keeps talking once backgrounded because the workout's
-   * foreground service keeps the countdown running. Some people want exactly
-   * that, and some want the phone quiet the moment they put it down. Neither is
-   * derivable from `soundEnabled`, which is a question about the cue rather
-   * than about where it follows you.
+   * Separate from `soundEnabled`, which is the whole of the timer's voice. The
+   * seven beeps and the bell are two different promises: the bell says rest is
+   * over and is worth hearing across a gym, and the countdown is a running
+   * commentary aimed at someone about to get back under a bar. Wanting the one
+   * without the other is an ordinary preference, and before this the only way
+   * to drop the commentary was to drop the alert with it.
    */
-  restTimerBackgroundBeeps: boolean;
+  restTimerCountdownBeeps: boolean;
   hapticsEnabled: boolean;
   /** Keep the screen on during an active workout. */
   keepAwakeDuringWorkout: boolean;
@@ -150,10 +149,9 @@ export const DEFAULT_SETTINGS: Settings = {
   // who never finds the row. `notification` rather than `alarm` because it is
   // the quieter of the two fixes.
   restTimerSoundOutput: 'notification',
-  // On, which is what the app has always done. The countdown is worth most to
-  // someone who is not looking at the screen, and the row exists for the people
-  // who disagree rather than to change the answer for everyone.
-  restTimerBackgroundBeeps: true,
+  // On, which is what the app has always done. The row exists for the people
+  // who want the bell alone, not to change the answer for everyone.
+  restTimerCountdownBeeps: true,
   hapticsEnabled: true,
   keepAwakeDuringWorkout: true,
 
@@ -328,7 +326,7 @@ async function persist(state: Settings): Promise<void> {
     restTimerCountdownCues: state.restTimerCountdownCues,
     soundEnabled: state.soundEnabled,
     restTimerSoundOutput: state.restTimerSoundOutput,
-    restTimerBackgroundBeeps: state.restTimerBackgroundBeeps,
+    restTimerCountdownBeeps: state.restTimerCountdownBeeps,
     hapticsEnabled: state.hapticsEnabled,
     keepAwakeDuringWorkout: state.keepAwakeDuringWorkout,
     oneRepMaxFormula: state.oneRepMaxFormula,

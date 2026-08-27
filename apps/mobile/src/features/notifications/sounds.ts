@@ -9,11 +9,12 @@
  *
  * The beep has no notification counterpart and cannot have one. It fires seven
  * times in the last ten seconds, and seven scheduled notifications per set is
- * not a countdown, it is a notification channel someone turns off. It is played
- * from here or not at all, on screen or in a pocket: the workout's foreground
- * service keeps this clock running either way, and `restTimerBackgroundBeeps`
- * is where the user says which of the two they wanted. The bell at zero is the
- * alert regardless, and that one *is* scheduled.
+ * not a countdown, it is a notification channel someone turns off. So it is an
+ * on-screen cue, and not by choice: the clock driving it is a JS timer, and RN
+ * stops those the moment the activity pauses, so a locked phone has no
+ * countdown to play whatever anyone would prefer. `restTimerCountdownBeeps`
+ * turns the seven off; nothing can turn them on through a dark screen. The bell
+ * at zero is the alert there, and that one *is* scheduled with the OS.
  */
 
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';

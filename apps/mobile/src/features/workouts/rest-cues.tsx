@@ -76,17 +76,19 @@ const RESUME_GRACE_MS = 1500;
 /**
  * How long zero waits for the system bell before the app rings its own.
  *
- * On the notification and alarm routes the bell is the OS's to ring, and on
- * Android the OS is holding an *inexact* alarm: `expo-notifications` asks for an
- * exact one only when the app holds the exact-alarm permission, which this app
- * does not declare. An inexact alarm is a request the system is free to batch,
- * and in a gym, on a phone that has been sitting still long enough to look idle,
- * it lands anywhere from immediately to fifteen seconds late.
+ * On the notification and alarm routes the bell is the OS's to ring, and the app
+ * now asks for an alarm the OS will ring on time: see
+ * `plugins/with-exact-alarms.ts`, without which `expo-notifications` schedules
+ * an inexact alarm that a sleeping phone sits on until it wakes for its own
+ * reasons. That is the fix for a late bell, and this is what covers the cases an
+ * exact alarm still cannot: Do Not Disturb, a channel the user has muted, a
+ * revoked `SCHEDULE_EXACT_ALARM` on Android 12, a delivery the OS simply drops.
+ * In every one of them the app used to have nothing to say at zero, because it
+ * had already stepped aside for a bell that was never going to ring.
  *
- * So the bell is no longer simply handed over and forgotten. It is handed over
- * for this long, and if the OS has not rung by then the app rings the same bell
- * itself. A second of silence at zero is inside the rhythm the countdown has
- * already set; ten is the user deciding the timer is broken.
+ * So it steps aside for this long instead of for good. A second of silence at
+ * zero is inside the rhythm the countdown has already set; ten is the user
+ * deciding the timer is broken.
  */
 const SYSTEM_BELL_GRACE_MS = 1000;
 
@@ -99,6 +101,18 @@ const SYSTEM_BELL_GRACE_MS = 1000;
  * one the user just heard.
  */
 const SYSTEM_BELL_EARLY_MS = 1500;
+
+/**
+ * Past this, the fallback has missed its moment and stands down.
+ *
+ * A timeout is not a promise about when it runs. RN's `JavaTimerManager` drops
+ * the choreographer callback on `onHostPause`, so a phone locked inside the
+ * grace window parks this until the app is opened again and then runs it for a
+ * deadline that is minutes old. By then the OS has delivered the bell to a lock
+ * screen the user has already read, and firing would ring for a finished set
+ * and dismiss the notification saying so.
+ */
+const SYSTEM_BELL_STALE_MS = 3000;
 
 /** The armed fallback bell, if one is waiting on the OS. */
 let fallbackBell: ReturnType<typeof setTimeout> | null = null;
@@ -131,13 +145,16 @@ function ringRestBell(deadline: number): void {
   // Backgrounded, the OS bell is the entire alert: it arrives with a banner, on
   // the volume the user picked, and a background delivery never reaches JS, so
   // there is no receipt to wait for and nothing here that could tell a late
-  // bell from one that is about to ring.
+  // bell from one that is about to ring. Rarely reached, since the tick that
+  // calls this has stopped by then, and kept because "rarely" is not "never":
+  // the pause and the tick race on the frame the app is leaving the screen.
   if (AppState.currentState !== 'active') return;
 
   fallbackBell = setTimeout(() => {
     fallbackBell = null;
 
     if (systemRestBellRangSince(deadline - SYSTEM_BELL_EARLY_MS)) return;
+    if (Date.now() - deadline > SYSTEM_BELL_STALE_MS) return;
 
     // A period that has since been skipped, or a new one started inside the
     // grace window. Either way the bell would be for a deadline nobody is
@@ -156,7 +173,7 @@ export function RestCues() {
   const restEndsAt = useTimer((state) => state.restEndsAt);
   const soundEnabled = useSettings((state) => state.soundEnabled);
   const countdownCues = useSettings((state) => state.restTimerCountdownCues);
-  const backgroundBeeps = useSettings((state) => state.restTimerBackgroundBeeps);
+  const countdownBeeps = useSettings((state) => state.restTimerCountdownBeeps);
 
   const running = restEndsAt !== null;
   const now = useTicker(1000, running);
@@ -243,21 +260,18 @@ export function RestCues() {
     // its own toggle because it is felt rather than heard, and one of the two
     // is usable in a quiet gym where the other is not.
     //
-    // Gated on the app being on screen too, unless the user has asked for the
-    // countdown in their pocket. This clock does not stop when the workout is
-    // backgrounded: the session's foreground service keeps the process alive,
-    // so the beeps carried on out of a phone that had been put down, from an
-    // app that was showing nothing. The bell is unaffected either way, which is
-    // the honest division. It is the alert, and it is scheduled with the OS.
-    if (
-      remaining < prior &&
-      soundEnabled &&
-      beepsAt(remaining) &&
-      (backgroundBeeps || AppState.currentState === 'active')
-    ) {
+    // `restTimerCountdownBeeps` is the switch for the seven on their own, for a
+    // gym where the bell is welcome and a countdown out of a pocket is not.
+    // Which is only ever a pocket with the screen still on: this clock is a JS
+    // timer, and RN takes the choreographer callback away on `onHostPause`, so
+    // the countdown stops dead the moment the app leaves the screen and no
+    // preference here can carry it any further. The cue that survives a locked
+    // phone is the bell, and it survives by being an alarm the OS holds rather
+    // than a sound this file plays.
+    if (remaining < prior && soundEnabled && countdownBeeps && beepsAt(remaining)) {
       void playCountdownBeep();
     }
-  }, [restEndsAt, now, soundEnabled, countdownCues, backgroundBeeps]);
+  }, [restEndsAt, now, soundEnabled, countdownCues, countdownBeeps]);
 
   return null;
 }

@@ -14,9 +14,10 @@
  * to get a sound out of the OS rather than out of the app, which is what puts it
  * on the ring or alarm slider instead of the music one. `RestCues` steps aside
  * when this is going to happen: see `systemRestBellPending`, and
- * `SYSTEM_BELL_GRACE_MS` there for how long it steps aside *for*. Android holds
- * this alert as an inexact alarm and is free to sit on it, so stepping aside
- * indefinitely is how a bell ends up ringing fifteen seconds into the next set.
+ * `SYSTEM_BELL_GRACE_MS` there for how long it steps aside *for*. Stepping aside
+ * indefinitely is how a bell ends up ringing on the lock screen a minute later:
+ * whether this alarm is exact at all is a manifest question, answered in
+ * `plugins/with-exact-alarms.ts`, and DND can still swallow it after that.
  */
 
 import { Platform } from 'react-native';

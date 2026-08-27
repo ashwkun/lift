@@ -70,7 +70,8 @@
         }
       ],
       "expo-image",
-      "./plugins/with-theme-launcher-icons.ts"
+      "./plugins/with-theme-launcher-icons.ts",
+      "./plugins/with-exact-alarms.ts"
     ],
     "experiments": {
       "typedRoutes": true,
