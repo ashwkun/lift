@@ -8,19 +8,29 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
-## [Unreleased](https://github.com/pawan67/lift/compare/v0.14.1...HEAD)
+## [0.15.0](https://github.com/pawan67/lift/compare/v0.14.1...v0.15.0) - 2026-08-27
 
 ### Features
 
+- **shared:** read months and set types in 21 languages, not just English ([b80b073](https://github.com/pawan67/lift/commit/b80b0738f4adadc9ef871c68c9370e39b793e844))
+- **api:** declare the parent keys, emit missing_parent, and bound the ledgers ([31b62a4](https://github.com/pawan67/lift/commit/31b62a49d88d0c1e6d0d32513028fcca1df3dfa3))
+- **mobile:** prescribe time and distance in a routine, and save a session as one ([6be5b95](https://github.com/pawan67/lift/commit/6be5b95085a8e31e4fd4ce026258dc5a8cca67ce))
+- **mobile:** let a human enter the RPE the rest of the app already reads ([996e1d2](https://github.com/pawan67/lift/commit/996e1d2d29a2c10b29a5243cfab814f03d976128))
+- **mobile:** search the history instead of scrolling it ([bba32b7](https://github.com/pawan67/lift/commit/bba32b7861af90570765d5c0ff37146493353d98))
+- **mobile:** build the warm-up ramp from the plates that are actually on the rack ([735bda0](https://github.com/pawan67/lift/commit/735bda029fef34db3a2522c422e768a2b4dd6574))
 - **mobile:** catch a render throw instead of letting it close the app ([d74758f](https://github.com/pawan67/lift/commit/d74758f318c3f9c693c5133ab82cd8d8f0a1ab3a))
 
 ### Fixes
 
+- **mobile:** ring the bell the phone is sitting on, and hush the pocket beeps ([0eb88e1](https://github.com/pawan67/lift/commit/0eb88e14b70543dabfa47fc28ef422322f970064))
+- **mobile:** measure the six palettes nobody had measured, and cap font scaling ([41b75b2](https://github.com/pawan67/lift/commit/41b75b212cac2b32ef9698b857d6e59cfc598dd4))
+- **shared:** load a weight the plate solver built itself ([32ab6be](https://github.com/pawan67/lift/commit/32ab6be3e1e4a2d596ceb87d77222a80124abbf2))
 - **mobile:** retire a batch the server cannot read, instead of pushing it forever ([3ef214b](https://github.com/pawan67/lift/commit/3ef214b284852204812961ad913192c0e2ecc3ef))
 - **api:** apply each mutation in its own savepoint, and bound the clocks it trusts ([3bae302](https://github.com/pawan67/lift/commit/3bae302b9f5bec0105e165b6257e9303b1cb287e))
 
 ### Internal
 
+- ci: pin every action, cut versions from one command, and guard the things that fail quietly ([61cc0e6](https://github.com/pawan67/lift/commit/61cc0e6d5b45506ebfa338d62080cdd24f4aa5d6))
 - docs: record what stands between this and a production release ([2fdcaee](https://github.com/pawan67/lift/commit/2fdcaee2037e0983a48f7a63491adda66d1e1262))
 - ci: gate a push on typecheck, lint and the sync suite, and add a way back ([1982c7f](https://github.com/pawan67/lift/commit/1982c7f25db14f6949ea19155294c3b26e16ec87))
 
