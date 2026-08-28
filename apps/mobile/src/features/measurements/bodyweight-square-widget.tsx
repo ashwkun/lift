@@ -59,22 +59,26 @@ export function BodyweightSquareWidget() {
     })();
   };
 
-  if (!loaded) return null;
+  const latest = rows[0];
 
   let valueText = '--';
   let unitText = '';
-  let subText = 'No weigh-ins';
+  let subText = 'Loading...';
 
-  if (latest) {
-    const [figure, unit] = splitMeasure(formatMeasurementValue('bodyweight', latest.value, prefs));
-    valueText = figure;
-    unitText = unit || '';
-    const days = daysSince(latest.measuredAt.getTime(), now);
-    subText = describeRecency(days) || 'Today';
+  if (loaded) {
+    if (latest) {
+      const [figure, unit] = splitMeasure(formatMeasurementValue('bodyweight', latest.value, prefs));
+      valueText = figure;
+      unitText = unit || '';
+      const days = daysSince(latest.measuredAt.getTime(), now);
+      subText = describeRecency(days) || 'Today';
+    } else {
+      subText = 'No weigh-ins';
+    }
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <SquareWidget
         title="Body weight"
         subtitle={subText}
@@ -99,6 +103,6 @@ export function BodyweightSquareWidget() {
         onCancel={() => setLogging(false)}
         onSubmit={submit}
       />
-    </>
+    </View>
   );
 }

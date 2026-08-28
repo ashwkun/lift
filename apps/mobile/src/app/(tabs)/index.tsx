@@ -519,7 +519,7 @@ export default function HomeScreen() {
          * why it is not fetched alongside the three aggregates above.
          */}
         <Reveal index={1}>
-          <View style={{ flexDirection: 'row', gap: spacing.lg, marginHorizontal: spacing.lg }}>
+          <View style={{ flexDirection: 'row', gap: spacing.lg, marginHorizontal: spacing.lg, marginTop: spacing.lg }}>
             <SquareWidget 
               title={recent[0]?.name ?? "No recent workout"}
               subtitle={recent[0] ? formatDateTime(recent[0].startedAt, DATE_SHORT) : 'Log a workout'}

@@ -230,7 +230,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   wide: {
-    width: '100%',
     borderRadius: 24,
     padding: spacing.lg,
     flexDirection: 'column',
@@ -263,7 +262,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 20,
     padding: spacing.lg,
-    width: '100%',
   },
   statLeft: {
     flex: 1,
