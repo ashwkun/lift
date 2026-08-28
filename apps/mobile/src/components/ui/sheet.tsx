@@ -85,9 +85,19 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
   // anything, so this is a no-op on that path.
   useEffect(() => {
     if (isDialog) return;
-    if (visible) sheetRef.current?.present();
-    else sheetRef.current?.dismiss();
-  }, [visible, isDialog]);
+    if (visible) {
+      console.log('Sheet is attempting to present...', { label });
+      // Defer presentation to ensure BottomSheetModalProvider has registered the modal
+      const timer = setTimeout(() => {
+        console.log('Sheet present firing for', label, sheetRef.current ? 'has ref' : 'no ref');
+        sheetRef.current?.present();
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      console.log('Sheet is dismissing...', { label });
+      sheetRef.current?.dismiss();
+    }
+  }, [visible, isDialog, label]);
 
   // `BottomSheetModal` does not wire Android's hardware back button the way
   // RN's own `Modal` wires it to `onRequestClose` for free, so it is wired
@@ -172,7 +182,7 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
           style={[styles.backdrop, { backgroundColor: colors.overlay }, sheetLayout.backdrop]}
           onPress={onClose}
         >
-          <Pressable
+          <View
             accessible={false}
             // Hides the list behind the sheet from VoiceOver, so focus lands on
             // the sheet's own heading when it opens and a swipe past the last
@@ -189,7 +199,7 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
               },
               sheetLayout.sheet,
             ]}
-            onPress={(event) => event.stopPropagation()}
+            onStartShouldSetResponder={() => true}
           >
             <SheetHeading
               label={label}
@@ -199,11 +209,13 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
             />
             {children}
             {footer}
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
     );
   }
+
+  const snapPoints = useMemo(() => ['CONTENT_HEIGHT'], []);
 
   return (
     <BottomSheetModal
@@ -211,7 +223,8 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
       onDismiss={onClose}
       enablePanDownToClose
       enableDynamicSizing
-      maxDynamicContentSize={windowHeight * MAX_DOCKED_HEIGHT_FRACTION}
+      snapPoints={snapPoints}
+      maxDynamicContentSize={Math.max(windowHeight, 800) * MAX_DOCKED_HEIGHT_FRACTION}
       backdropComponent={renderBackdrop}
       handleComponent={renderHandle}
       footerComponent={renderFooter}

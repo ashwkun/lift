@@ -14,7 +14,7 @@ import {
   type PositionedRow,
   type SupersetAssignment,
 } from '@lift/shared';
-import { and, desc, isNull } from 'drizzle-orm';
+import { and, asc, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +25,7 @@ import {
   Divider,
   EmptyState,
   HeaderAction,
+  ListPicker,
   NumericField,
   PromptModal,
   ReorderSheet,
@@ -34,7 +35,8 @@ import {
   type ReorderItem,
 } from '@/components/ui';
 import { db } from '@/db/client';
-import { workouts } from '@/db/schema';
+import { routineFolders, workouts } from '@/db/schema';
+import { useRows } from '@/db/use-rows';
 import {
   addExerciseToRoutine,
   addRoutineSet,
@@ -45,6 +47,7 @@ import {
   getRoutineDetail,
   removeExerciseFromRoutine,
   updateRoutine,
+  updateRoutineExercise,
   updateRoutineSet,
   type RoutineDetail,
   type RoutineExerciseDetail,
@@ -135,6 +138,8 @@ export default function RoutineEditorScreen() {
 
   const [detail, setDetail] = useState<RoutineDetail | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [editingRoutineNotes, setEditingRoutineNotes] = useState(false);
+  const [editingExerciseNotesFor, setEditingExerciseNotesFor] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const inFlight = useRef(false);
 
@@ -148,6 +153,14 @@ export default function RoutineEditorScreen() {
       .orderBy(desc(workouts.startedAt))
       .limit(1),
     [id],
+  );
+
+  const { rows: folders = [] } = useRows(
+    db
+      .select()
+      .from(routineFolders)
+      .where(isNull(routineFolders.deletedAt))
+      .orderBy(asc(routineFolders.position))
   );
 
   const resuming = openRows[0]?.routineId === id;
@@ -399,14 +412,24 @@ export default function RoutineEditorScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.nameField}>
-          <Text variant="overline" color="textTertiary">
-            Routine name
-          </Text>
-          {/* The name is the only way to rename a routine, and it said none of
-              that: no role, no cue for a sighted user, and a ~24pt line box for
-              a target. The pencil is the part a gym user notices; the frame is
-              what a thumb finds. The label stays the visible text so Voice
-              Control's "tap <routine name>" keeps working. */}
+          <View style={styles.notesHeader}>
+            <Text variant="overline" color="textTertiary">
+              Routine name
+            </Text>
+            {folders.length > 0 && (
+              <ListPicker
+                label="Folder"
+                value={detail.routine.folderId ?? 'none'}
+                options={[
+                  { value: 'none', label: 'No folder' },
+                  ...folders.map((f) => ({ value: f.id, label: f.name })),
+                ]}
+                onChange={(value) => {
+                  void updateRoutine(id, { folderId: value === 'none' ? null : value }).then(reload);
+                }}
+              />
+            )}
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={detail.routine.name}
@@ -416,6 +439,43 @@ export default function RoutineEditorScreen() {
           >
             <Text variant="subheading" numberOfLines={1} style={styles.nameText}>
               {detail.routine.name}
+            </Text>
+            <Ionicons name="pencil" size={14} color={colors.textTertiary} />
+          </Pressable>
+        </View>
+
+        <View style={styles.nameField}>
+          <View style={styles.notesHeader}>
+            <Text variant="overline" color="textTertiary">
+              Notes
+            </Text>
+            {(detail.routine.notes || detail.routine.isNotesPinned) ? (
+              <Pressable
+                onPress={() => {
+                  haptics.selection();
+                  void updateRoutine(id, { isNotesPinned: !detail.routine.isNotesPinned }).then(reload);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={detail.routine.isNotesPinned ? "Unpin notes" : "Pin notes"}
+              >
+                <Ionicons
+                  name={detail.routine.isNotesPinned ? "pin" : "pin-outline"}
+                  size={16}
+                  color={detail.routine.isNotesPinned ? colors.accent : colors.textTertiary}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={detail.routine.notes || "Add note"}
+            accessibilityHint="Edits routine notes"
+            onPress={() => setEditingRoutineNotes(true)}
+            style={styles.nameButton}
+          >
+            <Text variant="bodyMedium" numberOfLines={1} color={detail.routine.notes ? 'textSecondary' : 'textTertiary'} style={styles.nameText}>
+              {detail.routine.notes || "Add a note..."}
             </Text>
             <Ionicons name="pencil" size={14} color={colors.textTertiary} />
           </Pressable>
@@ -471,6 +531,45 @@ export default function RoutineEditorScreen() {
                   }}
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              <View style={styles.exerciseNotesField}>
+                <View style={styles.notesHeader}>
+                  <Text variant="overline" color="textTertiary">
+                    Notes
+                  </Text>
+                  {(entry.routineExercise.notes || entry.routineExercise.isNotesPinned) ? (
+                    <Pressable
+                      onPress={() => {
+                        haptics.selection();
+                        void updateRoutineExercise(entry.routineExercise.id, { 
+                          isNotesPinned: !entry.routineExercise.isNotesPinned 
+                        }).then(reload);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={entry.routineExercise.isNotesPinned ? "Unpin notes" : "Pin notes"}
+                    >
+                      <Ionicons
+                        name={entry.routineExercise.isNotesPinned ? "pin" : "pin-outline"}
+                        size={16}
+                        color={entry.routineExercise.isNotesPinned ? colors.accent : colors.textTertiary}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={entry.routineExercise.notes || "Add note"}
+                  accessibilityHint="Edits exercise notes"
+                  onPress={() => setEditingExerciseNotesFor(entry.routineExercise.id)}
+                  style={styles.nameButton}
+                >
+                  <Text variant="bodyMedium" numberOfLines={1} color={entry.routineExercise.notes ? 'textSecondary' : 'textTertiary'} style={styles.nameText}>
+                    {entry.routineExercise.notes || "Add a note..."}
+                  </Text>
+                  <Ionicons name="pencil" size={14} color={colors.textTertiary} />
                 </Pressable>
               </View>
 
@@ -639,32 +738,56 @@ export default function RoutineEditorScreen() {
                 </View>
               ))}
 
-              <Pressable
-                hitSlop={ADD_SET_SLOP}
-                onPress={() => {
-                  const last = entry.sets[entry.sets.length - 1];
-                  // Every target the row above carries, not two of them. A
-                  // second set of a plank should arrive prescribing the same
-                  // minute; the copy stopping at weight and reps is what made
-                  // an added set on a duration or distance exercise blank.
-                  void addRoutineSet(entry.routineExercise.id, {
-                    targetReps: last?.targetReps ?? null,
-                    targetWeightKg: last?.targetWeightKg ?? null,
-                    targetDurationSeconds: last?.targetDurationSeconds ?? null,
-                    targetDistanceKm: last?.targetDistanceKm ?? null,
-                    targetRpe: last?.targetRpe ?? null,
-                  }).then(reload);
-                }}
-                style={({ pressed }) => [
-                  styles.addSet,
-                  { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
-                ]}
-              >
-                <Ionicons name="add" size={16} color={colors.textSecondary} />
-                <Text variant="label" color="textSecondary">
-                  Add set
-                </Text>
-              </Pressable>
+              <View style={styles.addSetRow}>
+                <Pressable
+                  hitSlop={ADD_SET_SLOP}
+                  onPress={() => {
+                    haptics.selection();
+                    const last = entry.sets[entry.sets.length - 1];
+                    void addRoutineSet(entry.routineExercise.id, {
+                      setType: 'warmup',
+                      targetReps: last?.targetReps ?? null,
+                      targetWeightKg: last?.targetWeightKg ?? null,
+                      targetDurationSeconds: last?.targetDurationSeconds ?? null,
+                      targetDistanceKm: last?.targetDistanceKm ?? null,
+                      targetRpe: last?.targetRpe ?? null,
+                    }).then(reload);
+                  }}
+                  style={({ pressed }) => [
+                    styles.addSet,
+                    { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+                  ]}
+                >
+                  <Ionicons name="add" size={16} color={colors.warning} />
+                  <Text variant="label" color="textSecondary">
+                    Add warm-up
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  hitSlop={ADD_SET_SLOP}
+                  onPress={() => {
+                    haptics.selection();
+                    const last = entry.sets[entry.sets.length - 1];
+                    void addRoutineSet(entry.routineExercise.id, {
+                      targetReps: last?.targetReps ?? null,
+                      targetWeightKg: last?.targetWeightKg ?? null,
+                      targetDurationSeconds: last?.targetDurationSeconds ?? null,
+                      targetDistanceKm: last?.targetDistanceKm ?? null,
+                      targetRpe: last?.targetRpe ?? null,
+                    }).then(reload);
+                  }}
+                  style={({ pressed }) => [
+                    styles.addSet,
+                    { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+                  ]}
+                >
+                  <Ionicons name="add" size={16} color={colors.textSecondary} />
+                  <Text variant="label" color="textSecondary">
+                    Add set
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           ))
         )}
@@ -710,6 +833,39 @@ export default function RoutineEditorScreen() {
         }}
       />
 
+      <PromptModal
+        visible={editingRoutineNotes}
+        title="Routine notes"
+        initialValue={detail.routine.notes ?? ''}
+        placeholder="Add a note..."
+        maxLength={500}
+        multiline
+        onCancel={() => setEditingRoutineNotes(false)}
+        onConfirm={(value) => {
+          setEditingRoutineNotes(false);
+          void updateRoutine(id, { notes: value || null }).then(reload);
+        }}
+      />
+
+      <PromptModal
+        visible={!!editingExerciseNotesFor}
+        title="Exercise notes"
+        initialValue={detail.exercises.find(e => e.routineExercise.id === editingExerciseNotesFor)?.routineExercise.notes ?? ''}
+        placeholder="Add a note..."
+        maxLength={500}
+        multiline
+        onCancel={() => setEditingExerciseNotesFor(null)}
+        onConfirm={(value) => {
+          if (editingExerciseNotesFor) {
+            const id = editingExerciseNotesFor;
+            setEditingExerciseNotesFor(null);
+            void updateRoutineExercise(id, { notes: value || null }).then(reload);
+          } else {
+            setEditingExerciseNotesFor(null);
+          }
+        }}
+      />
+
       <ReorderSheet
         visible={reordering}
         title="Reorder exercises"
@@ -725,6 +881,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   content: { paddingBottom: spacing.huge },
   nameField: { padding: spacing.lg, gap: spacing.xs },
+  notesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nameButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -743,6 +900,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
+  exerciseNotesField: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, gap: spacing.xs },
   columnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -760,9 +918,14 @@ const styles = StyleSheet.create({
   setCell: { width: 32, textAlign: 'center' },
   targetCell: { width: 62, textAlign: 'center' },
   removeSpacer: { width: 32, alignItems: 'center' },
-  addSet: {
+  addSetRow: {
+    flexDirection: 'row',
     marginHorizontal: spacing.lg,
     marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  addSet: {
+    flex: 1,
     height: 34,
     borderRadius: radius.sm,
     flexDirection: 'row',

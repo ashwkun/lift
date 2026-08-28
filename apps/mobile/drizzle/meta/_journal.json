@@ -22,6 +22,13 @@
       "when": 1787232021675,
       "tag": "0002_youthful_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787889911616,
+      "tag": "0003_known_gambit",
+      "breakpoints": true
     }
   ]
 }

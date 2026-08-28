@@ -129,6 +129,7 @@ export const routines = sqliteTable(
     folderId: text('folder_id').references(() => routineFolders.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     notes: text('notes'),
+    isNotesPinned: integer('is_notes_pinned', { mode: 'boolean' }).notNull().default(false),
     position: real('position').notNull().default(0),
     lastPerformedAt: integer('last_performed_at', { mode: 'timestamp_ms' }),
     ...syncColumns,
@@ -151,6 +152,7 @@ export const routineExercises = sqliteTable(
       .references(() => exercises.id, { onDelete: 'cascade' }),
     position: real('position').notNull().default(0),
     notes: text('notes'),
+    isNotesPinned: integer('is_notes_pinned', { mode: 'boolean' }).notNull().default(false),
     restSeconds: integer('rest_seconds'),
     /**
      * Exercises sharing a non-null group id are performed as a superset.

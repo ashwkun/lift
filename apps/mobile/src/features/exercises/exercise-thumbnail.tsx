@@ -38,9 +38,7 @@ export function ExerciseThumbnail({
 
   const background = selected
     ? colors.accent
-    : url
-      ? colors.mediaPlate
-      : colors.surfaceMuted;
+    : colors.mediaPlate;
 
   return (
     <View
@@ -66,7 +64,7 @@ export function ExerciseThumbnail({
       ) : (
         <Text
           variant="label"
-          style={{ color: selected ? colors.textOnAccent : colors.textSecondary }}
+          style={{ color: selected ? colors.textOnAccent : '#111114' }}
         >
           {initialsFor(name)}
         </Text>

@@ -65,8 +65,7 @@ const DOCKED_SHEETS_PAINT = Platform.OS !== 'web';
  * `BottomSheetScrollView` with no `BottomSheetModal` above it, which throws.
  */
 export function useSheetIsDialog(): boolean {
-  const { isWide } = useLayout();
-  return isWide || !DOCKED_SHEETS_PAINT;
+  return true;
 }
 
 export interface SheetLayout {

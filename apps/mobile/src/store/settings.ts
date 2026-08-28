@@ -52,6 +52,9 @@ export interface Settings {
   measurementUnit: MeasurementUnit;
   themePreference: ThemePreference;
 
+  /** The RPE (Reps in Reserve) value the effort dialog starts at. */
+  defaultRpe: number;
+
   /** Fallback rest duration when an exercise defines none. */
   defaultRestSeconds: number;
   restTimerEnabled: boolean;
@@ -136,7 +139,7 @@ export const DEFAULT_SETTINGS: Settings = {
   distanceUnit: 'km',
   measurementUnit: 'cm',
   themePreference: 'system',
-
+  defaultRpe: 8,
   defaultRestSeconds: 120,
   restTimerEnabled: true,
   restTimerAutoStart: true,
@@ -319,6 +322,7 @@ async function persist(state: Settings): Promise<void> {
     distanceUnit: state.distanceUnit,
     measurementUnit: state.measurementUnit,
     themePreference: state.themePreference,
+    defaultRpe: state.defaultRpe,
     defaultRestSeconds: state.defaultRestSeconds,
     restTimerEnabled: state.restTimerEnabled,
     restTimerAutoStart: state.restTimerAutoStart,

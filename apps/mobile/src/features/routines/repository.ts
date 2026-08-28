@@ -20,6 +20,7 @@ import { touch, trackDelete, trackUpsert, trackUpsertCoalesced } from '@/db/muta
 import {
   exercises,
   routineExercises,
+  routineFolders,
   routineSets,
   routines,
   type Exercise,
@@ -63,6 +64,7 @@ export async function createRoutine(input: {
     updatedAt: now,
     deletedAt: null,
     syncState: 'pending' as const,
+    isNotesPinned: false,
   };
 
   await db.insert(routines).values(row);
@@ -71,13 +73,41 @@ export async function createRoutine(input: {
   return row;
 }
 
+export async function createRoutineFolder(name: string) {
+  const now = Date.now();
+  const existing = await db
+    .select({ position: routineFolders.position })
+    .from(routineFolders)
+    .where(isNull(routineFolders.deletedAt));
+
+  const row = {
+    id: uuidv7(),
+    name: name.trim() || 'New Folder',
+    position: existing.reduce((max, item) => Math.max(max, item.position), 0) + 1,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    syncState: 'pending' as const,
+  };
+
+  await db.insert(routineFolders).values(row);
+  await trackUpsert('routine_folders', row);
+
+  return row;
+}
+
 export async function updateRoutine(
   routineId: string,
-  patch: { name?: string; notes?: string | null; folderId?: string | null },
+  patch: { name?: string; notes?: string | null; isNotesPinned?: boolean; folderId?: string | null },
 ): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+
   await db
     .update(routines)
-    .set({ ...patch, ...touch() })
+    .set({
+      ...patch,
+      ...touch(),
+    })
     .where(eq(routines.id, routineId));
 
   const [updated] = await db.select().from(routines).where(eq(routines.id, routineId)).limit(1);
@@ -245,12 +275,34 @@ async function insertRoutineExercise(
     updatedAt: now,
     deletedAt: null,
     syncState: 'pending' as const,
+    isNotesPinned: false,
   };
 
   await db.insert(routineExercises).values(row);
   await trackUpsert('routine_exercises', row);
 
   return row;
+}
+
+export async function updateRoutineExercise(
+  id: string,
+  patch: { notes?: string | null; isNotesPinned?: boolean }
+) {
+  if (Object.keys(patch).length === 0) return;
+  await db
+    .update(routineExercises)
+    .set({ ...patch, ...touch() })
+    .where(eq(routineExercises.id, id));
+
+  const [updated] = await db
+    .select()
+    .from(routineExercises)
+    .where(eq(routineExercises.id, id))
+    .limit(1);
+    
+  if (updated) {
+    await trackUpsert('routine_exercises', updated);
+  }
 }
 
 async function nextExercisePosition(routineId: string): Promise<number> {
@@ -721,4 +773,45 @@ export async function applySessionToRoutine(workoutId: string): Promise<void> {
   }
 
   await fillRoutine(routineId, prescription);
+}
+
+export async function updateRoutineFolder(id: string, name: string) {
+  const now = Date.now();
+  await db
+    .update(routineFolders)
+    .set({ name: name.trim(), updatedAt: now, syncState: 'pending' })
+    .where(eq(routineFolders.id, id));
+
+  const [row] = await db.select().from(routineFolders).where(eq(routineFolders.id, id));
+  if (row) await trackUpsert('routine_folders', row);
+}
+
+export async function deleteRoutineFolder(id: string) {
+  const now = Date.now();
+  
+  // Find routines in this folder
+  const routinesInFolder = await db
+    .select({ id: routines.id })
+    .from(routines)
+    .where(eq(routines.folderId, id));
+    
+  // Soft delete the folder
+  await db
+    .update(routineFolders)
+    .set({ deletedAt: now, updatedAt: now, syncState: 'pending' })
+    .where(eq(routineFolders.id, id));
+    
+  // Unassign all routines from this folder
+  await db
+    .update(routines)
+    .set({ folderId: null, updatedAt: now, syncState: 'pending' })
+    .where(eq(routines.folderId, id));
+
+  await trackDelete('routine_folders', id, now);
+  
+  // Track upsert for modified routines
+  for (const r of routinesInFolder) {
+    const [row] = await db.select().from(routines).where(eq(routines.id, r.id));
+    if (row) await trackUpsert('routines', row);
+  }
 }

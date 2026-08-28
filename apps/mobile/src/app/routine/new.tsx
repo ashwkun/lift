@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -8,6 +8,7 @@ import { showAlert } from '@/store/dialog';
 import { spacing } from '@/theme';
 
 export default function NewRoutineScreen() {
+  const { folderId } = useLocalSearchParams<{ folderId?: string }>();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   // The latch is the ref, not the state that dims the button: the return key
@@ -21,7 +22,7 @@ export default function NewRoutineScreen() {
     setSaving(true);
 
     try {
-      const routine = await createRoutine({ name });
+      const routine = await createRoutine({ name, folderId });
       // Replace rather than push: backing out of the editor should return to
       // the routines list, not to this naming step.
       router.replace({ pathname: '/routine/[id]', params: { id: routine.id } });

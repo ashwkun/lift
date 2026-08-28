@@ -11,18 +11,21 @@ import {
   Divider,
   EmptyState,
   ListRow,
+  PromptModal,
   Screen,
   SectionHeader,
   Text,
   useScrollEdge,
 } from '@/components/ui';
 import { db } from '@/db/client';
-import { routines as routinesTable, workouts } from '@/db/schema';
+import { routines as routinesTable, routineFolders, workouts } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
+import { createRoutineFolder, updateRoutineFolder, deleteRoutineFolder } from '@/features/routines/repository';
 import { startWorkout } from '@/features/workouts/repository';
 import { startSession } from '@/features/workouts/start-session';
 import { useLaunchAction } from '@/hooks/use-launch-action';
 import { useTicker } from '@/hooks/use-ticker';
+import { showDialog } from '@/store/dialog';
 import { radius, spacing, useColors } from '@/theme';
 
 /** Latch key for the ad-hoc Start, which has no routine id to be keyed by. */
@@ -55,6 +58,17 @@ export default function WorkoutScreen() {
       .orderBy(asc(routinesTable.position)),
   );
 
+  const { rows: folders, loaded: foldersLoaded } = useRows(
+    db
+      .select()
+      .from(routineFolders)
+      .where(isNull(routineFolders.deletedAt))
+      .orderBy(asc(routineFolders.position)),
+  );
+
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<{id: string, name: string} | null>(null);
+
   const active = activeRows[0];
   const now = useTicker(1000, Boolean(active));
 
@@ -68,6 +82,41 @@ export default function WorkoutScreen() {
   const inFlight = useRef(false);
 
   const openActive = () => router.push('/workout/active');
+
+  const openFolderMenu = (folder: typeof folders[0]) => {
+    void showDialog({
+      title: folder.name,
+      actions: [
+        {
+          label: 'Add routine',
+          onPress: () => router.push({ pathname: '/routine/new', params: { folderId: folder.id } }),
+        },
+        {
+          label: 'Rename folder',
+          onPress: () => setEditingFolder({ id: folder.id, name: folder.name }),
+        },
+        {
+          label: 'Delete folder',
+          style: 'destructive',
+          onPress: () => {
+            void showDialog({
+              title: 'Delete folder?',
+              message: 'The routines inside will not be deleted.',
+              actions: [
+                {
+                  label: 'Delete',
+                  style: 'destructive',
+                  onPress: () => void deleteRoutineFolder(folder.id).then(() => {}),
+                },
+                { label: 'Cancel', style: 'cancel' },
+              ],
+            });
+          },
+        },
+        { label: 'Cancel', style: 'cancel' },
+      ],
+    });
+  };
 
   const begin = async (routineId?: string) => {
     if (inFlight.current) return;
@@ -171,17 +220,26 @@ export default function WorkoutScreen() {
         <SectionHeader
           title="Routines"
           action={
-            <Button
-              title="New"
-              icon="add"
-              variant="ghost"
-              size="sm"
-              onPress={() => router.push('/routine/new')}
-            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Button
+                title="Folder"
+                icon="folder-outline"
+                variant="ghost"
+                size="sm"
+                onPress={() => setCreatingFolder(true)}
+              />
+              <Button
+                title="New"
+                icon="add"
+                variant="ghost"
+                size="sm"
+                onPress={() => router.push('/routine/new')}
+              />
+            </View>
           }
         />
 
-        {routines.length === 0 ? (
+        {routines.length === 0 && folders.length === 0 ? (
           <EmptyState
             icon="list-outline"
             title="No routines yet"
@@ -189,52 +247,141 @@ export default function WorkoutScreen() {
             action={<Button title="Create routine" onPress={() => router.push('/routine/new')} />}
           />
         ) : (
-          <Card padded={false} style={styles.routineCard}>
-            {routines.map((routine, index) => (
-              <View key={routine.id}>
-                {index > 0 && <Divider inset={spacing.lg} />}
-                <ListRow
-                  title={routine.name}
-                  subtitle={
-                    routine.lastPerformedAt
-                      ? `Last performed ${formatDateTime(routine.lastPerformedAt, DATE_MEDIUM)}`
-                      : 'Not performed yet'
-                  }
-                  onPress={() =>
-                    router.push({ pathname: '/routine/[id]', params: { id: routine.id } })
-                  }
-                  // Start is the action people come to this row for, so it gets
-                  // its own target instead of hiding behind a tap-through to the
-                  // detail screen. The row swallows it for a screen reader,
-                  // hence the matching custom action.
-                  accessibilityActions={[
-                    {
-                      name: 'start',
-                      label: active?.routineId === routine.id ? 'Resume' : 'Start',
-                    },
-                  ]}
-                  onAccessibilityAction={(event) => {
-                    if (event.nativeEvent.actionName === 'start') void begin(routine.id);
-                  }}
-                  accessory={
-                    <Button
-                      // The button says what the tap will actually do: with
-                      // this routine's session already open, going through is a
-                      // resume, and the old label promised a fresh session it
-                      // was never going to create.
-                      title={active?.routineId === routine.id ? 'Resume' : 'Start'}
-                      size="sm"
-                      variant="secondary"
-                      loading={starting === routine.id}
-                      onPress={() => void begin(routine.id)}
-                    />
-                  }
-                />
+          <View style={{ gap: spacing.xl }}>
+            {folders.map(folder => {
+              const folderRoutines = routines.filter(r => r.folderId === folder.id);
+              return (
+                <View key={folder.id}>
+                  <SectionHeader
+                    title={folder.name}
+                    action={
+                      <Pressable
+                        onPress={() => openFolderMenu(folder)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`More options for ${folder.name}`}
+                      >
+                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+                      </Pressable>
+                    }
+                  />
+                  {folderRoutines.length > 0 ? (
+                    <Card padded={false} style={styles.routineCard}>
+                      {folderRoutines.map((routine, index) => (
+                        <View key={routine.id}>
+                          {index > 0 && <Divider inset={spacing.lg} />}
+                          <ListRow
+                            title={routine.name}
+                            subtitle={
+                              routine.lastPerformedAt
+                                ? `Last performed ${formatDateTime(routine.lastPerformedAt, DATE_MEDIUM)}`
+                                : 'Not performed yet'
+                            }
+                            onPress={() =>
+                              router.push({ pathname: '/routine/[id]', params: { id: routine.id } })
+                            }
+                            accessibilityActions={[
+                              {
+                                name: 'start',
+                                label: active?.routineId === routine.id ? 'Resume' : 'Start',
+                              },
+                            ]}
+                            onAccessibilityAction={(event) => {
+                              if (event.nativeEvent.actionName === 'start') void begin(routine.id);
+                            }}
+                            accessory={
+                              <Button
+                                title={active?.routineId === routine.id ? 'Resume' : 'Start'}
+                                size="sm"
+                                variant="secondary"
+                                loading={starting === routine.id}
+                                onPress={() => void begin(routine.id)}
+                              />
+                            }
+                          />
+                        </View>
+                      ))}
+                    </Card>
+                  ) : (
+                    <Text variant="bodyMedium" color="textTertiary" style={{ paddingHorizontal: spacing.lg }}>
+                      Empty folder
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+
+            {routines.filter(r => !r.folderId).length > 0 && (
+              <View>
+                {folders.length > 0 && <SectionHeader title="Other routines" />}
+                <Card padded={false} style={styles.routineCard}>
+                  {routines.filter(r => !r.folderId).map((routine, index) => (
+                    <View key={routine.id}>
+                      {index > 0 && <Divider inset={spacing.lg} />}
+                      <ListRow
+                        title={routine.name}
+                        subtitle={
+                          routine.lastPerformedAt
+                            ? `Last performed ${formatDateTime(routine.lastPerformedAt, DATE_MEDIUM)}`
+                            : 'Not performed yet'
+                        }
+                        onPress={() =>
+                          router.push({ pathname: '/routine/[id]', params: { id: routine.id } })
+                        }
+                        accessibilityActions={[
+                          {
+                            name: 'start',
+                            label: active?.routineId === routine.id ? 'Resume' : 'Start',
+                          },
+                        ]}
+                        onAccessibilityAction={(event) => {
+                          if (event.nativeEvent.actionName === 'start') void begin(routine.id);
+                        }}
+                        accessory={
+                          <Button
+                            title={active?.routineId === routine.id ? 'Resume' : 'Start'}
+                            size="sm"
+                            variant="secondary"
+                            loading={starting === routine.id}
+                            onPress={() => void begin(routine.id)}
+                          />
+                        }
+                      />
+                    </View>
+                  ))}
+                </Card>
               </View>
-            ))}
-          </Card>
+            )}
+          </View>
         )}
       </ScrollView>
+
+      <PromptModal
+        visible={creatingFolder}
+        title="New folder"
+        placeholder="Folder name"
+        maxLength={60}
+        onCancel={() => setCreatingFolder(false)}
+        onConfirm={(name) => {
+          setCreatingFolder(false);
+          if (name.trim()) {
+            void createRoutineFolder(name.trim());
+          }
+        }}
+      />
+      <PromptModal
+        visible={!!editingFolder}
+        title="Rename folder"
+        initialValue={editingFolder?.name}
+        placeholder="Folder name"
+        onCancel={() => setEditingFolder(null)}
+        onConfirm={(name) => {
+          if (editingFolder) {
+            void updateRoutineFolder(editingFolder.id, name).then(() => {});
+            setEditingFolder(null);
+          }
+        }}
+      />
     </Screen>
   );
 }

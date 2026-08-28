@@ -44,6 +44,7 @@ import type { WorkoutSet } from '@/db/schema';
 import { haptics } from '@/features/feedback/haptics';
 import { canLogSet } from '@/features/workouts/repository';
 import { showConfirm } from '@/store/dialog';
+import { useSettings } from '@/store/settings';
 import { font, fontSize, radius, spacing, useColors, type Palette } from '@/theme';
 
 export interface SetRowProps {
@@ -249,16 +250,6 @@ const RPE_STEP = 0.5;
 
 /**
  * Where the dialog opens on a set that carries no effort yet.
- *
- * 8 rather than blank, and it is the whole reason this is one long press and
- * one tap rather than one long press and five taps. It is also the modal value
- * in every RPE-carrying log this app has imported. Nothing is written until
- * Save, so the number is a proposal on screen rather than a figure the app has
- * quietly recorded on somebody's behalf.
- */
-const DEFAULT_RPE = 8;
-
-/**
  * What a screen reader gets instead of the two buttons, exactly as
  * `TimePickerModal` and the measurement sheet do it: one `adjustable` element,
  * because announcing "minus button, 8, plus button" makes the user hunt for the
@@ -298,8 +289,8 @@ interface EffortDraft {
   text: string;
 }
 
-function seedEffort(rpe: number | null): EffortDraft {
-  const value = rpe ?? DEFAULT_RPE;
+function seedEffort(rpe: number | null, defaultRpe: number): EffortDraft {
+  const value = rpe ?? defaultRpe;
   return { rpe: value, text: formatRpe(value) };
 }
 
@@ -310,6 +301,7 @@ interface EffortDialogProps {
   draft: EffortDraft;
   /** Whether the set already carries an effort, so there is something to clear. */
   clearable: boolean;
+  defaultRpe: number;
   onStep: (delta: 1 | -1) => void;
   onChangeText: (text: string) => void;
   /** The field lost the cursor: re-spell whatever is stored. */
@@ -417,7 +409,7 @@ function renderEffortDialog({
                 keyboardType="decimal-pad"
                 selectTextOnFocus
                 maxLength={4}
-                placeholder={formatRpe(DEFAULT_RPE)}
+                placeholder={formatRpe(defaultRpe)}
                 placeholderTextColor={colors.textTertiary}
                 // Hidden from the screen reader: the adjustable wrapper above
                 // announces the same value, and reaching the raw field would
@@ -522,6 +514,7 @@ export const SetRow = memo(function SetRow({
   onChangeSetType,
 }: SetRowProps) {
   const colors = useColors();
+  const defaultRpe = useSettings((state) => state.defaultRpe);
 
   // Null while the effort dialog is closed, which is the state twenty-five rows
   // on a busy screen are all in: no dialog is rendered until one is asked for,
@@ -706,7 +699,7 @@ export const SetRow = memo(function SetRow({
     [confirmDelete],
   );
 
-  const openEffort = useCallback(() => setEffort(seedEffort(set.rpe)), [set.rpe]);
+  const openEffort = useCallback(() => setEffort(seedEffort(set.rpe, defaultRpe)), [set.rpe, defaultRpe]);
 
   const handleCheckAccessibilityAction = useCallback(
     (event: AccessibilityActionEvent) => {
@@ -940,12 +933,12 @@ export const SetRow = memo(function SetRow({
             exactly the ones where a fourth cell would overflow a narrow row is
             a happy consequence rather than the reason.
           */}
-          {fields.reps && set.rpe != null && (
+          {fields.reps && (
             <Pressable
               onPress={openEffort}
               hitSlop={EFFORT_HIT_SLOP}
               accessibilityRole="button"
-              accessibilityLabel={`${setName}, RPE ${formatRpe(set.rpe)}`}
+              accessibilityLabel={set.rpe != null ? `${setName}, RPE ${formatRpe(set.rpe)}` : `${setName}, Add RIR`}
               accessibilityHint="Changes the effort"
               style={({ pressed }) => [
                 styles.effortCell,
@@ -956,7 +949,7 @@ export const SetRow = memo(function SetRow({
               ]}
             >
               <Text variant="caption" color="textSecondary" style={styles.effortText}>
-                {`@${formatRpe(set.rpe)}`}
+                {set.rpe != null ? `@${formatRpe(set.rpe)}` : 'RIR'}
               </Text>
             </Pressable>
           )}
@@ -1011,6 +1004,7 @@ export const SetRow = memo(function SetRow({
           colors,
           draft: effort,
           clearable: set.rpe != null,
+          defaultRpe,
           onStep: stepEffort,
           onChangeText: typeEffort,
           onSettleText: settleEffort,
@@ -1065,7 +1059,7 @@ const styles = StyleSheet.create({
   // pair rather than as a chip that wandered in. `minWidth` rather than a fixed
   // width: "@10" is a character wider than "@8" and the cell may have it.
   effortCell: {
-    minWidth: 30,
+    minWidth: 36,
     height: 30,
     paddingHorizontal: spacing.xs,
     borderRadius: radius.sm,

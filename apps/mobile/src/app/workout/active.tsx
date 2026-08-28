@@ -994,16 +994,14 @@ export default function ActiveWorkoutScreen() {
                     : undefined
                 }
                 progression={progressionByExercise[detail.exercise.id]}
-                onAddSet={() => {
-                  // Carry the last set's load forward. The usual case is
-                  // repeating the same weight for another set.
+                onAddSet={(type?: SetType) => {
                   const last = detail.sets[detail.sets.length - 1];
                   haptics.added();
                   guard(
                     addSet(detail.workoutExercise.id, {
                       weightKg: last?.weightKg ?? null,
                       reps: last?.reps ?? null,
-                      setType: 'normal',
+                      setType: type ?? 'normal',
                     }),
                   );
                 }}

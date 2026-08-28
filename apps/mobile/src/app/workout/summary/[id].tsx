@@ -6,17 +6,21 @@ import {
   formatWeight,
   isWorkingSet,
   PR_KIND_LABELS,
+  type MuscleGroup,
   type PrKind,
 } from '@lift/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Confetti } from '@/components/celebration/confetti';
+import { BodyMap } from '@/components/charts/body-map';
 import {
   Button,
   Card,
+  Divider,
+  ListRow,
   mastheadTitle,
   Screen,
   Text,
@@ -36,12 +40,12 @@ import { spacing, stroke, useColors } from '@/theme';
 
 /**
  * The colophon's date: no year, because this screen is only ever reached
- * seconds after the session it describes.
+ * precisely when the workout finishes.
  */
 const HERO_DATE: Intl.DateTimeFormatOptions = {
-  weekday: 'long',
+  weekday: 'short',
+  month: 'short',
   day: 'numeric',
-  month: 'long',
 };
 
 interface PrSummary {
@@ -49,9 +53,13 @@ interface PrSummary {
   value: number;
   exerciseName: string;
   /**
-   * The exercise's own unit, if it has one. A record is a fact about a single
-   * movement, so it is printed in that movement's unit, while the volume total
-   * three rows below stays in the app's, because it is a sum across exercises
+   * Evaluated from the exercise exactly as the logging screen does it, so an
+   * imported 100 lb record is correctly formatted as "100 lb" even on a phone
+   * that prefers kg and has never seen the workout the record was set in.
+   *
+   * An older design did not store `exerciseId` on the record and formatted
+   * using the phone's preference, which meant switching the app to kg made an
+   * imported 100 lb record read as "100 kg". A record belongs to an exercise
    * that may not agree on one.
    */
   units: ExerciseUnitOverrides;
@@ -59,6 +67,7 @@ interface PrSummary {
 
 export default function WorkoutSummaryScreen() {
   const scrollEdge = useScrollEdge();
+  const { width: windowWidth } = useWindowDimensions();
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
@@ -109,6 +118,19 @@ export default function WorkoutSummaryScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  const sessionMuscles = useMemo(() => {
+    if (!detail) return {};
+    const counts: Partial<Record<MuscleGroup, number>> = {};
+    for (const entry of detail.exercises) {
+      const workingSets = entry.sets.filter((s) => isWorkingSet(s.setType)).length;
+      if (workingSets === 0) continue;
+      
+      const ex = entry.exercise;
+      counts[ex.primaryMuscle] = (counts[ex.primaryMuscle] ?? 0) + workingSets;
+    }
+    return counts;
+  }, [detail]);
 
   // Declared once and rendered in both branches. A native-stack screen reads
   // its options as the push animation starts, so setting them only in the
@@ -212,31 +234,44 @@ export default function WorkoutSummaryScreen() {
           </Card>
         )}
 
-        {/* Volume leads the grid: it is the figure the rest of the app treats
-            as a session's size, and duration is the one number the user
-            already watched tick over on the logging screen. */}
-        <View style={styles.stats}>
-          <Stat label="Volume" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
-          <Stat label="Duration" value={formatDurationShort(workout.durationSeconds ?? 0)} />
-          <Stat label="Sets" value={String(workout.totalSets)} />
-          <Stat label="Reps" value={String(workout.totalReps)} />
-        </View>
+        <Text variant="overline" color="textSecondary" style={styles.sectionHeading}>
+          Workout Summary
+        </Text>
+        <Card style={styles.statsCard}>
+          <View style={styles.stats}>
+            <Stat label="Volume" value={formatVolume(workout.totalVolumeKg, weightUnit)} />
+            <Stat label="Duration" value={formatDurationShort(workout.durationSeconds ?? 0)} />
+            <Stat label="Sets" value={String(workout.totalSets)} />
+            <Stat label="Reps" value={String(workout.totalReps)} />
+          </View>
+        </Card>
 
-        <View style={styles.exerciseList}>
-          {exercises.map((entry) => {
+        <Text variant="overline" color="textSecondary" style={styles.sectionHeading}>
+          Muscles trained
+        </Text>
+        <Card style={styles.mapCard}>
+          <BodyMap width={windowWidth - spacing.lg * 4} setsPerWeek={sessionMuscles} maxHeight={280} />
+        </Card>
+
+        <Text variant="overline" color="textSecondary" style={styles.sectionHeading}>
+          Exercises
+        </Text>
+        <Card padded={false}>
+          {exercises.map((entry, index) => {
             const working = entry.sets.filter((set) => isWorkingSet(set.setType));
             return (
-              <View key={entry.workoutExercise.id} style={styles.exerciseRow}>
-                <Text variant="bodyMedium" numberOfLines={1} style={styles.exerciseName}>
-                  {entry.exercise.name}
-                </Text>
-                <Text variant="label" color="textSecondary">
-                  {working.length} {working.length === 1 ? 'set' : 'sets'}
-                </Text>
+              <View key={entry.workoutExercise.id}>
+                <ListRow
+                  title={entry.exercise.name}
+                  subtitle={`${working.length} ${working.length === 1 ? 'working set' : 'working sets'}`}
+                  showChevron={false}
+                  icon="barbell-outline"
+                />
+                {index < exercises.length - 1 && <Divider inset={52} />}
               </View>
             );
           })}
-        </View>
+        </Card>
 
         <Button
           title="Done"
@@ -300,11 +335,19 @@ const styles = StyleSheet.create({
     width: '50%',
     paddingRight: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.sm,
     gap: spacing.xs,
-    borderTopWidth: stroke.rule,
+  },
+  statsCard: {
+    paddingBottom: spacing.sm,
+  },
+  sectionHeading: {
+    marginTop: spacing.md,
+    marginBottom: -spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   prCard: { gap: spacing.sm, borderWidth: stroke.outline },
+  mapCard: { padding: spacing.sm, alignItems: 'center' },
   prHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   prRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   prName: { flex: 1 },

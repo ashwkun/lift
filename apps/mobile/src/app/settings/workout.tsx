@@ -19,6 +19,8 @@ import { spacing } from '@/theme';
  */
 const REST_PRESETS = [60, 90, 120, 150, 180, 240];
 
+const RPE_PRESETS = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+
 /**
  * Where the bell comes out of the phone.
  *
@@ -136,6 +138,18 @@ export default function WorkoutSettingsScreen() {
         </Card>
 
         <Card padded={false} style={settingsStyles.sectionStacked}>
+          <SettingChoice
+            icon="barbell-outline"
+            label="Default RIR"
+            description="The starting value when logging Reps in Reserve."
+            options={RPE_PRESETS.map((rpe) => ({
+              value: String(rpe),
+              label: `RPE ${rpe} (${10 - rpe} RIR)`,
+            }))}
+            value={String(settings.defaultRpe)}
+            onChange={(value) => update('defaultRpe', Number(value))}
+          />
+          <Divider inset={spacing.lg} />
           <SettingChoice
             icon="hourglass-outline"
             label="Default rest"

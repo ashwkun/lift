@@ -77,7 +77,7 @@ export interface ExerciseBlockProps {
    */
   onEditSuperset?: () => void;
   progression?: ProgressionInput;
-  onAddSet: () => void;
+  onAddSet: (type?: SetType) => void;
   onUpdateSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onToggleSet: (set: WorkoutSet) => void;
   onDeleteSet: (setId: string) => void;
@@ -629,19 +629,34 @@ export function ExerciseBlock({
         />
       ))}
 
-      <Pressable
-        onPress={onAddSet}
-        hitSlop={ADD_SET_SLOP}
-        style={({ pressed }) => [
-          styles.addSet,
-          { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
-        ]}
-      >
-        <Ionicons name="add" size={16} color={colors.textSecondary} />
-        <Text variant="label" color="textSecondary">
-          Add set
-        </Text>
-      </Pressable>
+      <View style={styles.addSetRow}>
+        <Pressable
+          onPress={() => onAddSet('warmup')}
+          hitSlop={ADD_SET_SLOP}
+          style={({ pressed }) => [
+            styles.addSet,
+            { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+          ]}
+        >
+          <Ionicons name="add" size={16} color={colors.warning} />
+          <Text variant="label" color="textSecondary">
+            Add warm-up
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onAddSet('normal')}
+          hitSlop={ADD_SET_SLOP}
+          style={({ pressed }) => [
+            styles.addSet,
+            { backgroundColor: pressed ? colors.surfacePressed : colors.surfaceMuted },
+          ]}
+        >
+          <Ionicons name="add" size={16} color={colors.textSecondary} />
+          <Text variant="label" color="textSecondary">
+            Add set
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -916,9 +931,14 @@ const styles = StyleSheet.create({
   // The same box as the plate line it sits under, so the two read as one block
   // of arithmetic rather than as a line and a control.
   warmup: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
-  addSet: {
+  addSetRow: {
+    flexDirection: 'row',
     marginHorizontal: spacing.lg,
     marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  addSet: {
+    flex: 1,
     height: 34,
     borderRadius: radius.sm,
     flexDirection: 'row',
