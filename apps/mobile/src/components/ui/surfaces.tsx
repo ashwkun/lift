@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import {
+  Image,
   StyleSheet,
   View,
   type AccessibilityActionEvent,
   type AccessibilityActionInfo,
+  type ImageSourcePropType,
   type PressableProps,
   type ViewProps,
   type ViewStyle,
@@ -382,6 +384,7 @@ export interface ListRowProps {
   title: string;
   subtitle?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  image?: ImageSourcePropType;
   /** Tints the leading icon and its backing circle. */
   tone?: Tone;
   /** Replaces the trailing chevron. */
@@ -416,6 +419,7 @@ export function ListRow({
   title,
   subtitle,
   icon,
+  image,
   tone = 'neutral',
   accessory,
   showChevron = true,
@@ -448,14 +452,18 @@ export function ListRow({
       scaleTo={1}
       style={styles.listRow}
     >
-      {icon && (
+      {(icon || image) && (
         <View
           style={[
             styles.listIcon,
             { backgroundColor: tone === 'neutral' ? colors.surfaceMuted : bg },
           ]}
         >
-          <Ionicons name={icon} size={17} color={fg} />
+          {image ? (
+            <Image source={image} style={{ width: 17, height: 17, resizeMode: 'contain' }} />
+          ) : (
+            <Ionicons name={icon!} size={17} color={fg} />
+          )}
         </View>
       )}
 

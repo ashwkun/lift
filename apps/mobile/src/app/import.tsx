@@ -270,6 +270,7 @@ function SourceStep({
         <Card padded={false} style={styles.section}>
           <ListRow
             icon={guide.icon}
+            image={guide.image}
             title={guide.name}
             subtitle={guide.summary}
             showChevron={false}
@@ -304,6 +305,7 @@ function SourceStep({
               {index > 0 && <Divider inset={spacing.lg} />}
               <ListRow
                 icon={guide.icon}
+                image={guide.image}
                 title={guide.name}
                 subtitle={guide.summary}
                 onPress={() => onPick(key)}

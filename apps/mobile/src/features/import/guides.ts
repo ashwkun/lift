@@ -13,13 +13,16 @@
 
 import type { Ionicons } from '@expo/vector-icons';
 
+import type { ImageSourcePropType } from 'react-native';
+
 /** The apps the picker offers. Narrower than the parser's source detection. */
 export type ImportApp = 'strong' | 'hevy' | 'lyfta' | 'lift' | 'other';
 
 export interface ExportGuide {
   app: ImportApp;
   name: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
+  image?: ImageSourcePropType;
   /** One line under the name in the picker. */
   summary: string;
   steps: string[];
@@ -43,7 +46,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
   strong: {
     app: 'strong',
     name: 'Strong',
-    icon: 'barbell-outline',
+    image: require('../../../assets/images/brands/Strong_small.webp'),
     summary: 'CSV export, one row per set',
     steps: [
       'Open Strong and go to the Profile tab.',
@@ -60,7 +63,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
   hevy: {
     app: 'hevy',
     name: 'Hevy',
-    icon: 'barbell-outline',
+    image: require('../../../assets/images/brands/hevy_small.webp'),
     summary: 'CSV export, one row per set',
     steps: [
       'Open Hevy and go to the Profile tab.',
@@ -78,7 +81,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
   lyfta: {
     app: 'lyfta',
     name: 'Lyfta',
-    icon: 'fitness-outline',
+    image: require('../../../assets/images/brands/lyfta_small.webp'),
     summary: 'CSV export of your workout history',
     steps: [
       'Open Lyfta and go to Settings.',
