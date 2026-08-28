@@ -14,7 +14,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 
 /** The apps the picker offers. Narrower than the parser's source detection. */
-export type ImportApp = 'hevy' | 'lyfta' | 'lift' | 'other';
+export type ImportApp = 'strong' | 'hevy' | 'lyfta' | 'lift' | 'other';
 
 export interface ExportGuide {
   app: ImportApp;
@@ -40,6 +40,23 @@ const CSV_MIME_TYPES = [
 ];
 
 export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
+  strong: {
+    app: 'strong',
+    name: 'Strong',
+    icon: 'barbell-outline',
+    summary: 'CSV export, one row per set',
+    steps: [
+      'Open Strong and go to the Profile tab.',
+      'Tap the gear icon in the top right to open Settings.',
+      'Scroll down to the "App" section and tap "Export Data".',
+      'Strong generates a CSV file of your history. Save it to your phone (Files or Drive), then come back here.',
+    ],
+    warnings: [
+      'Do not open the CSV in Excel or Sheets first. Those apps silently rewrite dates when saving, which will make the file unreadable.',
+    ],
+    mimeTypes: CSV_MIME_TYPES,
+  },
+
   hevy: {
     app: 'hevy',
     name: 'Hevy',
@@ -105,10 +122,9 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
     ],
     warnings: [
       'English column headings only.',
-      'Strong exports work here, semicolons and all.',
     ],
     mimeTypes: [...CSV_MIME_TYPES, 'application/json'],
   },
 };
 
-export const IMPORT_APP_ORDER: ImportApp[] = ['hevy', 'lyfta', 'lift', 'other'];
+export const IMPORT_APP_ORDER: ImportApp[] = ['strong', 'hevy', 'lyfta', 'lift', 'other'];
