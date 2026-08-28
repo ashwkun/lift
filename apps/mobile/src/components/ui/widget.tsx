@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 
-import { Card } from './surfaces';
 import { Text } from './text';
 import { spacing, useColors } from '../../theme';
 import { PressableScale } from './motion';
@@ -37,7 +36,7 @@ export function SquareWidget({
       disabled={!onPress}
       fill={colors.surface}
       fillPressed={colors.surfacePressed}
-      hoverFill={colors.surfaceHover}
+      hoverFill={colors.surfaceMuted}
       style={[styles.square, style]}
       scaleTo={0.97}
       {...props}
@@ -98,7 +97,7 @@ export function WideWidget({
       disabled={!onPress}
       fill={colors.surface}
       fillPressed={colors.surfacePressed}
-      hoverFill={colors.surfaceHover}
+      hoverFill={colors.surfaceMuted}
       style={[styles.wide, style]}
       scaleTo={0.98}
       {...props}
@@ -140,6 +139,64 @@ export function WideWidget({
   );
 }
 
+export function StatWidget({
+  label,
+  sublabel,
+  value,
+  unit,
+  actionIcon,
+  onPressAction,
+  style,
+}: {
+  label: string;
+  sublabel?: string;
+  value: string;
+  unit?: string;
+  actionIcon?: keyof typeof Ionicons.glyphMap;
+  onPressAction?: () => void;
+  style?: ViewStyle;
+}) {
+  const colors = useColors();
+
+  return (
+    <View style={[styles.statWidget, { backgroundColor: colors.surface }, style]}>
+      <View style={styles.statLeft}>
+        <Text variant="label" numberOfLines={1}>
+          {label}
+        </Text>
+        {sublabel && (
+          <Text variant="caption" color="textTertiary" numberOfLines={1}>
+            {sublabel}
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.statRight}>
+        <Text variant="numericLarge">
+          {value}
+          {unit && (
+            <Text variant="numeric" color="textSecondary">
+              {' '}
+              {unit}
+            </Text>
+          )}
+        </Text>
+        {actionIcon && onPressAction && (
+          <PressableScale
+            onPress={onPressAction}
+            hitSlop={8}
+            style={[styles.actionButton, { marginLeft: spacing.sm }]}
+            fill={colors.surface}
+            fillPressed={colors.surfacePressed}
+          >
+            <Ionicons name={actionIcon} size={16} color={colors.textSecondary} />
+          </PressableScale>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   square: {
     flex: 1,
@@ -166,7 +223,7 @@ const styles = StyleSheet.create({
   squareBody: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   squareFooter: {
     alignItems: 'flex-start',
@@ -198,6 +255,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statWidget: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 20,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  statLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  statRight: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
 });

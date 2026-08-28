@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { daysSince, formatMeasurementValue, splitMeasure, type MeasurementUnitPreferences } from '@lift/shared';
+import { daysSince, formatMeasurementValue, type MeasurementUnitPreferences } from '@lift/shared';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Text } from '@/components/ui';
+import { Text, splitMeasure } from '@/components/ui';
 import { SquareWidget } from '@/components/ui/widget';
 import type { BodyMeasurement } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { getMeasurementHistory } from './repository';
+import { getMeasurementHistory, recordMeasurement } from './repository';
 import { describeRecency } from './insights';
 import { useColors } from '@/theme';
+import { MeasurementEntrySheet, type MeasurementEntryInput } from './entry-sheet';
+import { haptics } from '@/features/feedback/haptics';
 
 export function BodyweightSquareWidget() {
   const colors = useColors();
@@ -25,6 +27,7 @@ export function BodyweightSquareWidget() {
 
   const [rows, setRows] = useState<BodyMeasurement[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [logging, setLogging] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const reload = useCallback(async () => {
@@ -44,6 +47,18 @@ export function BodyweightSquareWidget() {
 
   const latest = rows[0];
 
+  const submit = (input: MeasurementEntryInput) => {
+    setLogging(false);
+    haptics.logged();
+    void (async () => {
+      await recordMeasurement({ kind: 'bodyweight', ...input });
+      await reload();
+      await import('@/features/notifications/weigh-in')
+        .then(({ refreshWeighInReminder }) => refreshWeighInReminder())
+        .catch(() => {});
+    })();
+  };
+
   if (!loaded) return null;
 
   let valueText = '--';
@@ -59,22 +74,31 @@ export function BodyweightSquareWidget() {
   }
 
   return (
-    <SquareWidget
-      title="Body weight"
-      subtitle={subText}
-      actionIcon="options-outline"
-      onPress={() => router.push('/stats/body-weight')}
-      onPressAction={() => router.push('/stats/body-weight')}
-    >
-      <Text variant="numericTitle" color="text">
-        {valueText}
-        {unitText ? (
-          <Text variant="body" color="textSecondary">
-            {' '}
-            {unitText}
-          </Text>
-        ) : null}
-      </Text>
-    </SquareWidget>
+    <>
+      <SquareWidget
+        title="Body weight"
+        subtitle={subText}
+        actionIcon="add-outline"
+        onPress={() => setLogging(true)}
+        onPressAction={() => setLogging(true)}
+      >
+        <Text variant="numericLarge" color="text">
+          {valueText}
+          {unitText ? (
+            <Text variant="body" color="textSecondary">
+              {' '}
+              {unitText}
+            </Text>
+          ) : null}
+        </Text>
+      </SquareWidget>
+      <MeasurementEntrySheet
+        visible={logging}
+        kind={logging ? 'bodyweight' : null}
+        previous={latest}
+        onCancel={() => setLogging(false)}
+        onSubmit={submit}
+      />
+    </>
   );
 }

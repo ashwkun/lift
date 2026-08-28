@@ -550,7 +550,7 @@ export default function HomeScreen() {
            <StatWidget 
               label="Volume lifted"
               sublabel="Last 7 days"
-              value={formatVolume(stats?.totals?.volumeKg ?? 0, weightUnit).split(' ')[0] ?? '0'}
+              value={formatVolume(weekly[weekly.length - 1]?.volumeKgToDate ?? 0, weightUnit).split(' ')[0] ?? '0'}
               unit={weightUnit}
               actionIcon="options-outline"
               onPressAction={() => setMetric('volume')}
