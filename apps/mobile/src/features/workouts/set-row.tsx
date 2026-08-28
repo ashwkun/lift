@@ -342,6 +342,7 @@ function renderEffortDialog({
   colors,
   draft,
   clearable,
+  defaultRpe,
   onStep,
   onChangeText,
   onSettleText,

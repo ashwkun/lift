@@ -165,6 +165,8 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
     [footer, insets.bottom, colors.surfaceElevated],
   );
 
+  const snapPoints = useMemo(() => ['CONTENT_HEIGHT'], []);
+
   if (isDialog) {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -214,8 +216,6 @@ export function Sheet({ visible, label, onClose, closeLabel, action, children, f
       </Modal>
     );
   }
-
-  const snapPoints = useMemo(() => ['CONTENT_HEIGHT'], []);
 
   return (
     <BottomSheetModal
