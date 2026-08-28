@@ -8,6 +8,20 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.16.0](https://github.com/pawan67/lift/compare/v0.15.1...v0.16.0) - 2026-08-28
+
+### Features
+
+- improve workout UI, add summary body map, and fix sheet bugs ([e82c1f1](https://github.com/pawan67/lift/commit/e82c1f1e2c69269247f0cfe781777aaf6f822f1d))
+
+### Fixes
+
+- resolve typecheck and lint hook rules errors ([5b7c55f](https://github.com/pawan67/lift/commit/5b7c55fd3ea073e2666b1e93bff65e9336eb17b4))
+
+### Internal
+
+- chore: bump version to 0.16.0 ([a3a11b3](https://github.com/pawan67/lift/commit/a3a11b39ecfe402430ec04cc74b1dd5f005b8763))
+
 ## [0.15.1](https://github.com/pawan67/lift/compare/v0.15.0...v0.15.1) - 2026-08-27
 
 ### Fixes
