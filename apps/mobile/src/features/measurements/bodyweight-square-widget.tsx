@@ -59,7 +59,6 @@ export function BodyweightSquareWidget() {
     })();
   };
 
-  const latest = rows[0];
 
   let valueText = '--';
   let unitText = '';
