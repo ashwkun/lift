@@ -29,7 +29,9 @@ import {
   type MuscleDistributionEntry,
   type WeeklyPoint,
 } from '@/features/analytics/repository';
-import { BodyweightCard } from '@/features/measurements/bodyweight-card';
+import { BodyweightSquareWidget } from '@/features/measurements/bodyweight-square-widget';
+import { CalendarWidget } from '@/components/widgets/calendar-widget';
+import { SquareWidget, WideWidget, StatWidget } from '@/components/ui/widget';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
@@ -517,85 +519,44 @@ export default function HomeScreen() {
          * why it is not fetched alongside the three aggregates above.
          */}
         <Reveal index={1}>
-          <BodyweightCard width={chartWidth} />
+          <View style={{ flexDirection: 'row', gap: spacing.lg, marginHorizontal: spacing.lg }}>
+            <SquareWidget 
+              title={recent[0]?.name ?? "No recent workout"}
+              subtitle={recent[0] ? formatDateTime(recent[0].startedAt, DATE_SHORT) : 'Log a workout'}
+              actionIcon="options-outline"
+              onPressAction={() => router.push('/history')}
+              onPress={() => recent[0] ? router.push({ pathname: '/workout/[id]', params: { id: recent[0].id } }) : undefined}
+            >
+               <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.textSecondary, borderTopColor: colors.text, justifyContent: 'center', alignItems: 'center' }}>
+                 <Text variant="numericLarge" color="text">{recent.length}</Text>
+               </View>
+            </SquareWidget>
+            
+            <BodyweightSquareWidget />
+          </View>
         </Reveal>
 
-        {/*
-         * The two blocks below the rule, side by side once there is room.
-         *
-         * This pairing used to be the two charts, which were the only two things
-         * on the screen wide enough to be worth splitting. The volume run has
-         * since moved into the masthead, so the pair is now the remaining chart
-         * and the recent list: a reasonable one, because they answer the two
-         * questions left after "how is this week going": where the work went,
-         * and what the work was.
-         *
-         * Only at `expanded`. At `medium` the board is capped at 1040 but the
-         * window may be as narrow as 840, and half of that minus the rail is not
-         * enough for a bar chart with a label column and a trailing figure: the
-         * bars collapse to slivers. One threshold, checked here, rather than a
-         * chart that quietly degrades.
-         *
-         * The chart is not boxed and the list is. It used to sit in a Card,
-         * which pushed it to x=32 while the masthead and the section headers all
-         * sat at x=16: the one place on the screen where the grid broke, and it
-         * broke around the element least able to spare the width. Unboxed, the
-         * screen states a rule you can say out loud: boxed means you can touch
-         * it. The recent-workouts list keeps its Card because its rows are taps.
-         */}
-        <View style={isExpanded ? styles.chartRow : undefined}>
-          <Reveal index={2} style={isExpanded ? styles.chartColumn : undefined}>
-            <SectionHeader
-              title="Sets by body part · 30 days"
-              action={
-                <Button
-                  title="All"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => router.push('/stats/body-distribution')}
-                />
-              }
+        <Reveal index={2}>
+          <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg }}>
+            <CalendarWidget 
+              title="Recent Activity"
+              subtitle="Past 3 months"
+              onPress={() => router.push('/history')}
             />
-            <View style={styles.chart}>
-              <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
-            </View>
-          </Reveal>
+          </View>
+        </Reveal>
 
-          {recent.length > 0 ? (
-            <Reveal index={3} style={isExpanded ? styles.chartColumn : undefined}>
-              <SectionHeader
-                title="Recent workouts"
-                action={
-                  <Button
-                    title="History"
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => router.push('/history')}
-                  />
-                }
-              />
-              <Card padded={false} style={styles.recentCard}>
-                {recent.map((workout, index) => (
-                  <View key={workout.id}>
-                    {index > 0 && <Divider inset={spacing.lg} />}
-                    <ListRow
-                      title={workout.name}
-                      subtitle={`${formatDateTime(
-                        workout.startedAt,
-                        DATE_SHORT,
-                      )} · ${formatDurationShort(
-                        workout.durationSeconds ?? 0,
-                      )} · ${formatVolume(workout.totalVolumeKg, weightUnit)}`}
-                      onPress={() =>
-                        router.push({ pathname: '/workout/[id]', params: { id: workout.id } })
-                      }
-                    />
-                  </View>
-                ))}
-              </Card>
-            </Reveal>
-          ) : null}
-        </View>
+        <Reveal index={3}>
+           <StatWidget 
+              label="Volume lifted"
+              sublabel="Last 7 days"
+              value={formatVolume(stats?.totals?.volumeKg ?? 0, weightUnit).split(' ')[0] ?? '0'}
+              unit={weightUnit}
+              actionIcon="options-outline"
+              onPressAction={() => setMetric('volume')}
+              style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg }}
+           />
+        </Reveal>
       </ScrollView>
     </Screen>
   );
