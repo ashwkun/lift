@@ -8,6 +8,17 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.17.3](https://github.com/pawan67/lift/compare/v0.17.2...v0.17.3) - 2026-08-29
+
+### Features
+
+- add import to the empty workout tab ([f35cbf8](https://github.com/pawan67/lift/commit/f35cbf842edcd39ee595d57180d24bbd24acfcd7))
+- offer routines from named CSV sessions after import ([8e48a53](https://github.com/pawan67/lift/commit/8e48a539e320c3db8547e77596d4aa0de449ff8b))
+
+### Fixes
+
+- ship the modules the home and history screens import ([6857094](https://github.com/pawan67/lift/commit/6857094c6caf562301ca889b78659703675cc1e4))
+
 ## [0.17.2](https://github.com/pawan67/lift/compare/v0.17.1...v0.17.2) - 2026-08-29
 
 ### Features
