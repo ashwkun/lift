@@ -8,6 +8,17 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.17.2](https://github.com/pawan67/lift/compare/v0.17.1...v0.17.2) - 2026-08-29
+
+### Features
+
+- colour the lists, tiles and charts by what they are ([eaf0fc7](https://github.com/pawan67/lift/commit/eaf0fc71d07e33cf0af6e4bca8665a856c2fd74f))
+- give every palette six colours for categories ([4885576](https://github.com/pawan67/lift/commit/48855762da0f06e7b9c586669e004a46850fa7a9))
+
+### Fixes
+
+- stop the tab bar clipping the resume icon ([bcb2a8f](https://github.com/pawan67/lift/commit/bcb2a8fb1f6ef0c20d9297c9d98b6405cacb95fb))
+
 ## [0.17.1](https://github.com/pawan67/lift/compare/v0.17.0...v0.17.1) - 2026-08-29
 
 ### Fixes
