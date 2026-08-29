@@ -8,7 +8,7 @@
  * history is split across two rows that no screen will ever add back together.
  */
 
-import type { Equipment, TrackingType } from '../types.ts';
+import type { Equipment, MuscleGroup, TrackingType } from '../types.ts';
 import type { ImportedSet } from './parse.ts';
 
 /**
@@ -47,6 +47,187 @@ function singular(token: string): string {
   if (token.length <= 2) return token;
   if (token.endsWith('ss') || token.endsWith('us') || token.endsWith('is')) return token;
   return token.endsWith('s') ? token.slice(0, -1) : token;
+}
+
+// ---------------------------------------------------------------------------
+// Guessing the muscle
+// ---------------------------------------------------------------------------
+
+/** The muscles a name admits to, in the shape a custom exercise row wants. */
+export interface InferredMuscles {
+  primary: MuscleGroup;
+  secondary: MuscleGroup[];
+}
+
+/**
+ * Movement words that name their own muscle, longest phrase first.
+ *
+ * Every row here was read off the catalog rather than reasoned about: the
+ * assignment is the one the catalog's own entry for that movement uses, and a
+ * phrase only earns a row when the catalog's rows containing it agree. "Calf
+ * raise" is 99% calves across 82 rows, so it is here. "Fly" splits 42% chest
+ * against 32% shoulders, so it is not, and names built on it keep `other`.
+ *
+ * Longest first is doing real work in three places. "Leg curl" is hamstrings
+ * and would otherwise be caught by the bare "curl" as biceps; "upright row" is
+ * shoulders, not the upper back every other row is; "split squat" is quads
+ * where a plain squat is glutes. A shorter phrase placed above a longer one it
+ * is a substring of silently steals every name the longer one exists for, so
+ * the order of this list is the whole of its correctness.
+ */
+const MUSCLE_WORDS: [string, MuscleGroup, MuscleGroup[]][] = [
+  // Arms. Every one of these has to outrank the bare "curl" at the bottom.
+  ['overhead triceps extension', 'triceps', []],
+  ['triceps extension', 'triceps', []],
+  ['tricep extension', 'triceps', []],
+  ['close grip bench', 'triceps', ['shoulders', 'chest']],
+  ['skull crusher', 'triceps', []],
+  ['skullcrusher', 'triceps', []],
+  ['triceps dip', 'triceps', ['chest', 'shoulders']],
+  ['tricep dip', 'triceps', ['chest', 'shoulders']],
+  ['pushdown', 'triceps', []],
+  ['push down', 'triceps', []],
+  ['pressdown', 'triceps', []],
+  ['kickback', 'triceps', []],
+  ['triceps', 'triceps', []],
+  ['tricep', 'triceps', []],
+  ['wrist curl', 'forearms', []],
+  ['reverse curl', 'forearms', ['biceps']],
+  ['wrist extension', 'forearms', []],
+  ['farmer', 'forearms', ['traps']],
+  ['hammer curl', 'biceps', ['forearms']],
+  ['preacher curl', 'biceps', ['forearms']],
+  ['bicep', 'biceps', []],
+
+  // Legs and hips. "Split squat" and "hack squat" both outrank "squat".
+  ['leg curl', 'hamstrings', ['glutes']],
+  ['hamstring curl', 'hamstrings', ['glutes']],
+  ['leg extension', 'quads', []],
+  ['calf raise', 'calves', []],
+  ['calf press', 'calves', []],
+  ['romanian deadlift', 'glutes', ['hamstrings', 'lower_back']],
+  ['stiff leg deadlift', 'glutes', ['hamstrings', 'lower_back']],
+  ['deadlift', 'glutes', ['hamstrings', 'quads', 'lower_back']],
+  ['good morning', 'glutes', ['hamstrings', 'lower_back']],
+  ['hip thrust', 'glutes', ['hamstrings']],
+  ['glute bridge', 'glutes', ['hamstrings', 'quads']],
+  ['hip abduction', 'abductors', ['glutes']],
+  ['hip adduction', 'adductors', []],
+  ['split squat', 'quads', ['glutes', 'hamstrings']],
+  ['hack squat', 'quads', ['hamstrings', 'glutes']],
+  ['squat', 'glutes', ['quads', 'calves']],
+  ['lunge', 'quads', ['hamstrings', 'glutes']],
+  ['leg press', 'glutes', ['quads', 'calves']],
+  ['step up', 'quads', ['glutes', 'hamstrings']],
+  ['back extension', 'lower_back', ['glutes', 'hamstrings']],
+  ['hyperextension', 'lower_back', ['glutes', 'hamstrings']],
+
+  // Back. "Rowing machine" is cardio and has to outrank the bare "row".
+  ['rowing machine', 'cardio', []],
+  ['upright row', 'shoulders', ['traps']],
+  ['pulldown', 'lats', ['biceps', 'upper_back']],
+  ['pull down', 'lats', ['biceps', 'upper_back']],
+  ['pullover', 'lats', ['chest', 'triceps']],
+  ['pull up', 'lats', ['biceps', 'upper_back', 'forearms']],
+  ['pullup', 'lats', ['biceps', 'upper_back', 'forearms']],
+  ['chin up', 'lats', ['biceps', 'upper_back', 'forearms']],
+  ['chinup', 'lats', ['biceps', 'upper_back', 'forearms']],
+  ['shrug', 'traps', []],
+
+  // Chest and shoulders.
+  ['bench press', 'chest', ['shoulders', 'triceps']],
+  ['chest press', 'chest', ['shoulders', 'triceps']],
+  ['pec deck', 'chest', ['shoulders']],
+  ['push up', 'chest', ['triceps', 'shoulders']],
+  ['pushup', 'chest', ['triceps', 'shoulders']],
+  ['press up', 'chest', ['triceps', 'shoulders']],
+  ['chest dip', 'chest', ['shoulders', 'triceps']],
+  ['lateral raise', 'shoulders', []],
+  ['side raise', 'shoulders', []],
+  ['front raise', 'shoulders', []],
+  ['rear delt', 'shoulders', ['upper_back']],
+  ['face pull', 'shoulders', ['upper_back']],
+  ['overhead press', 'shoulders', ['triceps']],
+  ['shoulder press', 'shoulders', ['triceps']],
+  ['military press', 'shoulders', ['triceps']],
+  ['arnold press', 'shoulders', ['triceps']],
+  ['push press', 'shoulders', ['triceps']],
+
+  // Core.
+  ['russian twist', 'obliques', ['abs']],
+  ['side bend', 'obliques', []],
+  ['woodchop', 'obliques', ['abs']],
+  ['wood chop', 'obliques', ['abs']],
+  ['oblique', 'obliques', ['abs']],
+  ['leg raise', 'abs', []],
+  ['knee raise', 'abs', []],
+  ['ab wheel', 'abs', []],
+  ['rollout', 'abs', []],
+  ['crunch', 'abs', []],
+  ['sit up', 'abs', []],
+  ['situp', 'abs', []],
+  ['plank', 'abs', []],
+  ['hollow hold', 'abs', []],
+
+  // Cardio.
+  ['treadmill', 'cardio', []],
+  ['elliptical', 'cardio', []],
+  ['stair climber', 'cardio', []],
+  ['stairmaster', 'cardio', []],
+  ['jump rope', 'cardio', []],
+  ['skipping', 'cardio', []],
+  ['running', 'cardio', []],
+  ['jogging', 'cardio', []],
+  ['sprint', 'cardio', []],
+  ['cycling', 'cardio', []],
+  ['swimming', 'cardio', []],
+  ['walking', 'cardio', []],
+  ['cardio', 'cardio', []],
+
+  // Bare movement words, last so every phrase above wins first.
+  ['curl', 'biceps', []],
+  ['row', 'upper_back', ['lats', 'biceps']],
+  ['dip', 'triceps', ['chest', 'shoulders']],
+];
+
+/**
+ * The table above compiled once, whole-word and plural-tolerant.
+ *
+ * Whole-word because `inferEquipment`-style substring matching files "Medicine
+ * Ball Throw" under the upper back: "throw" contains "row". The optional `es?`
+ * rides on the end of the phrase rather than each word because that is where
+ * exporters put it, so "Calf Raises", "Push Ups" and "Crunches" all reach the
+ * singular rows the catalog was read for.
+ */
+const MUSCLE_PATTERNS: [RegExp, MuscleGroup, MuscleGroup[]][] = MUSCLE_WORDS.map(
+  ([word, primary, secondary]) => [new RegExp(`\\b${word}(e?s)?\\b`), primary, secondary],
+);
+
+/**
+ * The muscles an exercise title admits to, or `other`.
+ *
+ * This runs only for a name that missed the whole catalog, which is the point
+ * at which the alternative is not "a better guess" but no muscle at all. An
+ * exercise on `other` is absent from the body map, contributes to no muscle
+ * rollup and is invisible to the muscle filter, so a file full of them reads
+ * as an import that half worked.
+ *
+ * It stays a keyword table rather than anything cleverer for the reason the
+ * matcher above is not fuzzy: a phrase either names its muscle outright or it
+ * gets `other`, and `other` is still the answer for most of what lands here.
+ * "Ring Row" is a row and resolves; "Jefferson Curl" is not a curl and is
+ * exactly the kind of name this gets wrong, which is the trade accepted by
+ * putting the bare words last and keeping the list to movements rather than
+ * equipment or body parts.
+ */
+export function inferMuscles(name: string): InferredMuscles {
+  const text = name.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+
+  for (const [pattern, primary, secondary] of MUSCLE_PATTERNS) {
+    if (pattern.test(text)) return { primary, secondary: [...secondary] };
+  }
+
+  return { primary: 'other', secondary: [] };
 }
 
 // ---------------------------------------------------------------------------

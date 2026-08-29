@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { parseCsv } from './csv.ts';
 import { collapseHeader, detectSource, resolveColumns } from './columns.ts';
-import { exerciseMatchKey, inferEquipment, inferTrackingType } from './exercises.ts';
+import { exerciseMatchKey, inferEquipment, inferMuscles, inferTrackingType } from './exercises.ts';
 import {
   collectExerciseNames,
   countSets,
@@ -1016,6 +1016,54 @@ describe('inferEquipment', () => {
 
   it('prefers the longer match', () => {
     assert.equal(inferEquipment('Smith Machine Row'), 'smith_machine');
+  });
+});
+
+describe('inferMuscles', () => {
+  const primary = (name: string) => inferMuscles(name).primary;
+
+  it('reads the movement, not the equipment', () => {
+    assert.equal(primary('Bench Press (Barbell)'), 'chest');
+    assert.equal(primary('Lat Pulldown (Cable)'), 'lats');
+    assert.equal(primary('Lateral Raise (Dumbbell)'), 'shoulders');
+    assert.equal(primary('Hip Thrust (Machine)'), 'glutes');
+  });
+
+  it('carries the secondaries the catalog gives the same movement', () => {
+    assert.deepEqual(inferMuscles('Bench Press').secondary, ['shoulders', 'triceps']);
+    assert.deepEqual(inferMuscles('Calf Raise').secondary, []);
+  });
+
+  // The whole reason MUSCLE_WORDS is ordered longest phrase first.
+  it('lets the longer phrase win', () => {
+    assert.equal(primary('Leg Curl'), 'hamstrings');
+    assert.equal(primary('Barbell Curl'), 'biceps');
+    assert.equal(primary('Wrist Curl'), 'forearms');
+    assert.equal(primary('Upright Row'), 'shoulders');
+    assert.equal(primary('Bent Over Row'), 'upper_back');
+    assert.equal(primary('Rowing Machine'), 'cardio');
+    assert.equal(primary('Bulgarian Split Squat'), 'quads');
+    assert.equal(primary('Back Squat'), 'glutes');
+    assert.equal(primary('Close-Grip Bench Press'), 'triceps');
+  });
+
+  it('takes the plural spelling an exporter writes', () => {
+    assert.equal(primary('Push Ups'), 'chest');
+    assert.equal(primary('Squats'), 'glutes');
+    assert.equal(primary('Crunches'), 'abs');
+    assert.equal(primary('Lunges'), 'quads');
+    assert.equal(primary('Calf Raises'), 'calves');
+  });
+
+  // Substring matching would file this under the upper back: "throw" ends "row".
+  it('matches whole words only', () => {
+    assert.equal(primary('Medicine Ball Throw'), 'other');
+  });
+
+  it('keeps other for a name that does not say', () => {
+    assert.equal(primary('Jefferson'), 'other');
+    assert.equal(primary('Cable Fly'), 'other');
+    assert.equal(primary('Turkish Get Up'), 'other');
   });
 });
 

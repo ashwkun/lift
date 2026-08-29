@@ -15,6 +15,7 @@ import {
   collectExerciseNames,
   exerciseMatchKey,
   inferEquipment,
+  inferMuscles,
   inferTrackingType,
   type ImportedSet,
   type ImportedWorkout,
@@ -114,17 +115,22 @@ type NewCustomExercise = ReturnType<typeof buildCustomExercise>;
 
 function buildCustomExercise(name: string, sets: ImportedSet[]) {
   const now = Date.now();
+  const muscles = inferMuscles(name);
 
   return {
     id: uuidv7(),
     name: name.trim(),
     equipment: inferEquipment(name) as Equipment,
-    // Nothing in an export says which muscle a lift trains, and guessing from
-    // the name would put "Ring Row" under whatever the guess happened to be.
-    // `other` is visibly unset, which is the state that gets corrected; a
-    // plausible wrong muscle is the state that silently skews the body map.
-    primaryMuscle: 'other' as MuscleGroup,
-    secondaryMuscles: [] as MuscleGroup[],
+    // Nothing in an export says which muscle a lift trains, so this reads it
+    // off the name, and only where the catalog's own rows for that movement
+    // agree on the answer. Everything else keeps `other`: visibly unset is the
+    // state that gets corrected, where a plausible wrong muscle is the state
+    // that silently skews the body map. The reason it guesses at all is that
+    // `other` is not neutral either. It is absent from the body map and from
+    // every muscle rollup, so a file that lands mostly here reads as an import
+    // that half worked.
+    primaryMuscle: muscles.primary as MuscleGroup,
+    secondaryMuscles: muscles.secondary as MuscleGroup[],
     trackingType: inferTrackingType(name, sets) as TrackingType,
     isCustom: true as const,
     notes: null,
