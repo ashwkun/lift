@@ -8,6 +8,17 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.18.0](https://github.com/pawan67/lift/compare/v0.17.3...v0.18.0) - 2026-08-29
+
+### Features
+
+- make the exercise search fast, ordered and stable ([48dbdda](https://github.com/pawan67/lift/commit/48dbdda62d79f7eac3bfa6230239e07157c7e3eb))
+
+### Fixes
+
+- restore the 6,108 catalog rows e82c1f1 dropped ([9f6abd5](https://github.com/pawan67/lift/commit/9f6abd5f47138b197f74b8c6a79252e7262dfc3c))
+- let the import tests agree with the duration estimate ([cb25ba8](https://github.com/pawan67/lift/commit/cb25ba8fda45bbe71ff69c3519e0881d071150a4))
+
 ## [0.17.3](https://github.com/pawan67/lift/compare/v0.17.2...v0.17.3) - 2026-08-29
 
 ### Features
