@@ -136,6 +136,23 @@ export default function ProfileScreen() {
          * of this list. It is also the one of the three that answers "what did
          * I actually do", which is the question asked most often.
          */}
+        {/*
+         * Every row on this screen carries a hue, and the hue restarts at the
+         * top of each section.
+         *
+         * A section header is a hard visual break, so two rows in different
+         * cards sharing a colour are never read as a pair; running one sequence
+         * down all eleven rows would instead have exhausted the ramp twice and
+         * made the two halves of it look like a repeat with no meaning. Within
+         * a card the colours differ, which is the only place it matters.
+         *
+         * Two rows keep a *role* colour instead, and both are cases where the
+         * colour already means something everywhere else in the app: History is
+         * the accent because it is where the figure on Home comes from, and
+         * Personal records is `record` because a PR is gold on every screen
+         * that has one. Overwriting either with a category would be the ramp
+         * taking a colour that was already saying something.
+         */}
         <SectionHeader title="Insights" />
         <Card padded={false} style={styles.section}>
           <ListRow
@@ -148,6 +165,7 @@ export default function ProfileScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="calendar-outline"
+            tone="category1"
             title="Calendar"
             subtitle="Which days you trained, month by month"
             onPress={() => router.push('/calendar')}
@@ -155,6 +173,7 @@ export default function ProfileScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="stats-chart-outline"
+            tone="category2"
             title="Statistics"
             subtitle="Muscle distribution, main lifts, monthly reports"
             onPress={() => router.push('/stats')}
@@ -178,6 +197,7 @@ export default function ProfileScreen() {
         <Card padded={false} style={styles.section}>
           <ListRow
             icon="barbell-outline"
+            tone="category1"
             title="Exercises"
             onPress={() => router.push('/exercises')}
           />
@@ -187,6 +207,7 @@ export default function ProfileScreen() {
         <Card padded={false} style={styles.section}>
           <ListRow
             icon="body-outline"
+            tone="category1"
             title="Body measurements"
             onPress={() => router.push('/measurements')}
           />
@@ -200,6 +221,7 @@ export default function ProfileScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="calculator-outline"
+            tone="category3"
             title="Plate calculator"
             onPress={() => router.push('/plate-calculator')}
           />
@@ -209,12 +231,14 @@ export default function ProfileScreen() {
         <Card padded={false} style={styles.section}>
           <ListRow
             icon="settings-outline"
+            tone="category1"
             title="Settings"
             onPress={() => router.push('/settings')}
           />
           <Divider inset={spacing.lg} />
           <ListRow
             icon="cloud-upload-outline"
+            tone="category2"
             title="Backup & export"
             onPress={() => router.push('/export')}
           />
@@ -227,6 +251,7 @@ export default function ProfileScreen() {
            */}
           <ListRow
             icon="chatbubble-ellipses-outline"
+            tone="category3"
             title="Coach review"
             subtitle="Have an AI criticise your training"
             onPress={() => router.push('/coach')}
@@ -240,6 +265,7 @@ export default function ProfileScreen() {
            */}
           <ListRow
             icon="download-outline"
+            tone="category4"
             title="Import from another app"
             subtitle="Hevy, Lyfta, Strong or a Lift backup"
             onPress={() => router.push('/import')}

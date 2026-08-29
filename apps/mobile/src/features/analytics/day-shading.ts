@@ -1,20 +1,17 @@
 /**
- * How a trained day is shaded, in the two palettes the app draws day grids in.
+ * How a trained day is shaded, wherever the app draws a grid of days.
  *
- * One scale, `intensityStep`, decides what counts as a heavy day. Two ramps
- * paint it, and which one a surface uses is a decision about that surface's
- * accent budget rather than about the data:
+ * One scale, `intensityStep`, decides what counts as a heavy day, and one ramp,
+ * `dayFill`, paints it: the muted surface towards the accent. All three grids
+ * read both, so the same day is the same intensity and the same colour on
+ * Calendar, on History and on Home's tile.
  *
- * - `dayFill` runs the muted surface towards the accent. For grids that are the
- *   *subject* of their screen: `MonthGrid` on Calendar, `ContributionGraph` on
- *   History.
- * - `dayShade` runs `borderStrong` towards `textSecondary`. For grids that are
- *   one block among several, where the accent is already spent on something
- *   else. Home's `CalendarWidget` is the only one today.
- *
- * They live together because they are two readings of one scale, and a scale
- * whose halves sit in different files drifts: a step added to one ramp and not
- * the other would make the same day a different intensity on two screens.
+ * There was a second ramp here, `dayShade`, running `borderStrong` towards
+ * `textSecondary`, for a grid that was one block among several and could not
+ * afford the accent. Home's `CalendarWidget` was its only caller and now draws
+ * `dayFill` like the other two; the note on that component records the argument
+ * it used to make and what answered it. The neutral ramp went with it rather
+ * than sitting here unused, which is the state a second ramp has to earn.
  *
  * This was a component file's private section until it had three consumers. A
  * pure function that takes a number and a palette and returns a colour is not
@@ -49,21 +46,6 @@ import { mix, type Palette } from '@/theme';
 const RAMP = [0.38, 0.58, 0.77, 0.96];
 
 /**
- * The neutral ramp, at the same four steps.
- *
- * It starts higher and ends lower than `RAMP` because it has less room to work
- * in: `borderStrong` to `textSecondary` is a narrower span than a muted surface
- * to the accent, so the stops are spread to keep four distinguishable shades
- * inside it rather than clustered at one end.
- *
- * Both ends are defined in every palette and move together, so on the light
- * ones the ramp runs light to dark. That is the same "heavier is stronger" in
- * reverse, and it is the convention the volume run and the body-part bars on
- * Home already read in.
- */
-const SHADE = [0.25, 0.45, 0.68, 0.9];
-
-/**
  * Which step of the ramp a day's volume lands on, against the typical day.
  *
  * Absolute, not relative to the month on screen: see `typicalVolumeKg` in
@@ -81,14 +63,9 @@ export function intensityStep(volumeKg: number, typicalVolumeKg: number): number
   return 3;
 }
 
-/** The accent ramp, for a grid that is the subject of its screen. */
+/** The ramp every day grid in the app draws. */
 export function dayFill(step: number, colors: Palette): string {
   return mix(colors.surfaceMuted, colors.accent, RAMP[step] ?? RAMP[0]);
-}
-
-/** The neutral ramp, for a grid sharing a screen with a louder element. */
-export function dayShade(step: number, colors: Palette): string {
-  return mix(colors.borderStrong, colors.textSecondary, SHADE[step] ?? SHADE[0]);
 }
 
 /** The accent ramp's four stops, for the legend under a grid. */

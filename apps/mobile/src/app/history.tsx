@@ -1,5 +1,4 @@
 import {
-  dayKey,
   formatDurationShort,
   formatVolume,
   landmarksFor,
@@ -20,6 +19,7 @@ import {
   Badge,
   Button,
   Card,
+  CollapsibleSection,
   EmptyState,
   Reveal,
   Screen,
@@ -33,8 +33,6 @@ import {
 import { db } from '@/db/client';
 import { workouts } from '@/db/schema';
 import { useRows } from '@/db/use-rows';
-import { getWorkoutCalendar, type WorkoutCalendar } from '@/features/analytics/calendar';
-import { ContributionGraph } from '@/features/analytics/contribution-graph';
 import {
   getHistoryAnalytics,
   HISTORY_RANGES,
@@ -62,6 +60,17 @@ interface MonthSection {
   /** Sort key, so December 2025 doesn't land next to December 2026. */
   key: string;
   data: HistoryMatch[];
+  /**
+   * The month's own totals, for the line beside its heading.
+   *
+   * Summed here rather than queried. Every session in the month is already in
+   * `data` with its denormalised columns on it, so this is an add per row over
+   * a list that has just been built, and it stays correct under a filter: a
+   * search for "bench" reports the bench sessions in August, which is what the
+   * list under the heading is actually showing.
+   */
+  sessions: number;
+  volumeKg: number;
 }
 
 /**
@@ -78,11 +87,11 @@ interface HistoryMatches {
 
 export default function HistoryScreen() {
   const scrollEdge = useScrollEdge();
+  const colors = useColors();
 
   // The column this screen is drawn in, not the window: see `useContentWidth`.
   const width = useContentWidth();
   const weightUnit = useSettings((state) => state.weightUnit);
-  const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
   const [range, setRange] = useState<HistoryRange>('3m');
   const [metric, setMetric] = useState<TrendMetric>('volume');
@@ -90,7 +99,6 @@ export default function HistoryScreen() {
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | null>(null);
   const [limitVal, setLimitVal] = useState(25);
-  const [calendar, setCalendar] = useState<WorkoutCalendar | null>(null);
   const [search, setSearch] = useState('');
   // Separate from `selectedMuscle` above, which highlights one muscle on the
   // body map and in the breakdown beside it. That is a way of reading the
@@ -173,24 +181,6 @@ export default function HistoryScreen() {
     }, [range]),
   );
 
-  // Unlike `analytics` this doesn't depend on `range`: the graph always covers
-  // a year, so refetching it on every range change would be wasted work for a
-  // block that never changes shape.
-  useDeferredFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
-      void (async () => {
-        const next = await getWorkoutCalendar();
-        if (!cancelled) setCalendar(next);
-      })();
-
-      return () => {
-        cancelled = true;
-      };
-    }, []),
-  );
-
   // The query is asynchronous, so `analytics` still describes the range the user
   // just moved off for as long as it takes to run. Every figure on this screen
   // is unlabelled by range. The segmented control is the only thing that says
@@ -225,10 +215,14 @@ export default function HistoryScreen() {
           key,
           title: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
           data: [],
+          sessions: 0,
+          volumeKg: 0,
         };
         byMonth.set(key, section);
       }
       section.data.push(workout);
+      section.sessions += 1;
+      section.volumeKg += workout.totalVolumeKg;
     }
 
     // The source query is already newest-first, so descending key order keeps
@@ -286,6 +280,26 @@ export default function HistoryScreen() {
 
   const active = ranged?.buckets.find((bucket) => bucket.start === selectedBucket) ?? null;
 
+  /*
+   * What each fold says while it is folded.
+   *
+   * A collapsed section that reads only its own title has hidden the block and
+   * kept the row, which is the worst of both. These carry the one figure the
+   * block is usually consulted for, so most visits never need to open it: how
+   * many of the range's buckets were trained, and how many muscles the range
+   * touched. Null while the analytics are still landing, so neither prints a
+   * zero it is about to correct.
+   */
+  const trendSummary = ranged
+    ? `${ranged.buckets.filter((bucket) => bucket.workouts > 0).length} of ${ranged.buckets.length} ${PERIOD_NOUNS[ranged.granularity]}`
+    : undefined;
+
+  const muscleSummary = ranged
+    ? ranged.muscles.length > 0
+      ? `${ranged.muscles.length} ${ranged.muscles.length === 1 ? 'muscle' : 'muscles'}`
+      : 'None yet'
+    : undefined;
+
   return (
     <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen options={{ title: 'History' }} />
@@ -299,16 +313,28 @@ export default function HistoryScreen() {
           here though: this screen is opened to read a dashboard far more often
           than it is opened to find one session, and a keyboard covering half of
           it on arrival would be answering a question nobody asked. */}
+      {/*
+        The filter beside the field rather than under it.
+        
+        It sat on a row of its own, which is right on `exercises.tsx` and on the
+        picker because those screens put two triggers there and the row fills.
+        History has one, so a single pill floated at the left edge with two
+        thirds of a row empty beside it, and that row cost the same height as a
+        populated one on the screen with the least room to spare. Inline, the
+        field takes the slack and the pill sits where a trailing control sits
+        everywhere else in the app.
+      */}
       <View style={styles.search}>
-        <SearchBar
-          value={search}
-          onChangeText={setSearch}
-          onClear={() => setSearch('')}
-          placeholder="Search sessions and exercises"
-          accessibilityLabel="Search workout history"
-        />
-
-        <View style={styles.filters}>
+        <View style={styles.searchRow}>
+          <View style={styles.searchField}>
+            <SearchBar
+              value={search}
+              onChangeText={setSearch}
+              onClear={() => setSearch('')}
+              placeholder="Search sessions and exercises"
+              accessibilityLabel="Search workout history"
+            />
+          </View>
           <MuscleFilter values={muscles} onChange={setMuscles} />
         </View>
       </View>
@@ -360,100 +386,98 @@ export default function HistoryScreen() {
                   label="Time range"
                 />
 
+                {/*
+                  `RangeTotals` stays out of the folds, and it is the reason the
+                  two below can both start closed. It is one row of figures
+                  answering what the range control was just asked, so a folded
+                  dashboard is still a dashboard rather than a stack of titles.
+                */}
                 <RangeTotals analytics={ranged} weightUnit={weightUnit} />
 
-                <Card style={styles.card}>
-                  <SegmentedControl
-                    options={TREND_METRICS}
-                    value={metric}
-                    onChange={setMetric}
-                    size="sm"
-                    label="Metric"
-                    style={styles.metricTabs}
-                  />
+                <CollapsibleSection title="Trend" summary={trendSummary}>
+                  <Card style={styles.card}>
+                    <SegmentedControl
+                      options={TREND_METRICS}
+                      value={metric}
+                      onChange={setMetric}
+                      size="sm"
+                      label="Metric"
+                      style={styles.metricTabs}
+                    />
 
-                  <ChartReadout
-                    bucket={active}
-                    analytics={ranged}
-                    metric={metric}
-                    weightUnit={weightUnit}
-                  />
+                    <ChartReadout
+                      bucket={active}
+                      analytics={ranged}
+                      metric={metric}
+                      weightUnit={weightUnit}
+                    />
 
-                  <ColumnChart
-                    data={columns}
-                    width={chartWidth}
-                    selectedKey={selectedBucket}
-                    onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
-                    formatValue={(value) => METRIC[metric].axis(value, weightUnit)}
-                    describeValue={(value) => METRIC[metric].format(value, weightUnit)}
-                  />
-                </Card>
+                    {/*
+                      Drawn in the metric's own hue rather than the accent, so
+                      the tabs above it are three questions rather than three
+                      renderings of one. Home colours the same three the same
+                      way and both read `tone` out of `METRIC`, which is what
+                      stops duration from being one colour on this screen and
+                      another on Home.
+                    */}
+                    <ColumnChart
+                      data={columns}
+                      width={chartWidth}
+                      color={colors.data[METRIC[metric].tone]}
+                      selectedKey={selectedBucket}
+                      onSelect={(datum) => setSelectedBucket(datum?.key ?? null)}
+                      formatValue={(value) => METRIC[metric].axis(value, weightUnit)}
+                      describeValue={(value) => METRIC[metric].format(value, weightUnit)}
+                    />
+                  </Card>
+                </CollapsibleSection>
 
-                {/* Written as a plain overline rather than `SectionHeader`, whose
-                  own 32px indent is right on the grouped-list screens and wrong
-                  here: this list is already inset by `styles.list`, so the shared
-                  component put this header 16px to the right of the month rules
-                  below it and of every card it sits above. */}
-                <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
-                  Muscles trained
-                </Text>
-                <Card style={styles.card}>
-                  {/* Nothing at all until the muscles belong to the range on screen:
-                    a map coloured from the last window reads as this one's. */}
-                  {!ranged ? null : ranged.muscles.length > 0 ? (
-                    <>
-                      <BodyMap
-                        width={chartWidth}
-                        setsPerWeek={muscleSetsPerWeek(ranged)}
-                        selected={selectedMuscle}
-                        onSelect={setSelectedMuscle}
-                      />
+                {/*
+                  The tallest block on the screen by a distance: a body map, a
+                  legend and one row per muscle trained, which on a full range is
+                  a dozen. It is the single biggest reason this screen scrolled
+                  for two viewports before reaching a workout, so it is the one
+                  whose summary has to be worth reading folded.
+                */}
+                <CollapsibleSection title="Muscles trained" summary={muscleSummary}>
+                  <Card style={styles.card}>
+                    {/* Nothing at all until the muscles belong to the range on screen:
+                      a map coloured from the last window reads as this one's. */}
+                    {!ranged ? null : ranged.muscles.length > 0 ? (
+                      <>
+                        <BodyMap
+                          width={chartWidth}
+                          setsPerWeek={muscleSetsPerWeek(ranged)}
+                          selected={selectedMuscle}
+                          onSelect={setSelectedMuscle}
+                        />
 
-                      <VolumeLegend />
+                        <VolumeLegend />
 
-                      <View style={styles.breakdown}>
-                        {ranged.muscles.map((entry) => (
-                          <MuscleRow
-                            key={entry.muscle}
-                            entry={entry}
-                            totalSets={totalMuscleSets}
-                            weightUnit={weightUnit}
-                            selected={selectedMuscle === entry.muscle}
-                            onPress={() =>
-                              setSelectedMuscle(
-                                selectedMuscle === entry.muscle ? null : entry.muscle,
-                              )
-                            }
-                          />
-                        ))}
-                      </View>
-                    </>
-                  ) : (
-                    <Text variant="label" color="textTertiary" align="center" style={styles.noData}>
-                      No completed sets in this range
-                    </Text>
-                  )}
-                </Card>
-
-                {/* Unscoped by the range control above: a year of squares reads
-                    as consistency, which is a different question from "how much
-                    in the last 3 months" and shouldn't move when that answer
-                    does. */}
-                <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
-                  Activity
-                </Text>
-                <Card style={styles.card}>
-                  <ContributionGraph
-                    days={calendar?.days ?? EMPTY_DAYS}
-                    typicalVolumeKg={calendar?.typicalVolumeKg ?? 0}
-                    firstDayOfWeek={firstDayOfWeek}
-                    today={new Date()}
-                    weightUnit={weightUnit}
-                    onSelectDay={(date) =>
-                      router.push({ pathname: '/calendar', params: { date: dayKey(date) } })
-                    }
-                  />
-                </Card>
+                        <View style={styles.breakdown}>
+                          {ranged.muscles.map((entry) => (
+                            <MuscleRow
+                              key={entry.muscle}
+                              entry={entry}
+                              totalSets={totalMuscleSets}
+                              weightUnit={weightUnit}
+                              selected={selectedMuscle === entry.muscle}
+                              onPress={() =>
+                                setSelectedMuscle(
+                                  selectedMuscle === entry.muscle ? null : entry.muscle,
+                                )
+                              }
+                            />
+                          ))}
+                        </View>
+                      </>
+                    ) : (
+                      <Text variant="label" color="textTertiary" align="center" style={styles.noData}>
+                        No completed sets in this range
+                      </Text>
+                    )}
+                  </Card>
+                </CollapsibleSection>
               </View>
             )
           }
@@ -471,10 +495,29 @@ export default function HistoryScreen() {
               />
             ) : null
           }
+          /*
+           * The month, and what the month came to.
+           *
+           * It read as the month alone, which is a divider rather than a
+           * heading: the list below it already says which month it is, one
+           * date per card. The two figures beside it are the ones the removed
+           * dashboard was being scrolled past to reach, at the scope you are
+           * actually reading at, and they are the difference between a list you
+           * page through and one you can scan.
+           *
+           * Sessions before volume. A month is recognised by how often it was
+           * trained long before it is recognised by its tonnage, and under a
+           * search the count is the answer to the search.
+           */
           renderSectionHeader={({ section }) => (
-            <Text variant="overline" color="textSecondary" style={styles.sectionHeader}>
-              {section.title}
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text variant="overline" color="textSecondary" numberOfLines={1}>
+                {section.title}
+              </Text>
+              <Text variant="caption" color="textTertiary" numberOfLines={1}>
+                {`${section.sessions} ${section.sessions === 1 ? 'session' : 'sessions'} · ${formatVolume(section.volumeKg, weightUnit)}`}
+              </Text>
+            </View>
           )}
           renderItem={({ item }) => <WorkoutCard workout={item} weightUnit={weightUnit} />}
         />
@@ -500,7 +543,6 @@ function muscleSetsPerWeek(analytics: HistoryAnalytics): Partial<Record<MuscleGr
 const PENDING = '—';
 
 /** Stable identity for the pre-load render, so the graph doesn't rebuild on each frame. */
-const EMPTY_DAYS: WorkoutCalendar['days'] = new Map();
 
 /** Stable identity for a search that hasn't answered yet, so `sections` doesn't rebuild. */
 const NO_MATCHES: readonly HistoryMatch[] = [];
@@ -728,12 +770,38 @@ function MuscleRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  // No bottom padding: the list below already opens with `spacing.lg` of its
-  // own, and doubling it would leave the field floating.
-  search: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md },
-  filters: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  /*
+   * The bar is pinned, so its bottom padding is the only gap that survives a
+   * scroll.
+   *
+   * It had none, on the argument that the list below opens with `spacing.lg` of
+   * its own and doubling it would leave the field floating. True at rest and
+   * wrong in motion: the list's padding scrolls away with the list, so once the
+   * page moved, cards ran right up under the field with nothing between them.
+   * `exercises.tsx` pins the same two controls and has carried
+   * `paddingBottom: md` all along; this was the screen that didn't.
+   *
+   * The list's own top padding drops to `xs` to pay for it, so the resting gap
+   * is the same 16 it was and the 12 is simply owned by the bar now rather than
+   * by the list.
+   */
+  search: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+  },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // `minWidth: 0` under `flex: 1`, so the field yields to the trigger beside it
+  // rather than pushing it off the row once the placeholder is long.
+  searchField: { flex: 1, minWidth: 0 },
   matchCount: { paddingBottom: spacing.xs },
-  list: { padding: spacing.lg, paddingBottom: spacing.huge, gap: spacing.md },
+  list: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.huge,
+    gap: spacing.md,
+  },
   header: { gap: spacing.md, marginBottom: spacing.xs },
   card: { gap: spacing.md },
   metricTabs: { marginBottom: spacing.xs },
@@ -750,5 +818,16 @@ const styles = StyleSheet.create({
   muscleName: { flex: 1 },
   muscleTrack: { height: 6, borderRadius: radius.pill, overflow: 'hidden' },
   muscleFill: { height: '100%', borderRadius: radius.pill },
-  sectionHeader: { paddingTop: spacing.md, paddingBottom: spacing.sm },
+  /* Was the month on its own line. Now a row, with the totals pushed to the
+     far edge so a column of months reads down the left and a column of figures
+     down the right. `baseline` rather than `center`: an 11pt overline and a
+     10pt caption centred against each other sit a point off the same line. */
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
 });

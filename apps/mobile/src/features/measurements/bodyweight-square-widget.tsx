@@ -25,7 +25,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { type ViewStyle } from 'react-native';
 
 import { Text, splitMeasure } from '@/components/ui';
-import { SquareWidget } from '@/components/ui/widget';
+import { SquareWidget, widgetFigure } from '@/components/ui/widget';
 import type { BodyMeasurement } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
@@ -35,7 +35,14 @@ import { useMeasurementRevision } from './revision';
 import { MeasurementEntrySheet, type MeasurementEntryInput } from './entry-sheet';
 import { haptics } from '@/features/feedback/haptics';
 
-export function BodyweightSquareWidget({ style }: { style?: ViewStyle }) {
+export function BodyweightSquareWidget({
+  style,
+  tone,
+}: {
+  style?: ViewStyle;
+  /** Passed straight through to the shell. See `tone` in `ui/widget.tsx`. */
+  tone?: string;
+}) {
   // Primitive selectors, never an object literal: Zustand feeds the selector's
   // result to `useSyncExternalStore`, which re-renders on identity change.
   const weightUnit = useSettings((state) => state.weightUnit);
@@ -132,13 +139,21 @@ export function BodyweightSquareWidget({ style }: { style?: ViewStyle }) {
         title="Bodyweight"
         subtitle={subText}
         icon="body-outline"
+        tone={tone}
         style={style}
         onPress={() =>
           router.push({ pathname: '/measurement/[kind]', params: { kind: 'bodyweight' } })
         }
         action={{ icon: 'add', label: 'Log bodyweight', onPress: () => setLogging(true) }}
       >
-        <Text variant="numericLarge" color="text" numberOfLines={1} adjustsFontSizeToFit>
+        {/* `widgetFigure`, matching the session tile beside it. See its note. */}
+        <Text
+          variant="numericLarge"
+          color="text"
+          style={widgetFigure}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {valueText}
           {unitText ? (
             <Text variant="body" color="textSecondary">

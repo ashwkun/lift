@@ -21,40 +21,55 @@ const GRAPH_DAYS = 7;
  * icons and the one-line descriptions live in one place. This list is the only
  * explanation most of these screens will ever get, and a description that
  * drifts from what the screen does is worse than none.
+ *
+ * Each row also names a `tone`, and there are exactly as many rows as there are
+ * category hues. Six identical grey glyphs down a card is a list you have to
+ * read end to end every time to find the screen you wanted; six different ones
+ * is a list you navigate by shape after the second visit, which is the whole
+ * argument for the pattern iOS uses in Settings. The tone is written beside the
+ * entry rather than derived from its index for the reason `tones.ts` gives
+ * about body parts: a row inserted in the middle would otherwise recolour every
+ * row under it, and the colour someone had learned would move.
  */
 const ADVANCED = [
   {
     href: '/stats/muscle-sets',
+    tone: 'category0',
     icon: 'stats-chart-outline',
     title: 'Set count per muscle group',
     subtitle: 'How many sets each muscle got, period by period.',
   },
   {
     href: '/stats/muscle-distribution',
+    tone: 'category1',
     icon: 'git-network-outline',
     title: 'Muscle distribution (chart)',
     subtitle: 'This window against the one before it.',
   },
   {
     href: '/stats/body-distribution',
+    tone: 'category2',
     icon: 'body-outline',
     title: 'Muscle distribution (body)',
     subtitle: 'A week of sets, drawn on the figures.',
   },
   {
     href: '/stats/main-exercises',
+    tone: 'category3',
     icon: 'barbell-outline',
     title: 'Main exercises',
     subtitle: 'The lifts your training is actually made of.',
   },
   {
     href: '/stats/leaderboard',
+    tone: 'category4',
     icon: 'trophy-outline',
     title: 'Leaderboard exercises',
     subtitle: 'Which lifts your log can be ranked on.',
   },
   {
     href: '/stats/monthly-report',
+    tone: 'category5',
     icon: 'calendar-outline',
     title: 'Monthly report',
     subtitle: 'A recap of one month, against the year around it.',
@@ -140,6 +155,7 @@ export default function StatisticsScreen() {
               {index > 0 && <Divider inset={spacing.lg} />}
               <ListRow
                 icon={entry.icon}
+                tone={entry.tone}
                 title={entry.title}
                 subtitle={entry.subtitle}
                 onPress={() => router.push(entry.href)}

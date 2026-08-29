@@ -7,21 +7,33 @@
  * shape, sizes itself to whatever width the grid gives it, and hands the whole
  * thing to the calendar on a tap.
  *
- * ## Why it is not the accent ramp
+ * ## The accent ramp, and the argument it overrules
  *
- * `dayFill` shades a trained day from `surfaceMuted` towards `accent`, which is
- * right on Calendar and History, where the grid is the subject of the screen.
- * Home spends its accent on the kicker and on the one column of twelve the
- * masthead is reporting: see the note above `trendData` in `(tabs)/index.tsx`
- * for why that budget is one element rather than a style. A hundred accented
- * squares under that figure would make the tile the loudest thing on the page
- * and the headline the second.
+ * `dayFill` shades a trained day from `surfaceMuted` towards `accent`, and this
+ * tile draws it, the same as Calendar and History. `intensityStep` decides what
+ * counts as a heavy day on all three, so a square that is nearly full here is
+ * nearly full there.
  *
- * So the steps are the same and the palette is not: `intensityStep` decides
- * what counts as a heavy day, exactly as it does on the other two screens, and
- * `dayShade` paints it in the neutral ramp the volume run and the body-part
- * bars on this screen are already drawn in. Both ramps live in `day-shading`
- * so the scale cannot drift between the screens that read it.
+ * It spent a release on `dayShade`, the neutral ramp, and the reasoning is
+ * worth keeping because it is not wrong: Home budgets its accent at roughly one
+ * element per view, spent on the masthead's kicker and on the one column of
+ * twelve that figure belongs to (see `trendData` in `(tabs)/index.tsx`), and a
+ * hundred accented squares under that figure can make the tile the loudest
+ * thing on the page and the headline the second.
+ *
+ * Two things answer it. The ramp's top stop is the only one that is anywhere
+ * near the accent at full strength, and it is reached by a *heavy* day rather
+ * than by any trained day, so a typical strip is mostly the ramp's quiet end:
+ * what the accent buys is that a trained day reads as trained at a glance,
+ * which a grid of greys does not give you at 9pt a square. And the neutral ramp
+ * was chosen partly to match "the volume run and the body-part bars on this
+ * screen", which is no longer true of the bars: those are a hue per body part
+ * now, so the grey was matching one neighbour instead of two.
+ *
+ * If Home ever does start reading as busy, this is a real suspect. The neutral
+ * ramp is not kept around waiting for that: it had no other caller, so it was
+ * removed with this change rather than left in `day-shading` as an unused
+ * second reading of the scale. Git has it.
  */
 
 import { dayKey } from '@lift/shared';
@@ -34,7 +46,7 @@ import {
   type CalendarDay,
   type WorkoutCalendar,
 } from '@/features/analytics/calendar';
-import { dayShade, intensityStep } from '@/features/analytics/day-shading';
+import { dayFill, intensityStep } from '@/features/analytics/day-shading';
 import { CONTRIBUTION_WEEKS } from '@/features/analytics/contribution-graph';
 import { useSettings } from '@/store/settings';
 import { spacing, stroke, useColors, type Palette } from '@/theme';
@@ -60,10 +72,12 @@ export interface CalendarWidgetProps {
    * before it can render a single cell.
    */
   width: number;
+  /** Passed straight through to the shell. See `tone` in `ui/widget.tsx`. */
+  tone?: string;
   onPress?: () => void;
 }
 
-export function CalendarWidget({ calendar, today, width, onPress }: CalendarWidgetProps) {
+export function CalendarWidget({ calendar, today, width, tone, onPress }: CalendarWidgetProps) {
   const colors = useColors();
   const firstDayOfWeek = useSettings((state) => state.firstDayOfWeek);
 
@@ -112,6 +126,7 @@ export function CalendarWidget({ calendar, today, width, onPress }: CalendarWidg
       title="Training days"
       subtitle={subtitle}
       icon="grid-outline"
+      tone={tone}
       onPress={onPress}
     >
       {/*
@@ -166,7 +181,7 @@ function Cell({
   const fill = isFuture
     ? 'transparent'
     : day
-      ? dayShade(intensityStep(day.volumeKg, typicalVolumeKg), colors)
+      ? dayFill(intensityStep(day.volumeKg, typicalVolumeKg), colors)
       : colors.surfaceMuted;
 
   // Every cell carries a border so the box never changes size between states;

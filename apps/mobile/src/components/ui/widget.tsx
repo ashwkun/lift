@@ -20,7 +20,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 
 import { Text } from './text';
-import { hoverFill, MIN_TOUCH_SIZE, radius, spacing, useColors } from '../../theme';
+import { fontSize, hoverFill, lineHeight, MIN_TOUCH_SIZE, radius, spacing, useColors } from '../../theme';
 import { PressableScale } from './motion';
 
 /**
@@ -41,6 +41,30 @@ export interface WidgetProps extends Omit<ViewProps, 'style'> {
   title?: string;
   subtitle?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  /**
+   * The colour this tile is *about*, drawn on its icon.
+   *
+   * A whole colour rather than a token name or a ramp index, because the caller
+   * is the only thing that knows what the tile is reporting and half of them
+   * derive it (a body part's hue, the selected metric's hue) rather than
+   * choosing it. `Palette['data']` is where they nearly all come from.
+   *
+   * Optional, and the fallback is the neutral this shell used for every tile
+   * before the ramp existed. A tile with nothing to distinguish it from its
+   * neighbours should not be given a hue just because there is a slot for one:
+   * six tiles in six colours with no key is decoration, and it is the thing
+   * that makes a dashboard look like a toy.
+   *
+   * It is spent on the icon glyph and nowhere else. The icon is the one element
+   * on a tile whose whole job is to say which tile this is, so colouring it
+   * says the same thing twice rather than adding a second, competing signal,
+   * and it leaves the figure in `text` where the eye goes first. Colouring the
+   * figure as well was tried and reads as a status: a green number looks like a
+   * number that is doing well.
+   *
+   * Not the ring around it on a `WideWidget` either. See the note there.
+   */
+  tone?: string;
   onPress?: () => void;
   action?: WidgetAction;
   children?: ReactNode;
@@ -98,6 +122,35 @@ function ActionButton({ action }: { action: WidgetAction }) {
  * from `caption`.
  */
 
+/**
+ * The size a tile's figure is set at, over whichever variant it uses.
+ *
+ * A tile is mostly empty in the middle by construction: `squareBody` is
+ * `flex: 1` between a 24pt header and a two-line footer, which on a phone
+ * leaves around 77 points for one number. `numericLarge` is 18, sized for a
+ * readout sitting in a row of other readouts, and in that much space it read as
+ * a caption that happened to be a number rather than as the thing the tile is
+ * reporting.
+ *
+ * 28 with a 32pt line. It is the `title` step of the ladder rather than a
+ * number picked for these tiles, so a figure here is the same size as a section
+ * title elsewhere and the scale stays a scale.
+ *
+ * Exported because the figure is rendered by the *caller*, not by the shell:
+ * only the caller knows whether it is printing sets, kilograms or a date. What
+ * the shell owns is that all of them are the same size, which is what a grid of
+ * tiles has to get right and what two call sites choosing independently would
+ * eventually get wrong.
+ *
+ * Applied over the variant rather than replacing it, so `numericLarge` keeps
+ * its bold face and its `tabular-nums`: a figure that reflows its own digits as
+ * it counts is the thing that variant exists to prevent.
+ */
+export const widgetFigure = {
+  fontSize: fontSize.xxxl,
+  lineHeight: lineHeight.xxxl,
+} as const;
+
 /** The label a whole tile announces, built from the two lines it prints. */
 function tileLabel(title?: string, subtitle?: string): string | undefined {
   return [title, subtitle].filter(Boolean).join(', ') || undefined;
@@ -107,6 +160,7 @@ export function SquareWidget({
   title,
   subtitle,
   icon,
+  tone,
   onPress,
   action,
   children,
@@ -140,20 +194,35 @@ export function SquareWidget({
         {/* A zero-width stand-in when there is no icon, so `space-between`
             still has two children and the action stays in the right-hand
             corner instead of sliding to the left one. */}
-        {icon ? <Ionicons name={icon} size={20} color={colors.textSecondary} /> : <View />}
+        {icon ? (
+          <Ionicons name={icon} size={20} color={tone ?? colors.textSecondary} />
+        ) : (
+          <View />
+        )}
         {action ? <ActionButton action={action} /> : null}
       </View>
 
       <View style={styles.squareBody}>{children}</View>
 
+      {/*
+        A step up the ladder each, from `label`/`caption` to
+        `bodyMedium`/`label`.
+        
+        The footer is the half of a tile that says what the number above it
+        *is*, and at 13 over 11 it was set two steps below the body text of
+        every list row on the same screen. A tile is a bigger, more deliberate
+        object than a row; type that small inside one reads as a legend under a
+        chart. The pair still steps: 15 over 13, with the weight change carrying
+        the rest of the separation as it did before.
+      */}
       <View style={styles.squareFooter}>
         {title && (
-          <Text variant="label" numberOfLines={1}>
+          <Text variant="bodyMedium" numberOfLines={1}>
             {title}
           </Text>
         )}
         {subtitle && (
-          <Text variant="caption" color="textSecondary" numberOfLines={1}>
+          <Text variant="label" color="textSecondary" numberOfLines={1}>
             {subtitle}
           </Text>
         )}
@@ -166,6 +235,7 @@ export function WideWidget({
   title,
   subtitle,
   icon,
+  tone,
   onPress,
   action,
   children,
@@ -191,18 +261,23 @@ export function WideWidget({
       <View style={styles.wideFooter}>
         <View style={styles.wideFooterLeft}>
           {icon && (
+            // The ring stays the neutral hairline whatever the tone is. A
+            // coloured ring around a coloured glyph is the same mark drawn
+            // twice, and at 32pt on a wide tile it reads as a badge asking to
+            // be tapped rather than as the quiet category marker it is. The
+            // glyph carries the colour; the ring only carries the shape.
             <View style={[styles.wideIconBox, { borderColor: colors.border }]}>
-              <Ionicons name={icon} size={16} color={colors.textSecondary} />
+              <Ionicons name={icon} size={16} color={tone ?? colors.textSecondary} />
             </View>
           )}
           <View style={styles.wideFooterText}>
             {title && (
-              <Text variant="label" numberOfLines={1}>
+              <Text variant="bodyMedium" numberOfLines={1}>
                 {title}
               </Text>
             )}
             {subtitle && (
-              <Text variant="caption" color="textSecondary" numberOfLines={1}>
+              <Text variant="label" color="textSecondary" numberOfLines={1}>
                 {subtitle}
               </Text>
             )}

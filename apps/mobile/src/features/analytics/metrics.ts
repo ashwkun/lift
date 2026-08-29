@@ -42,10 +42,30 @@ export const METRIC: Record<
     format: (value: number, unit: WeightUnit) => string;
     /** The same value for a chart's axis gutter, which is 44pt. Unitless. */
     axis: (value: number, unit: WeightUnit) => string;
+    /**
+     * Which of the palette's six category hues this metric is drawn in.
+     *
+     * An index into `Palette['data']` rather than a colour, because the answer
+     * has to be different in every theme and a hex here would be one theme's
+     * answer written into a file that has no theme. See `data` in the tokens
+     * for what the ramp is and why index 0 is the accent.
+     *
+     * It lives beside `label` and `format` because it is the same kind of fact:
+     * part of how a metric is *presented*, fixed once so that Home's figure,
+     * History's chart and anything added later cannot disagree about what
+     * colour duration is. A metric that changed hue between two screens would
+     * be worse than one with no hue at all, because the colour would be
+     * actively saying the two are different things.
+     */
+    tone: 0 | 1 | 2 | 3 | 4 | 5;
   }
 > = {
   volume: {
     label: 'Volume',
+    // The accent, which is what the ramp's index 0 always is. Volume is the
+    // subject of this app, so it gets the colour the app is *about* and the two
+    // checks below it get colours of their own.
+    tone: 0,
     pick: (totals) => totals.volumeKg,
     format: (value, unit) => formatVolume(value, unit),
     // Not `formatVolume` with the unit stripped, which is what this was. That
@@ -57,6 +77,9 @@ export const METRIC: Record<
   },
   duration: {
     label: 'Duration',
+    // Blue, which is where Apple's Fitness app puts distance: the metric that
+    // is a measure of how far the session went rather than of how hard it was.
+    tone: 4,
     pick: (totals) => totals.durationSeconds,
     format: (value) => formatDurationShort(value),
     // Whole hours past the hour mark. `formatDurationShort` would give "2h 14m"
@@ -66,6 +89,10 @@ export const METRIC: Record<
   },
   reps: {
     label: 'Reps',
+    // Violet, and the same borrowing: reps are this app's step count, a plain
+    // tally of repetitions with no weighting, and that is the colour the app
+    // being quoted counts steps in.
+    tone: 5,
     pick: (totals) => totals.reps,
     format: (value) => `${Math.round(value).toLocaleString()} reps`,
     axis: (value) => compact(value),

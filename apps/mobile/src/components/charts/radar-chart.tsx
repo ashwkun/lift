@@ -6,7 +6,7 @@ import {
 } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui';
-import { hexToRgb, radius, spacing, stroke, useColors } from '@/theme';
+import { radius, spacing, stroke, translucent, useColors } from '@/theme';
 
 export interface RadarAxis {
   /** Stable identity, used as a React key. */
@@ -55,17 +55,13 @@ const VERTEX_SIZE = 5;
  */
 const PLOT_RADIUS_RATIO = 0.4;
 
-/**
- * A colour with alpha baked in.
- *
- * The library's `opacity` applies to the whole polygon, outline included, so a
- * translucent fill under a solid stroke cannot be expressed as an opacity at
- * all. The alpha has to travel in the fill colour itself.
+/*
+ * Fills here are `translucent(...)` rather than an `opacity` prop, and that is
+ * the library's constraint rather than a preference: its `opacity` applies to
+ * the whole polygon, outline included, so a translucent fill under a solid
+ * stroke cannot be expressed as one at all. The alpha has to travel in the fill
+ * colour. See `translucent` in the theme.
  */
-function translucent(hex: string, alpha: number) {
-  const [r, g, b] = hexToRgb(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 /**
  * Radar plot of one measure across a small fixed set of axes.

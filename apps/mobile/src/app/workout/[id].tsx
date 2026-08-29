@@ -26,6 +26,7 @@ import {
 import { db } from '@/db/client';
 import { personalRecords } from '@/db/schema';
 import { workoutMuscleSplit } from '@/features/analytics/muscle-stats';
+import { bodyPartColor } from '@/features/analytics/tones';
 import { ExerciseSetList } from '@/features/workouts/exercise-set-list';
 import {
   deleteWorkout,
@@ -38,12 +39,13 @@ import { startSession } from '@/features/workouts/start-session';
 import { resolveExerciseUnits, useAppUnits } from '@/features/exercises/units';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { showAlert, showConfirm } from '@/store/dialog';
-import { spacing } from '@/theme';
+import { spacing, useColors } from '@/theme';
 import { buildSessionShare } from '@/features/share';
 import { useShare } from '@/features/share/use-share';
 
 export default function WorkoutDetailScreen() {
   const scrollEdge = useScrollEdge();
+  const colors = useColors();
   const { sharing, share } = useShare();
 
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -138,11 +140,16 @@ export default function WorkoutDetailScreen() {
   const split = useMemo<BarDatum[]>(() => {
     if (!detail) return [];
 
+    // The same hue per body part as Home's 30-day chart and the stats screens.
+    // A session's split is the case the fixed map is *for*: this chart is
+    // sorted by share, so under a positional scheme the colours would be a
+    // different assignment in every workout and would say nothing at all.
     return workoutMuscleSplit(detail.exercises).map((slice) => ({
       label: BODY_PART_LABELS[slice.bodyPart],
       value: slice.share * 100,
+      color: bodyPartColor(slice.bodyPart, colors),
     }));
-  }, [detail]);
+  }, [detail, colors]);
 
   if (!detail) {
     return (

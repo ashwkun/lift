@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { DATE_SHORT, formatDateTime, formatDurationShort } from '@lift/shared';
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { getWorkoutCalendar, type WorkoutCalendar } from '@/features/analytics/calendar';
 import { METRIC, TREND_METRICS, type TrendMetric } from '@/features/analytics/metrics';
+import { bodyPartColor } from '@/features/analytics/tones';
 import { bucketLabel } from '@/features/analytics/windows';
 import {
   getDashboardStats,
@@ -28,12 +29,13 @@ import {
 } from '@/features/analytics/repository';
 import { BodyweightSquareWidget } from '@/features/measurements/bodyweight-square-widget';
 import { CalendarWidget } from '@/components/widgets/calendar-widget';
-import { SquareWidget, WideWidget } from '@/components/ui/widget';
+import { SquareWidget, WideWidget, widgetFigure } from '@/components/ui/widget';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useSettings } from '@/store/settings';
-import { mix, spacing, useColors, useContentWidth } from '@/theme';
+import { duration, easing, mix, spacing, useColors, useContentWidth } from '@/theme';
 
 const BODY_PART_LABELS: Record<string, string> = {
   chest: 'Chest',
@@ -112,6 +114,22 @@ export default function HomeScreen() {
   const config = METRIC[metric];
   const targetValue = shown ? config.pick(shown) : 0;
 
+  /*
+   * The colour this screen is answering in, which changes with the tab.
+   *
+   * The masthead used to be the accent whichever metric was showing, so the three
+   * tabs read as three views of one number rather than as three different
+   * questions. They are not: volume, duration and reps are measured in
+   * different units and move independently, and a week that is up on one is
+   * routinely down on another. Colouring the answer is the cheapest way to say
+   * so, and it is the idiom the app being quoted uses on its own summary, where
+   * the step count is purple and the distance under it is blue.
+   *
+   * `data[0]` is the accent, so volume, which is what the screen opens on and
+   * what it is mostly read for, looks exactly as it did.
+   */
+  const tone = colors.data[config.tone];
+
   // Aggregates are recomputed on focus rather than live: they only change when
   // a workout is finished, and re-running them on every set write would be
   // wasteful.
@@ -180,37 +198,18 @@ export default function HomeScreen() {
    */
   const beforeValue = before ? config.pick(isThisWeek ? toDateTotals(before) : before) : 0;
 
-  /*
-   * The figure, printed rather than counted up to.
-   *
-   * This spent a release climbing from zero over 800ms, on a loop of
-   * `requestAnimationFrame` calling `setState` every frame. Three things wrong
-   * with it, and only the third is about taste.
-   *
-   * It re-rendered the whole screen roughly fifty times per change, which on
-   * the phone this app is built for is the one budget `tokens.ts` spends its
-   * introduction defending. It carried no `ReduceMotion`, where every
-   * animation in the app is built from `timing`, which carries it on the UI
-   * thread. And it ran on *every* change rather than on arrival: tapping
-   * "Duration" started the answer at zero and took most of a second to get to
-   * it, so the one control on the screen whose whole purpose is to re-answer
-   * the question was also the slowest way to read the answer.
-   *
-   * `Reveal` already animates this block landing, which is the moment a
-   * count-up was reaching for. Everything after that is a tap, and a tap gets
-   * its figure in the frame it happened in.
-   */
-  const [weekFigure, weekUnit] = splitMeasure(config.format(targetValue, weightUnit));
 
   /*
-   * The twelve columns, and only one of them is the accent.
+   * The twelve columns, and only one of them is coloured.
    *
-   * Every bar on this screen used to be lime: twelve here, six in the chart
-   * below, plus the kicker and the History link. `tokens.ts` budgets roughly
-   * one accent element per view on the grounds that the lime is the brightest
-   * thing the palette owns; at twenty it stops reading as emphasis and becomes
-   * the screen's background texture, which is the actual reason this screen
-   * felt busy rather than the amount of content on it.
+   * Every bar on this screen used to be the accent: twelve here, six in the
+   * chart below, plus the kicker and the History link. `tokens.ts` budgets
+   * roughly one accent element per view; at twenty it stops reading as emphasis
+   * and becomes the screen's background texture, which is the actual reason
+   * this screen felt busy rather than the amount of content on it. The budget
+   * survived the accent changing colour, and the ramp does not spend it twice:
+   * the one column that is coloured takes the *metric's* hue, so the run and
+   * the figure above it are still one statement in one colour.
    *
    * Spending it on one week turns the run from decoration into a sentence: here
    * is where the week you are reading sits among the last twelve. It follows
@@ -237,7 +236,7 @@ export default function HomeScreen() {
       value: config.pick(point),
       color:
         index === shownIndex
-          ? colors.accent
+          ? tone
           : mix(colors.borderStrong, colors.textSecondary, recency),
     };
   });
@@ -303,25 +302,31 @@ export default function HomeScreen() {
   const deltaCaption = isThisWeek ? 'vs last week' : 'vs week before';
 
   /*
-   * Neutral, for the same reason the run above it is.
+   * A hue per body part, which is the one chart on this screen where six
+   * colours are the honest rendering rather than decoration.
    *
-   * This chart is the least urgent thing on the screen: it repeats at 30-day
-   * scope what three dedicated screens under `stats/` show properly, and "All"
-   * beside its heading goes to one of them. Painting six full-width bars in the
-   * brightest colour the palette owns made it the loudest block on a screen
-   * whose subject is the figure at the top, which is precisely backwards.
+   * These bars were shaded by rank, from `borderStrong` up to `textSecondary`,
+   * and before that they were six bars of flat accent. Both were attempts to
+   * solve the same thing with brightness. The rank shading is the worse of the
+   * two on inspection: the bar's own *length* already says which is biggest, so
+   * the shade said it a second time, and the one thing the chart could not say
+   * at all was which muscle a bar belonged to without reading its label.
    *
-   * Shaded by rank rather than flat: the length already carries the value, and
-   * the ramp adds the ordering back at a glance for the middle of the list,
-   * where three bars of nearly equal length otherwise take a moment to sort. It
-   * borrows the volume run's idiom deliberately, so the two charts read as one
-   * family rather than as two unrelated treatments.
+   * `bodyPartColor` fixes exactly that, and the fixed map behind it is what
+   * makes it worth doing: chest is the same colour here, on the workout
+   * summary, and in a week where it has dropped to the bottom of the sort. See
+   * `tones.ts` for why the map is fixed rather than positional.
+   *
+   * This is still not the loudest block on the screen, which was the real point
+   * of the note this replaces. Six hues at equal weight have no peak, so the
+   * eye reads them as one textured band and moves on; a single bright colour on
+   * six full-width bars is what made this the loudest thing here, and that is
+   * the thing that has not come back.
    */
-  const maxSets = Math.max(...distribution.map((entry) => entry.sets), 1);
   const distributionData: BarDatum[] = distribution.map((entry) => ({
     label: BODY_PART_LABELS[entry.bodyPart] ?? entry.bodyPart,
     value: entry.sets,
-    color: mix(colors.borderStrong, colors.textSecondary, (entry.sets / maxSets) * 0.7),
+    color: bodyPartColor(entry.bodyPart, colors),
   }));
 
   return (
@@ -368,13 +373,17 @@ export default function HomeScreen() {
            * became three, and the screen stopped being a list of sections that
            * happen to share a subject.
            *
-           * The figure is plain text and the kicker above it carries the accent,
-           * which is the opposite of the obvious pairing. In the light palette
-           * the accent is a dark olive chosen to be legible as text, so
-           * accenting the number made the loudest thing on the screen quieter
+           * The figure is plain text and the kicker above it carries the
+           * colour, which is the opposite of the obvious pairing. The light
+           * palette's answer to every role is a deepened text colour, so
+           * colouring the number made the loudest thing on the screen quieter
            * than the label under it. Colouring the small word instead holds in
            * both schemes with no branching on the colour scheme. Do not swap
            * these back.
+           *
+           * The colour is the metric's rather than the accent's, so the word
+           * "Volume" and the coloured bar in the run below it agree, and a tap
+           * on Duration recolours both. See `tone` above.
            *
            * `display` at 40px, which is the largest type in the app and the only
            * place it is used. The figure spent a release at `heading` (24) on
@@ -389,17 +398,10 @@ export default function HomeScreen() {
            * number and never half of one.
            */}
           <View style={styles.masthead}>
-            <Text variant="overline" color="accent" numberOfLines={1}>
+            <Text variant="overline" style={{ color: tone }} numberOfLines={1}>
               {kicker}
             </Text>
-            <Text variant="display" color="text" numberOfLines={1} adjustsFontSizeToFit>
-              {weekFigure}
-              {weekUnit ? (
-                <Text variant="subheading" color="textTertiary">
-                  {` ${weekUnit}`}
-                </Text>
-              ) : null}
-            </Text>
+            <CountUp value={targetValue} format={(v) => config.format(v, weightUnit)} />
 
             {deltaPercent !== null ? (
               <View style={styles.delta}>
@@ -553,6 +555,12 @@ export default function HomeScreen() {
             <SquareWidget
               style={styles.tile}
               icon="barbell-outline"
+              // The orange. Each tile in the grid carries a hue of its own on
+              // its icon, in the ramp's order down the screen, which is what
+              // makes the grid read as four things rather than as four copies
+              // of one card. The masthead above it holds `data[0]`, which is
+              // the accent, so the tiles start at index 1.
+              tone={colors.data[1]}
               title={lastWorkout?.name ?? 'No workouts yet'}
               subtitle={
                 lastWorkout
@@ -573,7 +581,18 @@ export default function HomeScreen() {
                   : undefined
               }
             >
-              <Text variant="numericLarge" color="text" numberOfLines={1} adjustsFontSizeToFit>
+              {/* `widgetFigure` over the variant, so this and the bodyweight
+                  tile beside it print at one size. The unit stays at body size
+                  and in the secondary tier: it repeats what the tile's own
+                  title already says, and matching it to the number would make
+                  a two-word figure out of a one-word one. */}
+              <Text
+                variant="numericLarge"
+                color="text"
+                style={widgetFigure}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
                 {lastWorkout?.totalSets ?? 0}
                 <Text variant="body" color="textSecondary">
                   {` ${lastWorkout?.totalSets === 1 ? 'set' : 'sets'}`}
@@ -581,7 +600,7 @@ export default function HomeScreen() {
               </Text>
             </SquareWidget>
 
-            <BodyweightSquareWidget style={styles.tile} />
+            <BodyweightSquareWidget style={styles.tile} tone={colors.data[2]} />
           </View>
         </Reveal>
 
@@ -591,6 +610,7 @@ export default function HomeScreen() {
               calendar={calendar}
               today={calendarStamp}
               width={chartWidth}
+              tone={colors.data[3]}
               onPress={() => router.push('/calendar')}
             />
           </View>
@@ -606,9 +626,11 @@ export default function HomeScreen() {
          * the rest of the grid is built from, and the tile itself is the link
          * the heading's button used to be.
          *
-         * Neutral bars, shaded by rank: see `distributionData`. It borrows the
-         * volume run's idiom deliberately, so the two charts on this screen
-         * read as one family rather than as two unrelated treatments.
+         * A hue per body part rather than a shade per rank: see
+         * `distributionData`. This tile takes no `tone` of its own for that
+         * reason, and it is the one exception to the grid's pattern. Its
+         * content is already six colours; a seventh on the icon beside them
+         * would be the only mark on the tile that did not stand for a muscle.
          */}
         <Reveal index={3}>
           <View style={styles.tileRow}>
@@ -624,6 +646,118 @@ export default function HomeScreen() {
         </Reveal>
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * The masthead figure, counting up to itself, and the only thing on this screen
+ * that re-renders per frame.
+ *
+ * It is its own component for the reason `Elapsed` on the logging screen and
+ * `SessionStats` on the save screen are: a per-frame `setState` at the screen
+ * root re-renders the screen. This one used to sit in `HomeScreen`, so all
+ * ~48 frames of it redrew the masthead, the twelve-column chart, the four tiles
+ * and every square of the training-days strip. Confined here, a frame costs one
+ * `Text`.
+ *
+ * ## Why it still runs on JS rather than on the UI thread
+ *
+ * Reanimated would take the interpolation off the JS thread entirely, and it
+ * cannot be used: the value has to pass through `config.format`, which is
+ * `toLocaleString` and a unit lookup, and a worklet cannot call it. Driving one
+ * `Text` from JS is the honest version of this animation. Driving the screen
+ * from JS was not.
+ *
+ * ## The two things that make a frame cheap
+ *
+ * `tabular-nums`, which `display` does not carry, because it is a headline face
+ * rather than a figure face. Without it every digit change re-flows the line, and
+ * under `adjustsFontSizeToFit` a re-flow is a re-measure: the one place on this
+ * screen where a per-frame render turns into a per-frame layout pass. With it
+ * the box is a fixed width for the whole climb and nothing below it moves.
+ *
+ * And the unit is a sibling rather than a nested `Text`. Nesting it inside the
+ * animated one put it through the same re-measure sixty times a second to print
+ * a word that never changes.
+ */
+function CountUp({ value, format }: { value: number; format: (value: number) => string }) {
+  const reduceMotion = useReduceMotion();
+
+  /*
+   * Seeded at zero, which is where the climb starts.
+   *
+   * Seeding it at `value` reads as the safer default and paints the bug: the
+   * first frame is rendered before the effect runs, so the figure would land on
+   * its final total, blink to zero, and count back up to where it already was.
+   * A reduce-motion reader never sees this state at all, because `display`
+   * below takes `value` directly rather than this.
+   */
+  const [shown, setShown] = useState(0);
+
+  const frame = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+
+  useEffect(() => {
+    // Reduce motion never starts a climb; the figure is read straight off
+    // `value` during render instead. See `display` below.
+    if (reduceMotion) return;
+
+    /*
+     * From zero on every change, not from the figure before it.
+     *
+     * Tempting to treat a change as a transition between two totals, and wrong
+     * here: the metric tabs swap the *quantity*, so continuing would walk
+     * 52,600 kilograms down to 312 minutes through numbers that are not a
+     * reading of anything. Zero is the one honest place to start counting a
+     * total from, whichever total it turns out to be.
+     */
+    const from = 0;
+    const startedAt = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      const t = Math.min(elapsed / duration.count, 1);
+      setShown(t >= 1 ? value : from + (value - from) * easing.count(t));
+
+      frame.current = t < 1 ? requestAnimationFrame(tick) : null;
+    };
+
+    frame.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+    };
+  }, [value, reduceMotion]);
+
+  /*
+   * Reduce motion drops the climb and keeps the figure, which is the rule
+   * `motion.ts` states for every animation built from `timing`. This one is
+   * hand-driven, so it honours it by hand, and it does so by *deriving* rather
+   * than by writing `value` into state from the effect: a `setShown` in an
+   * effect body is the cascading render the hooks rule is about, and
+   * `use-ticker.ts` documents spending a whole frame to dodge the same edge.
+   * There is nothing to synchronise here. The answer is already in `value`.
+   */
+  const display = reduceMotion ? value : shown;
+  const [figure, unit] = splitMeasure(format(display));
+
+  return (
+    <View style={styles.figure}>
+      <Text
+        variant="display"
+        color="text"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        style={styles.figureDigits}
+      >
+        {figure}
+      </Text>
+      {unit ? (
+        <Text variant="subheading" color="textTertiary">
+          {` ${unit}`}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -648,6 +782,13 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.xs,
   },
+  /* The figure and its unit on one line, the unit sitting on the figure's
+     baseline. `flex-shrink` on the digits alone: a seven-figure volume in
+     pounds shrinks itself under `adjustsFontSizeToFit` rather than pushing the
+     unit off the screen. */
+  figure: { flexDirection: 'row', alignItems: 'baseline' },
+  // Tabular figures, which `display` does not set. See `CountUp`.
+  figureDigits: { flexShrink: 1, fontVariant: ['tabular-nums'] },
   // Centred rather than baseline-aligned: the caret is a glyph in a 11pt box,
   // not type, so its baseline is not where its arrow is.
   delta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },

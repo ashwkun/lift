@@ -104,9 +104,21 @@ export default function SettingsScreen() {
   return (
     <SettingsPage title="Settings">
       <Reveal>
+        {/*
+         * A hue per row, in ramp order down the card.
+         *
+         * These five are categories in the plainest sense: five unrelated
+         * groups of preferences, none more important than another, which is
+         * exactly the case a role colour cannot express and the case the
+         * category tones exist for. Written per row rather than mapped over an
+         * array because these are five hand-placed rows and not a list, and a
+         * row inserted here should have to choose its own colour rather than
+         * silently take the one below it. See `CATEGORY_TONES` in `surfaces`.
+         */}
         <Card padded={false} style={settingsStyles.first}>
           <ListRow
             icon="swap-horizontal-outline"
+            tone="category0"
             title="Units"
             subtitle={units}
             onPress={() => router.push('/settings/units')}
@@ -114,6 +126,7 @@ export default function SettingsScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="color-palette-outline"
+            tone="category1"
             title="Appearance"
             subtitle={appearance}
             onPress={() => router.push('/settings/appearance')}
@@ -121,6 +134,7 @@ export default function SettingsScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="barbell-outline"
+            tone="category2"
             title="Workout"
             subtitle={workout}
             onPress={() => router.push('/settings/workout')}
@@ -128,6 +142,7 @@ export default function SettingsScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="body-outline"
+            tone="category3"
             title="Body"
             subtitle={body}
             onPress={() => router.push('/settings/body')}
@@ -135,6 +150,7 @@ export default function SettingsScreen() {
           <Divider inset={spacing.lg} />
           <ListRow
             icon="analytics-outline"
+            tone="category4"
             title="Calculations"
             subtitle={calculations}
             onPress={() => router.push('/settings/calculations')}
