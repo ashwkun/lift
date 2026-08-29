@@ -25,7 +25,8 @@ import {
   summariseMonth,
   type WorkoutCalendar,
 } from '@/features/analytics/calendar';
-import { MonthGrid, rampSamples } from '@/features/analytics/month-grid';
+import { MonthGrid } from '@/features/analytics/month-grid';
+import { rampSamples } from '@/features/analytics/day-shading';
 import { haptics } from '@/features/feedback/haptics';
 import { WorkoutCard } from '@/features/workouts/workout-card';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';

@@ -1,24 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { DATE_SHORT, formatDateTime, formatDurationShort, formatVolume } from '@lift/shared';
+import { DATE_SHORT, formatDateTime, formatDurationShort } from '@lift/shared';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BarChart, type BarDatum } from '@/components/charts/bar-chart';
 import { ColumnChart, type ColumnDatum } from '@/components/charts/column-chart';
 import {
-  Button,
-  Card,
   Divider,
-  ListRow,
   Reveal,
   Screen,
-  SectionHeader,
   SegmentedControl,
   Text,
   splitMeasure,
   useScrollEdge,
 } from '@/components/ui';
+import { getWorkoutCalendar, type WorkoutCalendar } from '@/features/analytics/calendar';
 import { METRIC, TREND_METRICS, type TrendMetric } from '@/features/analytics/metrics';
 import { bucketLabel } from '@/features/analytics/windows';
 import {
@@ -31,12 +28,12 @@ import {
 } from '@/features/analytics/repository';
 import { BodyweightSquareWidget } from '@/features/measurements/bodyweight-square-widget';
 import { CalendarWidget } from '@/components/widgets/calendar-widget';
-import { SquareWidget, WideWidget, StatWidget } from '@/components/ui/widget';
+import { SquareWidget, WideWidget } from '@/components/ui/widget';
 import { listCompletedWorkouts } from '@/features/workouts/repository';
 import type { Workout } from '@/db/schema';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { useSettings } from '@/store/settings';
-import { mix, spacing, useColors, useContentWidth, useLayout } from '@/theme';
+import { mix, spacing, useColors, useContentWidth } from '@/theme';
 
 const BODY_PART_LABELS: Record<string, string> = {
   chest: 'Chest',
@@ -50,7 +47,6 @@ const BODY_PART_LABELS: Record<string, string> = {
 
 export default function HomeScreen() {
   const scrollEdge = useScrollEdge();
-  const { isExpanded } = useLayout();
   const colors = useColors();
 
   // `ColumnChart` is laid out from a width rather than measuring itself, so the
@@ -64,7 +60,21 @@ export default function HomeScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
   const [distribution, setDistribution] = useState<MuscleDistributionEntry[]>([]);
-  const [recent, setRecent] = useState<Workout[]>([]);
+  /*
+   * The last finished session, and the whole log keyed by day.
+   *
+   * One workout rather than the three the recent-workouts list used to take:
+   * the grid shows one tile, and asking for three rows to render the first was
+   * two rows of every joined column fetched and dropped on every focus.
+   *
+   * `calendarStamp` is stamped alongside the calendar rather than read at
+   * render. The strip is drawn relative to today, and a `new Date()` in the
+   * render path would put "today" on a different square after midnight without
+   * the data under it having moved.
+   */
+  const [lastWorkout, setLastWorkout] = useState<Workout | null>(null);
+  const [calendar, setCalendar] = useState<WorkoutCalendar | null>(null);
+  const [calendarStamp, setCalendarStamp] = useState(() => new Date());
 
   /*
    * Which of the three the masthead is answering in.
@@ -96,34 +106,11 @@ export default function HomeScreen() {
    */
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
-  const [shownValue, setShownValue] = useState(0);
-  
   const selectedIndex = weekly.findIndex((point) => point.weekStart === selectedWeek);
   const shownIndex = selectedIndex >= 0 ? selectedIndex : weekly.length - 1;
   const shown = weekly[shownIndex] ?? null;
   const config = METRIC[metric];
   const targetValue = shown ? config.pick(shown) : 0;
-
-  useEffect(() => {
-    let startTime = Date.now();
-    let animationFrame: ReturnType<typeof requestAnimationFrame>;
-
-    const animate = () => {
-      const time = Date.now();
-      const progress = Math.min((time - startTime) / 800, 1);
-      
-      // easeOutExpo
-      const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-      setShownValue(targetValue * ease);
-
-      if (progress < 1) {
-        animationFrame = requestAnimationFrame(animate);
-      }
-    };
-
-    animationFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [targetValue]);
 
   // Aggregates are recomputed on focus rather than live: they only change when
   // a workout is finished, and re-running them on every set write would be
@@ -133,18 +120,22 @@ export default function HomeScreen() {
       let cancelled = false;
 
       void (async () => {
-        const [nextStats, nextWeekly, nextDistribution, nextRecent] = await Promise.all([
-          getDashboardStats(),
-          getWeeklyTotals(12),
-          getMuscleDistribution(30),
-          listCompletedWorkouts(3),
-        ]);
+        const [nextStats, nextWeekly, nextDistribution, nextRecent, nextCalendar] =
+          await Promise.all([
+            getDashboardStats(),
+            getWeeklyTotals(12),
+            getMuscleDistribution(30),
+            listCompletedWorkouts(1),
+            getWorkoutCalendar(),
+          ]);
 
         if (cancelled) return;
         setStats(nextStats);
         setWeekly(nextWeekly);
         setDistribution(nextDistribution);
-        setRecent(nextRecent);
+        setLastWorkout(nextRecent[0] ?? null);
+        setCalendar(nextCalendar);
+        setCalendarStamp(new Date());
       })();
 
       return () => {
@@ -167,8 +158,10 @@ export default function HomeScreen() {
    * the second. A zeroed dashboard is the honest first-run state. The charts
    * already say "Not enough data yet" in their own words, and the layout the
    * user is about to inhabit is legible from launch rather than hidden behind a
-   * poster. Only the recent-workouts block hides, because an empty box is not a
-   * layout, it is a hole.
+   * poster. Nothing below the rule hides on an empty log either, now that the
+   * blocks are tiles: a tile with no data still prints its own name and says
+   * what would fill it, which is a layout rather than the hole an empty
+   * headed section leaves behind.
    */
   if (!stats) return <Screen width="board" scrolled={scrollEdge.progress}>{null}</Screen>;
 
@@ -187,7 +180,27 @@ export default function HomeScreen() {
    */
   const beforeValue = before ? config.pick(isThisWeek ? toDateTotals(before) : before) : 0;
 
-  const [weekFigure, weekUnit] = splitMeasure(config.format(shownValue, weightUnit));
+  /*
+   * The figure, printed rather than counted up to.
+   *
+   * This spent a release climbing from zero over 800ms, on a loop of
+   * `requestAnimationFrame` calling `setState` every frame. Three things wrong
+   * with it, and only the third is about taste.
+   *
+   * It re-rendered the whole screen roughly fifty times per change, which on
+   * the phone this app is built for is the one budget `tokens.ts` spends its
+   * introduction defending. It carried no `ReduceMotion`, where every
+   * animation in the app is built from `timing`, which carries it on the UI
+   * thread. And it ran on *every* change rather than on arrival: tapping
+   * "Duration" started the answer at zero and took most of a second to get to
+   * it, so the one control on the screen whose whole purpose is to re-answer
+   * the question was also the slowest way to read the answer.
+   *
+   * `Reveal` already animates this block landing, which is the moment a
+   * count-up was reaching for. Everything after that is a tap, and a tap gets
+   * its figure in the frame it happened in.
+   */
+  const [weekFigure, weekUnit] = splitMeasure(config.format(targetValue, weightUnit));
 
   /*
    * The twelve columns, and only one of them is the accent.
@@ -315,7 +328,7 @@ export default function HomeScreen() {
     <Screen width="board" scrolled={scrollEdge.progress}>
       <ScrollView {...scrollEdge.list} contentContainerStyle={styles.content}>
         {/*
-         * Five blocks, revealed in the order they are read.
+         * Four blocks, revealed in the order they are read.
          *
          * Everything below this point is gated on `stats`, so none of it exists
          * until the aggregates land, and they now land deliberately late, held
@@ -324,16 +337,17 @@ export default function HomeScreen() {
          * dashboard the next. With them it is the screen resolving, which is
          * the same delay described honestly.
          *
-         * The stagger is per *block*, not per element. The masthead and the
-         * band are one thought (this week, in a word and then in figures) so
-         * they arrive together; bodyweight is the next, and each of the two
-         * below it is its own.
+         * The stagger is per *block*, not per element. The masthead and the run
+         * of twelve are one thought (this week, in a word and then in figures)
+         * so they arrive together; the pair of tiles is the next, and each of
+         * the two rows below it is its own.
          *
          * Bodyweight is the exception to the gate: it renders inside a `Reveal`
          * like the rest, but its own query is not `stats`, so it holds its own
-         * frame (see `BodyweightCard`) rather than borrowing this one. The two
-         * arrive independently, which is honest about the fact that they are
-         * two different reads of two different tables.
+         * frame (see the note at the top of `BodyweightSquareWidget`) rather
+         * than borrowing this one. The two arrive independently, which is
+         * honest about the fact that they are two different reads of two
+         * different tables.
          */}
         <Reveal index={0}>
           {/*
@@ -501,61 +515,112 @@ export default function HomeScreen() {
         </Reveal>
 
         {/*
-         * Bodyweight, between the week and the breakdowns.
+         * The grid below the rule: what the week was made of.
          *
-         * Above the two blocks below it because it is the only thing on this
-         * screen you can act on *today*: the distribution chart and the recent
-         * list both report on work already done, and this one is asking for a
-         * number that does not exist yet. It is below the masthead because the
-         * masthead is what the screen is for.
+         * Above the rule the screen answers one question in one figure. Below
+         * it, four tiles answer the four that follow it, in the order they are
+         * asked: what was the last session, what do I weigh, how often have I
+         * been training, and where has the work gone.
          *
-         * Full width rather than joining the pair below. The pair splits at
-         * `expanded` because a bar chart and a list are both happy in half a
-         * board; a trend line is the one chart here whose whole job is a slope,
-         * and halving its width is halving the horizontal resolution of the
-         * only thing it draws.
+         * Tiles rather than the titled sections this was. A section announces
+         * itself with a heading and then spends a block saying one thing; a
+         * tile says the thing and names itself underneath in the same line of
+         * type the heading used, which is one line of chrome per block instead
+         * of two plus a rule. What that buys is what the pair below uses it
+         * for: two blocks side by side on a phone, where two headed sections
+         * could only stack.
          *
-         * It owns its own data. See the note at the top of `BodyweightCard` for
-         * why it is not fetched alongside the three aggregates above.
+         * What it costs is density, and the recent-workouts list is where it
+         * was paid: three tappable rows carrying date, duration and volume
+         * became one tile carrying the last session. History is one tap from
+         * the tile and one from the tab bar, and the second and third rows of
+         * that list were never the reason anyone opened this screen.
          */}
         <Reveal index={1}>
-          <View style={{ flexDirection: 'row', gap: spacing.lg, marginHorizontal: spacing.lg, marginTop: spacing.lg }}>
-            <SquareWidget 
-              title={recent[0]?.name ?? "No recent workout"}
-              subtitle={recent[0] ? formatDateTime(recent[0].startedAt, DATE_SHORT) : 'Log a workout'}
-              actionIcon="options-outline"
-              onPressAction={() => router.push('/history')}
-              onPress={() => recent[0] ? router.push({ pathname: '/workout/[id]', params: { id: recent[0].id } }) : undefined}
+          <View style={styles.pair}>
+            {/*
+             * The last session, counted in sets.
+             *
+             * Sets rather than volume, and not because volume would not fit: it
+             * is already the figure the masthead is set in, and a tile printing
+             * a second volume forty points below the first is two numbers of
+             * the same kind at two scopes with nothing on either saying which
+             * is which. That exact collision is what this tile replaced. Sets
+             * are the unit the app is built around, they appear nowhere else on
+             * this screen, and per session they are a figure someone can
+             * actually hold: forty is a long day, twelve is a short one.
+             */}
+            <SquareWidget
+              style={styles.tile}
+              icon="barbell-outline"
+              title={lastWorkout?.name ?? 'No workouts yet'}
+              subtitle={
+                lastWorkout
+                  ? `${formatDateTime(lastWorkout.startedAt, DATE_SHORT)} · ${formatDurationShort(
+                      lastWorkout.durationSeconds ?? 0,
+                    )}`
+                  : 'Start one from Workout'
+              }
+              onPress={
+                lastWorkout
+                  ? () =>
+                      router.push({ pathname: '/workout/[id]', params: { id: lastWorkout.id } })
+                  : undefined
+              }
+              action={
+                lastWorkout
+                  ? { icon: 'time-outline', label: 'Open history', onPress: () => router.push('/history') }
+                  : undefined
+              }
             >
-               <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.textSecondary, borderTopColor: colors.text, justifyContent: 'center', alignItems: 'center' }}>
-                 <Text variant="numericLarge" color="text">{recent.length}</Text>
-               </View>
+              <Text variant="numericLarge" color="text" numberOfLines={1} adjustsFontSizeToFit>
+                {lastWorkout?.totalSets ?? 0}
+                <Text variant="body" color="textSecondary">
+                  {` ${lastWorkout?.totalSets === 1 ? 'set' : 'sets'}`}
+                </Text>
+              </Text>
             </SquareWidget>
-            
-            <BodyweightSquareWidget />
+
+            <BodyweightSquareWidget style={styles.tile} />
           </View>
         </Reveal>
 
         <Reveal index={2}>
-          <View style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg }}>
-            <CalendarWidget 
-              title="Recent Activity"
-              subtitle="Past 3 months"
-              onPress={() => router.push('/history')}
+          <View style={styles.tileRow}>
+            <CalendarWidget
+              calendar={calendar}
+              today={calendarStamp}
+              width={chartWidth}
+              onPress={() => router.push('/calendar')}
             />
           </View>
         </Reveal>
 
+        {/*
+         * Sets by body part, back inside the grid.
+         *
+         * This block was a titled section with an "All" button beside the
+         * heading, and for one release it was nothing at all: the query behind
+         * it kept running on every focus while no element on the screen drew
+         * it. It is the same `BarChart` and the same 30-day scope, in the tile
+         * the rest of the grid is built from, and the tile itself is the link
+         * the heading's button used to be.
+         *
+         * Neutral bars, shaded by rank: see `distributionData`. It borrows the
+         * volume run's idiom deliberately, so the two charts on this screen
+         * read as one family rather than as two unrelated treatments.
+         */}
         <Reveal index={3}>
-           <StatWidget 
-              label="Volume lifted"
-              sublabel="Last 7 days"
-              value={formatVolume(weekly[weekly.length - 1]?.volumeKgToDate ?? 0, weightUnit).split(' ')[0] ?? '0'}
-              unit={weightUnit}
-              actionIcon="options-outline"
-              onPressAction={() => setMetric('volume')}
-              style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg }}
-           />
+          <View style={styles.tileRow}>
+            <WideWidget
+              icon="bar-chart-outline"
+              title="Sets by body part"
+              subtitle="Last 30 days"
+              onPress={() => router.push('/stats/body-distribution')}
+            >
+              <BarChart data={distributionData} formatValue={(value) => `${Math.round(value)}`} />
+            </WideWidget>
+          </View>
         </Reveal>
       </ScrollView>
     </Screen>
@@ -602,11 +667,39 @@ const styles = StyleSheet.create({
   tabs: { marginHorizontal: spacing.lg, marginTop: spacing.xl },
   strip: { marginHorizontal: spacing.lg },
   rule: { marginHorizontal: spacing.lg, marginTop: spacing.xl },
-  chart: { marginHorizontal: spacing.lg },
-  recentCard: { marginHorizontal: spacing.lg },
-  chartRow: { flexDirection: 'row' },
-  // `minWidth: 0` alongside `flex: 1`: a flex child will not shrink below its
-  // content, and a bar chart's axis labels are content. Without it an unusually
-  // long volume figure widens its column and the two stop being halves.
-  chartColumn: { flex: 1, minWidth: 0 },
+  /* One row of the grid: on the screen's margin, one `lg` clear of the row
+     above it. Every block below the rule uses it, so the vertical rhythm of the
+     grid is one number rather than a margin repeated at each call site. */
+  tileRow: { marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  /*
+   * The two-up row.
+   *
+   * `alignItems: 'flex-start'` is what lets a square be square. A row stretches
+   * its children to the tallest by default, and a stretched cross size wins
+   * over `aspectRatio`: the tiles came out as whatever height the row happened
+   * to be rather than as their own width. Held at the start, the cross size is
+   * auto, the ratio drives the height, and two tiles of equal width are
+   * therefore of equal height with nothing having to say so.
+   */
+  pair: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  /*
+   * `flex: 1` rather than a percentage basis.
+   *
+   * Two `48%` bases plus an `lg` gap comes to more than the row on any phone
+   * narrower than about 400pt, and a flex child does not shrink below its basis
+   * by default: the pair wrapped into a column on exactly the devices it was
+   * drawn for. `flex: 1` asks for an equal share of what is left after the gap,
+   * which is the thing the percentages were approximating.
+   *
+   * `minWidth: 0` alongside it: a flex child will not shrink below its content,
+   * and a workout name is content. Without it a long one widens its tile and
+   * the two stop being halves.
+   */
+  tile: { flex: 1, minWidth: 0 },
 });

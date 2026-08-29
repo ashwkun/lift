@@ -6,7 +6,7 @@ import { Text } from '@/components/ui';
 import { spacing, stroke, useColors, type Palette } from '@/theme';
 
 import { contributionColumns, weekdayHeadings, type CalendarDay } from './calendar';
-import { dayFill, intensityStep, rampSamples } from './month-grid';
+import { dayFill, intensityStep, rampSamples } from './day-shading';
 
 /** How many weeks the strip covers. A year, the same span GitHub shows. */
 export const CONTRIBUTION_WEEKS = 52;
