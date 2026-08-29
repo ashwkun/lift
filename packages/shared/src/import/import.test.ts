@@ -12,6 +12,7 @@ import {
   importCutoff,
   parseWorkoutCsv,
 } from './parse.ts';
+import { identifyRoutines } from './routines.ts';
 import {
   detectDateOrder,
   parseNumber,
@@ -1034,6 +1035,122 @@ describe('inferTrackingType', () => {
     assert.equal(
       inferTrackingType('Chin Up (Weighted)', [set({ weightKg: 20, reps: 8 })]),
       'weighted_bodyweight',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Routines inferred from session titles
+// ---------------------------------------------------------------------------
+
+describe('identifyRoutines', () => {
+  it('keeps a title that appears once', () => {
+    const parsed = parseWorkoutCsv(HEVY_CSV);
+    const identified = identifyRoutines(parsed.workouts);
+
+    assert.deepEqual(
+      identified.map((routine) => ({ name: routine.name, sessionCount: routine.sessionCount })),
+      [
+        { name: 'upper 1', sessionCount: 1 },
+        { name: 'legs', sessionCount: 1 },
+      ],
+    );
+  });
+
+  it('uses the latest session when a Hevy title repeats', () => {
+    const parsed = parseWorkoutCsv(
+      [
+        'title,start_time,exercise_title,set_index,set_type,weight_kg,reps',
+        'Push,10 Aug 2026 10:00,Bench Press,0,normal,80,5',
+        'Push,10 Aug 2026 10:00,Overhead Press,0,normal,40,8',
+        'Push,22 Aug 2026 10:00,Bench Press,0,normal,90,5',
+        'Push,22 Aug 2026 10:00,Fly,0,normal,12,10',
+        'Pull,11 Aug 2026 10:00,Row,0,normal,70,8',
+      ].join('\n'),
+    );
+
+    const identified = identifyRoutines(parsed.workouts);
+
+    assert.equal(identified.length, 2);
+    assert.equal(identified[0]!.name, 'Push');
+    assert.equal(identified[0]!.sessionCount, 2);
+    assert.deepEqual(
+      identified[0]!.latest.exercises.map((exercise) => exercise.name),
+      ['Bench Press', 'Fly'],
+    );
+    assert.equal(identified[1]!.name, 'Pull');
+    assert.equal(identified[1]!.sessionCount, 1);
+  });
+
+  it('skips untitled sessions', () => {
+    const parsed = parseWorkoutCsv(
+      'start_time,exercise_title,weight_kg,reps\n2026-08-10 10:00,Squat,100,5',
+    );
+
+    assert.equal(parsed.workouts[0]!.name, '');
+    assert.deepEqual(identifyRoutines(parsed.workouts), []);
+  });
+
+  it('treats Push and push as one routine, named as the latest spelled it', () => {
+    const parsed = parseWorkoutCsv(
+      [
+        'title,start_time,exercise_title,weight_kg,reps',
+        'push,10 Aug 2026 10:00,Bench Press,80,5',
+        'Push,22 Aug 2026 10:00,Bench Press,90,5',
+      ].join('\n'),
+    );
+
+    const [routine] = identifyRoutines(parsed.workouts);
+    assert.equal(routine!.name, 'Push');
+    assert.equal(routine!.sessionCount, 2);
+  });
+
+  it('reads a Lyfta-shaped header, including a leading space on Title', () => {
+    const parsed = parseWorkoutCsv(
+      [
+        ' Title,Date,Duration,Exercise,"Superset id",Weight,Reps,Distance,Time,"Set Type"',
+        'Upper,"2026-08-29 12:34:55",00:38:37,"Dumbbell Incline Bench Press",,14.000,10,,,NORMAL_SET',
+        'lower,"2026-08-24 14:16:06",02:19:14,"Barbell Squat",,20.000,10,,,NORMAL_SET',
+        'Pull,"2026-08-06 15:09:52",00:48:52,"Assisted Pull-up",,27.200,10,,,NORMAL_SET',
+        'Pull,"2026-08-11 15:16:03",00:48:52,"Bent Over Row",,10.000,10,,,NORMAL_SET',
+      ].join('\n'),
+    );
+
+    const identified = identifyRoutines(parsed.workouts);
+    assert.deepEqual(
+      identified.map((routine) => ({
+        name: routine.name,
+        sessionCount: routine.sessionCount,
+        latestExercise: routine.latest.exercises[0]!.name,
+      })),
+      [
+        { name: 'Pull', sessionCount: 2, latestExercise: 'Bent Over Row' },
+        { name: 'lower', sessionCount: 1, latestExercise: 'Barbell Squat' },
+        { name: 'Upper', sessionCount: 1, latestExercise: 'Dumbbell Incline Bench Press' },
+      ],
+    );
+  });
+
+  it('reads Strong workout names', () => {
+    const parsed = parseWorkoutCsv(
+      [
+        'Date,Workout Name,Exercise Name,Set Order,Weight,Reps',
+        '2026-08-10,Push,Bench Press,1,80,5',
+        '2026-08-11,Pull,Lat Pulldown,1,50,8',
+      ].join('\n'),
+    );
+
+    assert.deepEqual(
+      identifyRoutines(parsed.workouts).map((routine) => routine.name),
+      ['Push', 'Pull'],
+    );
+  });
+
+  it('reads Lift CSV workout names', () => {
+    const identified = identifyRoutines(parseWorkoutCsv(LIFT_CSV).workouts);
+    assert.deepEqual(
+      identified.map((routine) => routine.name),
+      ['Push day'],
     );
   });
 });

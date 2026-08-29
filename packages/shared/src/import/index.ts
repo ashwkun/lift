@@ -16,3 +16,4 @@ export * from './columns.ts';
 export * from './values.ts';
 export * from './parse.ts';
 export * from './exercises.ts';
+export * from './routines.ts';

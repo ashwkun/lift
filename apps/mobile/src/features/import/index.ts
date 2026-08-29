@@ -11,3 +11,4 @@ export * from './exercise-resolver';
 export * from './guides';
 export * from './read';
 export * from './repository';
+export * from './routines';
