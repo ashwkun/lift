@@ -58,7 +58,6 @@ import {
   defaultExpandedUnit,
   groupLiftUnits,
   unitIsComplete,
-  type LiftUnit,
 } from '@/features/workouts/lift-units';
 import { ghostFill, pairedPreviousSet } from '@/features/workouts/previous';
 import {
@@ -135,7 +134,6 @@ export default function ActiveWorkoutScreen() {
   const settings = useSettings();
   const startRest = useTimer((state) => state.startRest);
   const { guard, lostWrites } = useWriteGuard();
-  const unitsRef = useRef<LiftUnit[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [demo, setDemo] = useState<{
     name: string;
@@ -239,6 +237,30 @@ export default function ActiveWorkoutScreen() {
       return [{ workoutExercise: link, exercise, sets: setsByParent.get(link.id) ?? [] }];
     });
   }, [links, sets, workoutExerciseRows]);
+
+  /*
+   * The rows the superset logic reads: grouping and order, nothing else.
+   *
+   * Keyed by `workoutExercise.id` rather than by the exercise's, because the
+   * same lift can legitimately appear twice in one session and only one of the
+   * two may be in the superset.
+   *
+   * Computed here rather than next to the list so `handleToggleSet` can read
+   * `units` from the callback instead of a ref written during render, which
+   * `react-hooks/refs` rejects.
+   */
+  const supersetRows = useMemo(
+    () =>
+      details.map((detail) => ({
+        id: detail.workoutExercise.id,
+        name: detail.exercise.name,
+        supersetGroup: detail.workoutExercise.supersetGroup,
+      })),
+    [details],
+  );
+
+  const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
+  const units = useMemo(() => groupLiftUnits(details, placements), [details, placements]);
 
   // Previous-session values for the ghost column, loaded once per exercise.
   const [previousByExercise, setPreviousByExercise] = useState<Record<string, PreviousPerformance>>(
@@ -553,7 +575,7 @@ export default function ActiveWorkoutScreen() {
       // place: the milestone is still acknowledged, it just no longer interrupts.
       if (finishesExercise) haptics.finished();
 
-      const unit = unitsRef.current.find((entry) =>
+      const unit = units.find((entry) =>
         entry.members.some((member) => member.workoutExercise.id === detail.workoutExercise.id),
       );
       if (unit) {
@@ -565,8 +587,8 @@ export default function ActiveWorkoutScreen() {
           return member.sets.every((other) => other.isCompleted);
         });
         if (finishesUnit) {
-          const index = unitsRef.current.findIndex((entry) => entry.id === unit.id);
-          const next = unitsRef.current.slice(index + 1).find((entry) => !unitIsComplete(entry));
+          const index = units.findIndex((entry) => entry.id === unit.id);
+          const next = units.slice(index + 1).find((entry) => !unitIsComplete(entry));
           if (next) setExpandedId(next.id);
         }
       }
@@ -620,7 +642,7 @@ export default function ActiveWorkoutScreen() {
 
       return guard(updateSet(set.id, patch, fill));
     },
-    [settings, startRest, previousByExercise, bestsByExercise, guard],
+    [settings, startRest, previousByExercise, bestsByExercise, guard, units],
   );
 
   /*
@@ -657,28 +679,6 @@ export default function ActiveWorkoutScreen() {
   // than by the row itself so the sheet re-reads the live query's latest copy.
   const [restEditorId, setRestEditorId] = useState<string | null>(null);
   const restEditorDetail = details.find((detail) => detail.workoutExercise.id === restEditorId);
-
-  /*
-   * The rows the superset logic reads: grouping and order, nothing else.
-   *
-   * Keyed by `workoutExercise.id` rather than by the exercise's, because the
-   * same lift can legitimately appear twice in one session and only one of the
-   * two may be in the superset.
-   */
-  const supersetRows = useMemo(
-    () =>
-      details.map((detail) => ({
-        id: detail.workoutExercise.id,
-        name: detail.exercise.name,
-        supersetGroup: detail.workoutExercise.supersetGroup,
-      })),
-    [details],
-  );
-
-  const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
-
-  const units = useMemo(() => groupLiftUnits(details, placements), [details, placements]);
-  unitsRef.current = units;
 
   const openUnitId =
     expandedId && units.some((unit) => unit.id === expandedId)
