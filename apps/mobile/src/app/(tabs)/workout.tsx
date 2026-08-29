@@ -243,8 +243,19 @@ export default function WorkoutScreen() {
           <EmptyState
             icon="list-outline"
             title="No routines yet"
-            description="Build a routine to start workouts with your exercises and target sets already filled in."
-            action={<Button title="Create routine" onPress={() => router.push('/routine/new')} />}
+            description="Create one from scratch, or import your workouts and routines from another app."
+            action={
+              <View style={styles.emptyActions}>
+                <Button title="Create routine" fullWidth onPress={() => router.push('/routine/new')} />
+                <Button
+                  title="Import from another app"
+                  icon="download-outline"
+                  variant="secondary"
+                  fullWidth
+                  onPress={() => router.push('/import')}
+                />
+              </View>
+            }
           />
         ) : (
           <View style={{ gap: spacing.xl }}>
@@ -400,4 +411,5 @@ const styles = StyleSheet.create({
   resumeBody: { flex: 1, gap: 2 },
   quickStart: { padding: spacing.lg },
   routineCard: { marginHorizontal: spacing.lg },
+  emptyActions: { alignSelf: 'stretch', gap: spacing.sm, minWidth: 260 },
 });

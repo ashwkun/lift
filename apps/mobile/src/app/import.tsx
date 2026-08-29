@@ -1,10 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { formatWeight, type WeightUnit } from '@lift/shared';
-import { IMPORT_RANGES, importCutoff, type ImportRange } from '@lift/shared/import';
+import {
+  IMPORT_RANGES,
+  identifyRoutines,
+  importCutoff,
+  type IdentifiedRoutine,
+  type ImportRange,
+  type ImportedWorkout,
+} from '@lift/shared/import';
 import { File } from 'expo-file-system';
 import { Stack, router } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   Button,
@@ -12,6 +19,7 @@ import {
   Divider,
   ListPicker,
   ListRow,
+  PromptModal,
   Screen,
   SectionHeader,
   SegmentedControl,
@@ -19,30 +27,35 @@ import {
   useScrollEdge,
 } from '@/components/ui';
 import { restoreBackup } from '@/features/backup';
+import { SettingToggle } from '@/features/settings/rows';
 import { importSharedRoutine, type SharedRoutineResult } from '@/features/share';
 import {
   EXPORT_GUIDES,
   IMPORT_APP_ORDER,
+  importIdentifiedRoutines,
   importWorkouts,
+  loadExistingRoutineKeys,
   newExercisesIn,
   readImportFile,
   selectRange,
   type ImportApp,
   type ImportPreview,
+  type ImportRoutinesSummary,
   type ImportSummary,
   type RangeSelection,
   type WorkoutsPreview,
 } from '@/features/import';
 import { showAlert } from '@/store/dialog';
 import { useSettings } from '@/store/settings';
-import { spacing, useColors } from '@/theme';
+import { MIN_TOUCH_SIZE, spacing, useColors } from '@/theme';
 
 /**
  * Bringing training history in from another app.
  *
  * The screen is one scroll with four states, in the order the task actually
  * happens: pick the app you're leaving, get the file out of it, see what the
- * file holds, then decide how much of it to keep. The order matters. The
+ * file holds, then decide how much of it to keep. After a CSV import, named
+ * sessions can be saved as routines in a fifth step that is opt-in. The order matters. The
  * export instructions sit above the file picker because that is where someone
  * is stuck, and the counts sit above the import button because agreeing to
  * "import 240 workouts" is the one moment they can still change their mind.
@@ -69,6 +82,16 @@ export default function ImportScreen() {
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [restored, setRestored] = useState<number | null>(null);
   const [addedRoutine, setAddedRoutine] = useState<SharedRoutineResult | null>(null);
+  /**
+   * The in-range sessions from the file that was just imported.
+   *
+   * Held so routines can be inferred after the fact: the confirm step does
+   * not ask, and reconstructing titles from the log would lose CSV spelling
+   * and mix in sessions that were already here.
+   */
+  const [importedWorkouts, setImportedWorkouts] = useState<ImportedWorkout[] | null>(null);
+  const [pickingRoutines, setPickingRoutines] = useState(false);
+  const [routinesSummary, setRoutinesSummary] = useState<ImportRoutinesSummary | null>(null);
 
   /**
    * Discards the answer to a read that has since been superseded.
@@ -158,6 +181,7 @@ export default function ImportScreen() {
           if (next.done % 5 === 0 || next.done === next.total) setProgress(next);
         },
       });
+      setImportedWorkouts(selection.workouts);
       setSummary(result);
     } catch (cause) {
       void showAlert('Import stopped', describe(cause));
@@ -218,22 +242,61 @@ export default function ImportScreen() {
     setSummary(null);
     setRestored(null);
     setAddedRoutine(null);
+    setImportedWorkouts(null);
+    setPickingRoutines(false);
+    setRoutinesSummary(null);
     setError(null);
     setReading(false);
     setRange('all');
   };
 
+  const identified = useMemo(
+    () => (importedWorkouts ? identifyRoutines(importedWorkouts) : []),
+    [importedWorkouts],
+  );
+
+  const screenTitle = pickingRoutines
+    ? 'Save as routines'
+    : routinesSummary
+      ? 'Routines added'
+      : 'Import';
+
   return (
     <Screen width="form" scrolled={scrollEdge.progress}>
-      <Stack.Screen options={{ title: 'Import' }} />
+      <Stack.Screen options={{ title: screenTitle }} />
 
       <ScrollView
         {...scrollEdge.list}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        {summary !== null ? (
-          <ImportResult summary={summary} onImportMore={startOver} />
+        {routinesSummary !== null ? (
+          <RoutinesCreatedResult summary={routinesSummary} onImportMore={startOver} />
+        ) : pickingRoutines ? (
+          <SaveRoutinesStep
+            identified={identified}
+            busy={busy}
+            onBack={() => setPickingRoutines(false)}
+            onCreate={async (selected) => {
+              setBusy(true);
+              try {
+                const result = await importIdentifiedRoutines(selected);
+                setRoutinesSummary(result);
+                setPickingRoutines(false);
+              } catch (cause) {
+                void showAlert('Routines were not created', describe(cause));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        ) : summary !== null ? (
+          <ImportResult
+            summary={summary}
+            identified={identified}
+            onCreateRoutines={() => setPickingRoutines(true)}
+            onImportMore={startOver}
+          />
         ) : restored !== null ? (
           <RestoreResult rows={restored} onImportMore={startOver} />
         ) : addedRoutine !== null ? (
@@ -754,14 +817,262 @@ function Skipped({ diagnostics }: { diagnostics: WorkoutsPreview['parsed']['diag
 // Results
 // ---------------------------------------------------------------------------
 
-function ImportResult({
+function routineDescription(routine: IdentifiedRoutine): string {
+  const exercises = routine.latest.exercises.length;
+  const exerciseLabel = `${exercises} ${exercises === 1 ? 'exercise' : 'exercises'}`;
+
+  if (routine.sessionCount === 1) return `Once · ${exerciseLabel}`;
+
+  return `Last of ${routine.sessionCount} · ${exerciseLabel} · ${formatDate(new Date(routine.latest.startedAt))}`;
+}
+
+function SaveRoutinesStep({
+  identified,
+  busy,
+  onBack,
+  onCreate,
+}: {
+  identified: IdentifiedRoutine[];
+  busy: boolean;
+  onBack: () => void;
+  onCreate: (
+    selected: { name: string; workout: ImportedWorkout }[],
+  ) => void | Promise<void>;
+}) {
+  const [existingKeys, setExistingKeys] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [names, setNames] = useState<Record<string, string>>(() =>
+    Object.fromEntries(identified.map((routine) => [routine.key, routine.name])),
+  );
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<IdentifiedRoutine | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadExistingRoutineKeys().then((keys) => {
+      if (cancelled) return;
+      setExistingKeys(keys);
+      setSelected(
+        new Set(identified.filter((routine) => !keys.has(routine.key)).map((routine) => routine.key)),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [identified]);
+
+  const chosen = identified.filter(
+    (routine) => selected?.has(routine.key) && !existingKeys.has(routine.key),
+  );
+
+  return (
+    <>
+      <Text variant="body" color="textSecondary" style={styles.intro}>
+        Named sessions in this file are grouped into routines. The most recent session for each is
+        the template, including the weights and reps. You can edit them and add supersets from
+        Routines after this.
+      </Text>
+
+      <Card padded={false} style={styles.section}>
+        {identified.map((routine, index) => {
+          const taken = existingKeys.has(routine.key);
+          const on = selected?.has(routine.key) ?? false;
+          const label = names[routine.key] ?? routine.name;
+          const open = expanded === routine.key;
+
+          return (
+            <View key={routine.key}>
+              {index > 0 && <Divider inset={spacing.lg} />}
+              <SettingToggle
+                icon="albums-outline"
+                label={label}
+                description={taken ? undefined : routineDescription(routine)}
+                value={taken ? false : on}
+                disabled={taken || selected === null}
+                disabledReason={taken ? 'Already in your routines' : undefined}
+                onChange={(next) => {
+                  setSelected((current) => {
+                    const copy = new Set(current ?? []);
+                    if (next) copy.add(routine.key);
+                    else copy.delete(routine.key);
+                    return copy;
+                  });
+                }}
+              />
+              {!taken && (
+                <View style={styles.candidateActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rename ${label}`}
+                    onPress={() => setRenaming(routine)}
+                    style={styles.candidateAction}
+                  >
+                    <Text variant="label" color="accent">
+                      Rename
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      open ? `Hide exercises in ${label}` : `Show exercises in ${label}`
+                    }
+                    onPress={() => setExpanded(open ? null : routine.key)}
+                    style={styles.candidateAction}
+                  >
+                    <Text variant="label" color="accent">
+                      {open ? 'Hide exercises' : 'Show exercises'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+              {open && (
+                <View style={styles.exercisePreview}>
+                  {routine.latest.exercises.map((exercise, exerciseIndex) => (
+                    <View key={`${exercise.name}:${exerciseIndex}`} style={styles.exerciseRow}>
+                      <Text variant="bodyMedium" style={styles.exerciseName} numberOfLines={1}>
+                        {exercise.name}
+                      </Text>
+                      <Text variant="caption" color="textTertiary">
+                        {exercise.sets.length} {exercise.sets.length === 1 ? 'set' : 'sets'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </Card>
+
+      <Button
+        title={
+          chosen.length === 0
+            ? 'Nothing selected'
+            : `Create ${chosen.length.toLocaleString()} ${chosen.length === 1 ? 'routine' : 'routines'}`
+        }
+        icon="albums-outline"
+        size="lg"
+        fullWidth
+        loading={busy}
+        disabled={busy || chosen.length === 0 || selected === null}
+        style={styles.action}
+        onPress={() =>
+          void onCreate(
+            chosen.map((routine) => ({
+              name: (names[routine.key] ?? routine.name).trim() || routine.name,
+              workout: routine.latest,
+            })),
+          )
+        }
+      />
+      <Button
+        title="Not now"
+        variant="secondary"
+        size="lg"
+        fullWidth
+        disabled={busy}
+        style={styles.action}
+        onPress={onBack}
+      />
+
+      <PromptModal
+        visible={renaming !== null}
+        title="Rename routine"
+        initialValue={renaming ? (names[renaming.key] ?? renaming.name) : ''}
+        placeholder="Routine name"
+        confirmLabel="Save"
+        maxLength={60}
+        onCancel={() => setRenaming(null)}
+        onConfirm={(value) => {
+          if (renaming) {
+            const next = value.trim();
+            if (next.length > 0) {
+              setNames((current) => ({ ...current, [renaming.key]: next }));
+            }
+          }
+          setRenaming(null);
+        }}
+      />
+    </>
+  );
+}
+
+function RoutinesCreatedResult({
   summary,
   onImportMore,
 }: {
+  summary: ImportRoutinesSummary;
+  onImportMore: () => void;
+}) {
+  const created = summary.created.length;
+
+  return (
+    <>
+      <SectionHeader title={created > 0 ? 'Routines added' : 'Nothing new'} />
+      <Card style={styles.card}>
+        <Figure label="Routines added" value={created} />
+        {summary.created.map((routine) => (
+          <Row
+            key={routine.name}
+            label={routine.name}
+            value={`${routine.exercises} ${routine.exercises === 1 ? 'exercise' : 'exercises'}`}
+          />
+        ))}
+        {summary.skipped.length > 0 && (
+          <Figure label="Already here" value={summary.skipped.length} />
+        )}
+      </Card>
+
+      {created === 0 && (
+        <Text variant="body" color="textSecondary" style={styles.hint}>
+          Every selected name was already in your routines, so nothing changed.
+        </Text>
+      )}
+
+      <View style={styles.actions}>
+        <Button
+          title="Open routines"
+          icon="albums-outline"
+          size="lg"
+          fullWidth
+          onPress={() => router.replace('/(tabs)/workout')}
+        />
+        <Button title="Import another file" variant="secondary" fullWidth onPress={onImportMore} />
+      </View>
+    </>
+  );
+}
+
+function ImportResult({
+  summary,
+  identified,
+  onCreateRoutines,
+  onImportMore,
+}: {
   summary: ImportSummary;
+  identified: IdentifiedRoutine[];
+  onCreateRoutines: () => void;
   onImportMore: () => void;
 }) {
   const nothing = summary.workouts === 0;
+  const [existingKeys, setExistingKeys] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadExistingRoutineKeys().then((keys) => {
+      if (!cancelled) setExistingKeys(keys);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const creatable =
+    existingKeys === null
+      ? 0
+      : identified.filter((routine) => !existingKeys.has(routine.key)).length;
 
   return (
     <>
@@ -806,12 +1117,30 @@ function ImportResult({
         </Text>
       )}
 
+      {creatable > 0 && (
+        <Text variant="caption" color="textTertiary" style={styles.hint}>
+          {creatable === 1
+            ? 'One named workout in this import can be saved as a routine.'
+            : `${creatable.toLocaleString()} named workouts in this import can be saved as routines.`}
+        </Text>
+      )}
+
       <View style={styles.actions}>
+        {creatable > 0 && (
+          <Button
+            title="Create routines from import"
+            icon="albums-outline"
+            size="lg"
+            fullWidth
+            onPress={onCreateRoutines}
+          />
+        )}
         <Button
           title="View history"
           icon="time-outline"
           size="lg"
           fullWidth
+          variant={creatable > 0 ? 'secondary' : undefined}
           onPress={() => router.replace('/history')}
         />
         <Button title="Import another file" variant="secondary" fullWidth onPress={onImportMore} />
@@ -924,4 +1253,23 @@ const styles = StyleSheet.create({
   unit: { marginTop: spacing.xs },
   action: { marginTop: spacing.lg },
   actions: { marginTop: spacing.xl, gap: spacing.sm },
+  candidateActions: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  candidateAction: { minHeight: MIN_TOUCH_SIZE, justifyContent: 'center' },
+  exercisePreview: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  exerciseName: { flex: 1, flexShrink: 1 },
 });

@@ -108,7 +108,7 @@ export const EXPORT_GUIDES: Record<ImportApp, ExportGuide> = {
       'Send the file to this phone however you like, then pick it below.',
     ],
     warnings: [
-      'A backup restores routines, records and measurements as well; the CSV carries sets only.',
+      'A backup restores routines, records and measurements as well; the CSV carries sets only. After a CSV import you can turn named workouts into routines.',
       'A shared routine is added as a new routine of your own, and a shared session is added to your log. Neither touches anything already here.',
       'All of these merge into what is already here and overwrite nothing.',
     ],
