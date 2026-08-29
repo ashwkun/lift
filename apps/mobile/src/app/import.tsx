@@ -1150,9 +1150,9 @@ function SaveRoutinesStep({
         <>
           <SectionHeader title="Imported history" />
           <Text variant="caption" color="textTertiary" style={styles.hint}>
-            These names were saved as custom exercises when you imported. Turn this on to move this
-            file's sets onto the catalog exercises you picked, so the log and the routines match.
-            Sessions you logged yourself are not changed.
+            These names were saved as custom exercises when you imported. Turn this on to move the
+            sets from this file onto the catalog exercises you picked, so the log and the routines
+            match. Sessions you logged yourself are not changed.
           </Text>
           <Card padded={false} style={styles.section}>
             <SettingToggle
