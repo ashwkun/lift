@@ -21,6 +21,15 @@ interface SyncState {
    *  them down into "synced". */
   rejected: number;
   rejectionReason: string | null;
+  /**
+   * Changes that arrived and this device could not store, held for a later run.
+   *
+   * The inbound counterpart of `rejected`, and separate from it for the same
+   * reason: it is a change that did not land, and rounding it into "synced"
+   * would make the card claim an account is up to date when it is missing rows.
+   * The run itself still succeeds, because everything else in it did.
+   */
+  deferred: number;
 
   refreshPending: () => Promise<void>;
   sync: (options?: { silent?: boolean }) => Promise<void>;
@@ -34,6 +43,7 @@ export const useSync = create<SyncState>((set, get) => ({
   pending: 0,
   rejected: 0,
   rejectionReason: null,
+  deferred: 0,
 
   refreshPending: async () => {
     set(await readOutbox());
@@ -45,12 +55,17 @@ export const useSync = create<SyncState>((set, get) => ({
     if (!silent) set({ status: 'syncing', lastError: null });
 
     try {
-      await runSync();
+      const result = await runSync();
 
       set({
         status: 'idle',
         lastSyncedAt: Date.now(),
         lastError: null,
+        // Unlike the outbound counters this is not persisted anywhere, so it
+        // comes from the run rather than from the log. It is re-derived on
+        // every run, which is what lets it clear itself the moment a build
+        // ships whatever the deferred rows were waiting for.
+        deferred: result.deferred,
         // A run can finish cleanly and still leave changes the server refused,
         // so the counts come from the log rather than from the run's totals.
         ...(await readOutbox()),
@@ -94,6 +109,7 @@ export const useSync = create<SyncState>((set, get) => ({
       pending: 0,
       rejected: 0,
       rejectionReason: null,
+      deferred: 0,
     }),
 }));
 

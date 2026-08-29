@@ -29,6 +29,7 @@ export function SyncCard() {
     pending,
     rejected,
     rejectionReason,
+    deferred,
     sync,
     refreshPending,
     markSignedOut,
@@ -120,11 +121,11 @@ export function SyncCard() {
   const statusColor =
     status === 'error' || status === 'signed-out' || rejected > 0
       ? colors.danger
-      : status === 'offline'
+      : status === 'offline' || deferred > 0
         ? colors.warning
         : colors.success;
 
-  const statusLabel = describeStatus(status, pending, rejected);
+  const statusLabel = describeStatus(status, pending, rejected, deferred);
 
   return (
     <Card style={styles.card}>
@@ -195,11 +196,22 @@ export function SyncCard() {
  *
  * Written as statements rather than a ternary chain because of the last one:
  * "All changes synced" is the only claim in this card that can be false in a
- * way the user has no other way to notice, so it is reachable only when both
- * counters are zero. A change the server rejected is still a change that did
+ * way the user has no other way to notice, so it is reachable only when every
+ * counter is zero. A change the server rejected is still a change that did
  * not sync, and it used to fall through to the reassuring branch.
+ *
+ * `deferred` is the third of those counters and the newest. Rows that arrived
+ * and would not store used to abort the whole pull and show "Sync failed on
+ * this device", which was at least loud. Now that the rest of the pull lands,
+ * the run genuinely succeeds, and without a line of its own the card would go
+ * back to "All changes synced" while the account was still missing rows.
  */
-function describeStatus(status: SyncStatus, pending: number, rejected: number): string {
+function describeStatus(
+  status: SyncStatus,
+  pending: number,
+  rejected: number,
+  deferred: number,
+): string {
   if (status === 'syncing') return 'Syncing…';
   if (status === 'signed-out') return 'Session expired';
 
@@ -210,6 +222,12 @@ function describeStatus(status: SyncStatus, pending: number, rejected: number): 
     return `${count} change${rejected === 1 ? '' : 's'} could not sync`;
   }
   if (status === 'offline') return 'Offline. Will retry';
+  // Inbound, where `rejected` is outbound, and worded to say so. Nothing the
+  // user can do about it from here, which is why it does not offer a retry the
+  // way the rejected block does: the next run tries again on its own.
+  if (deferred > 0) {
+    return `${deferred} incoming change${deferred === 1 ? '' : 's'} not stored`;
+  }
   // Distinct from 'offline' because nothing retries it into working: the
   // changes arrived and this device would not store them.
   if (status === 'error') return 'Sync failed on this device';

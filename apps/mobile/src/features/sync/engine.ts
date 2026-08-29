@@ -55,6 +55,13 @@ export interface SyncResult {
   conflicts: number;
   /** Mutations retired this run: the server will never accept them as written. */
   quarantined: number;
+  /**
+   * Rows the pull could not store, and left for a later run.
+   *
+   * Almost always a foreign key: a row referencing a built-in exercise this
+   * build's catalog does not contain. See `pullChanges`.
+   */
+  deferred: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,10 +242,36 @@ async function pushPending(deviceId: string): Promise<{
             ...conflict.serverRow,
             syncState: 'synced',
           });
-          await db
-            .insert(table)
-            .values(values as never)
-            .onConflictDoUpdate({ target: table.id, set: values as never });
+
+          try {
+            await db
+              .insert(table)
+              .values(values as never)
+              .onConflictDoUpdate({ target: table.id, set: values as never });
+          } catch (error) {
+            /*
+             * The same exposure the pull had, and it has to be handled here
+             * too: this is a server row landing outside the ordering that
+             * `pullChanges` relies on, so it can reference a parent this device
+             * does not have. Uncaught it killed the whole push, which also
+             * stranded every unrelated mutation queued behind it.
+             *
+             * Charged as an attempt rather than retired. The oplog entry is
+             * deliberately left in place: deleting it below would drop our edit
+             * while the server's replacement failed to store, leaving the row
+             * at neither version.
+             */
+            await recordFailedAttempt(
+              [conflict.clientSeq],
+              'This device could not store the server\u2019s version of this row.',
+            );
+            console.warn(
+              `[sync] could not store server row ${conflict.table}/${String(
+                conflict.serverRow.id ?? '?',
+              )}: ${messageOf(error)}`,
+            );
+            continue;
+          }
         }
 
         // Our edit lost the timestamp comparison and the winner is now stored
@@ -377,8 +410,39 @@ async function sweepRetired(): Promise<void> {
  * not write through. Neither is worth risking a logged set for: every write
  * here is an idempotent upsert, and the cursor only advances once they all
  * land, so an interrupted pull is re-applied rather than half-kept.
+ *
+ * ## One bad row no longer stops the pull
+ *
+ * Ordering fixes the foreign keys this engine can satisfy. It cannot fix the
+ * one it can't: built-in exercises are keyed by slug and never cross the wire
+ * (`mutationSchema.rowId` is a uuid), so they exist locally only because
+ * `db/seed.ts` put them there. A `workout_exercises` row naming a built-in this
+ * build's catalog does not contain has no parent to wait for, and no later page
+ * will bring one.
+ *
+ * That happened. e82c1f1 cut 6,108 rows out of the catalog, and every device
+ * that pulled a history referencing one of them raised `FOREIGN KEY constraint
+ * failed` on the first such row, abandoned the entire pull, and did it again on
+ * every retry, because the cursor advances only after the whole batch lands.
+ * The user saw "This device could not store the changes" and no data, forever,
+ * with nothing naming the row or the table. Restoring the catalog fixed that
+ * instance. This is the part that stops the next one being as bad.
+ *
+ * So a row that will not store is now recorded and stepped over rather than
+ * thrown. The rest of the pull lands, which is the difference between a device
+ * that is missing a handful of sets and one that is missing everything.
+ *
+ * **The cursor stays put whenever anything was deferred**, and that is the
+ * whole safety of it. Advancing past a skipped row would be silent data loss:
+ * the server pages strictly forward by seq, so nothing would ever offer that
+ * row again. Pinned, the next run re-pulls and re-applies. Every write here is
+ * an idempotent upsert so the repeat costs bandwidth and nothing else, and the
+ * moment a build ships the missing catalog row it resolves on its own.
+ *
+ * The deferrals are logged with their table and id, because the failure this
+ * exists for took a phone on a cable to identify.
  */
-async function pullChanges(): Promise<number> {
+async function pullChanges(): Promise<{ applied: number; deferred: number }> {
   let cursor = await readMeta(CURSOR_KEY);
   const collected = new Map<string, Record<string, unknown>[]>();
 
@@ -402,6 +466,7 @@ async function pullChanges(): Promise<number> {
   }
 
   let applied = 0;
+  const deferrals: string[] = [];
 
   for (const name of SYNCABLE_TABLES) {
     const table = SYNC_TABLE_MAP[name as keyof typeof SYNC_TABLE_MAP];
@@ -416,21 +481,54 @@ async function pullChanges(): Promise<number> {
         syncState: 'synced',
       });
 
-      await db
-        .insert(table)
-        .values(values as never)
-        .onConflictDoUpdate({ target: table.id, set: values as never });
+      try {
+        await db
+          .insert(table)
+          .values(values as never)
+          .onConflictDoUpdate({ target: table.id, set: values as never });
 
-      applied += 1;
+        applied += 1;
+      } catch (error) {
+        // Only the row is abandoned, and only for this run. See the note above
+        // for why the cursor then refuses to move.
+        deferrals.push(`${name}/${String(row.id ?? '?')}: ${messageOf(error)}`);
+      }
     }
   }
 
-  // Advanced only once every row is in. Persisting it per page, which is what
-  // this did. Would strand the rest of the pull behind a cursor that claimed
-  // it had already been applied.
-  if (cursor !== null) await writeMeta(CURSOR_KEY, cursor);
+  if (deferrals.length > 0) {
+    /*
+     * Logged in full, and at most ten of them.
+     *
+     * The whole reason this branch exists is that the failure it handles was
+     * unidentifiable from the app: one line saying the device could not store
+     * the changes, with no table and no id. A device missing one catalog row
+     * can defer thousands of rows that all say the same thing, so the list is
+     * capped and the total is stated separately rather than the log being
+     * filled with one repeated sentence.
+     */
+    console.warn(
+      `[sync] deferred ${deferrals.length} row(s) to a later run; the cursor stays at the previous position:\n` +
+        deferrals.slice(0, 10).join('\n') +
+        (deferrals.length > 10 ? `\n...and ${deferrals.length - 10} more` : ''),
+    );
+  }
 
-  return applied;
+  /*
+   * Advanced only once every row is in, which now means every row *including*
+   * the deferred ones. Persisting it per page, which is what this did, would
+   * strand the rest of the pull behind a cursor that claimed it had already
+   * been applied, and advancing it over a deferral would do the same to that
+   * row permanently.
+   */
+  if (cursor !== null && deferrals.length === 0) await writeMeta(CURSOR_KEY, cursor);
+
+  return { applied, deferred: deferrals.length };
+}
+
+/** SQLite rejects with a plain `Error`, so the message is all there is. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 // ---------------------------------------------------------------------------
@@ -457,9 +555,9 @@ async function execute(): Promise<SyncResult> {
 
   const { pushed, conflicts, quarantined } = await pushPending(deviceId);
   await sweepRetired();
-  const pulled = await pullChanges();
+  const { applied: pulled, deferred } = await pullChanges();
 
-  return { pushed, pulled, conflicts, quarantined };
+  return { pushed, pulled, conflicts, quarantined, deferred };
 }
 
 export interface OutboxState {
