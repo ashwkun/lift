@@ -134,6 +134,30 @@ export default function TabLayout() {
           ...font('medium'),
         },
         tabBarItemStyle: { paddingVertical: spacing.xs / 2 },
+        /*
+         * The box the glyph is drawn in, widened because one tab draws a bigger
+         * glyph than the box holds.
+         *
+         * React Navigation gives the icon a **fixed** wrapper: 24x24 on its
+         * Material variant, 31x28 on its UIKit one, from `TabBarIcon`. The
+         * glyph inside it is `position: 'absolute'` and centred, so a glyph
+         * larger than the wrapper does not grow it. It draws past it, and the
+         * bottom is what goes: the wrapper's height is what the item's column
+         * reserves, so the label below sits over whatever spills out.
+         *
+         * The Workout tab asks for `size + 6` while a session is open, which is
+         * 30 against a 24pt box on Android and 31 against a 28pt one on iOS.
+         * That is the play-circle whose bottom edge is clipped, and it is the
+         * one icon in the bar that is meant to be noticed. `size + 2` on the
+         * other two overflows as well, by a point, which is why they look
+         * slightly soft rather than obviously cut.
+         *
+         * 32 clears the largest glyph on both platforms with a point to spare.
+         * The bar has room for it: 58 of content less the 4 above and the 4 the
+         * item pads with leaves 49, and a 32pt icon over an 11pt label comes to
+         * about 46.
+         */
+        tabBarIconStyle: { width: 32, height: 32 },
         /**
          * A 150ms crossfade, replacing the hard cut that used to be here.
          *
