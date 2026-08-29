@@ -8,6 +8,13 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.17.1](https://github.com/pawan67/lift/compare/v0.17.0...v0.17.1) - 2026-08-29
+
+### Fixes
+
+- stop parse.ts reading as a binary file ([bd00e00](https://github.com/pawan67/lift/commit/bd00e0093056b2ab16c6619e451f55da5504e181))
+- match the homepage tiles to the app's own cards ([4dd41a4](https://github.com/pawan67/lift/commit/4dd41a47fec7edf52faf47de78e64b24c76104f2))
+
 ## [0.17.0](https://github.com/pawan67/lift/compare/v0.16.1...v0.17.0) - 2026-08-29
 
 ### Features
