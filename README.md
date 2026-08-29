@@ -36,8 +36,8 @@ The same app, same code and same database, laid out for a window:
 Every figure above is one generated year of training rather than anyone's real
 log: `node scripts/screenshots/capture.mjs` builds the year, feeds it in through
 the app's own importer and retakes each image. The rest of the set, including
-the routine list, the palette grid, the plate calculator and two of the nine
-palettes, is in [`screenshots/`](screenshots).
+the routine list, the palette grid, the plate calculator and the home tab in
+each of the eight palettes, is in [`screenshots/`](screenshots).
 
 ## Features
 

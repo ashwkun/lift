@@ -100,15 +100,32 @@ const SHOTS = [
   // is the one shot that has to scroll to find its subject.
   { name: 'superset', settle: 2500, prepare: openPrescribedSuperset },
 
-  // Last, because it leaves a workout open: everything above it would then be
-  // photographed with a resume banner it does not need.
-  { name: 'session', route: null, settle: 3000, prepare: openActiveSession },
+  /*
+   * Every palette, all on the home tab, all framed identically.
+   *
+   * There used to be two of these, Nord on the history screen and Solarized on
+   * the calendar, which made the point that a palette is a whole screen rather
+   * than a swatch but could not do anything more: two shots of two different
+   * screens cannot be put beside each other, so the reader was being asked to
+   * hold one in mind while looking at the other.
+   *
+   * Shot as a set on one route, they can be stacked and switched between, and
+   * the appearance section of `apps/landing` does exactly that. **That only
+   * works while all eight are the same screen in the same state**, so this list
+   * is generated from one route on purpose: give one of them a route of its own
+   * and the switcher turns into a slideshow of unrelated screens.
+   *
+   * Before the session shot rather than after it. Everything here is the home
+   * tab, and the home tab grows a resume banner the moment a workout is open.
+   */
+  ...['light', 'dark', 'nord', 'gruvbox', 'catppuccin', 'spotify', 'fitness', 'solarized'].map(
+    (theme) => ({ name: `theme-${theme}`, route: '/', theme, settle: 3000, await: 'This week' }),
+  ),
 
-  // One palette that is not the default, and one that is not even dark, since
-  // "nine palettes" is a claim the grid on the appearance screen only half
-  // supports: it shows the swatches, not what a screen made of them looks like.
-  { name: 'theme-nord', route: '/history', theme: 'nord', settle: 3000 },
-  { name: 'theme-solarized', route: '/calendar', theme: 'solarized', settle: 3000 },
+  // Last, because it leaves a workout open: everything above it would then be
+  // photographed with a resume banner it does not need. Back to dark first,
+  // because the palette set above left the app on whichever it ended on.
+  { name: 'session', route: null, theme: 'dark', settle: 3000, prepare: openActiveSession },
 ];
 
 /**
@@ -168,6 +185,22 @@ if (!args.skipSeed) await seed(page);
  * session is photographed with the banner the ordering was avoiding.
  */
 await discardOpenSession(page);
+
+/*
+ * And whatever palette the last run ended on.
+ *
+ * Same class of leftover as the open session above, and it arrived with the
+ * palette set: `setTheme` writes to the settings blob, which lives in the
+ * profile, which `--skip-seed` reuses. A run that ended on Solarized therefore
+ * booted the next one in Solarized, and every shot above the palette block came
+ * out cream. Nothing failed and nothing warned; the pictures were simply of a
+ * theme nobody asked for.
+ *
+ * Dark rather than the app's own default of `system`, because `system` here
+ * resolves against the headless browser's colour scheme rather than a phone's,
+ * and pinning it is what makes two runs on two machines produce the same set.
+ */
+await setTheme(page, 'dark');
 
 const wanted = args.only ? new Set(args.only.split(',').map((name) => name.trim())) : null;
 
@@ -453,6 +486,24 @@ async function capture(page, shot) {
   // otherwise shows the browser's text selection over its first value, which is
   // a thing the phone does not draw.
   await page.evaluate(() => document.activeElement?.blur?.());
+
+  /*
+   * Expo's dev error toast, evicted immediately before the shutter.
+   *
+   * `boot` already stubs `console.error` for this, and that is not enough: the
+   * stub only stops new logs, so anything that fired between the page loading
+   * and the stub landing leaves a red bar sitting across the bottom of the app
+   * for the rest of the run. It cost a whole palette set before it was noticed,
+   * because it appears late enough that the first few screens look clean.
+   *
+   * `#error-toast` is a child of `body` rather than of the app, so removing it
+   * cannot disturb anything being photographed. Development furniture, same as
+   * the stub: a release build has none of this.
+   */
+  await page.evaluate(() => {
+    document.getElementById('error-toast')?.remove();
+    console.error = () => {};
+  });
 
   const file = `${OUT}/${shot.name}.png`;
   await page.screenshot({ path: file });
