@@ -8,6 +8,20 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.18.1](https://github.com/pawan67/lift/compare/v0.18.0...v0.18.1) - 2026-08-29
+
+### Features
+
+- rebuild the landing page ([1e5c9d5](https://github.com/pawan67/lift/commit/1e5c9d59fe176749a091bb2cbb378359007faacd))
+
+### Fixes
+
+- let one unstorable row defer instead of killing the pull ([bde9cc7](https://github.com/pawan67/lift/commit/bde9cc7da7c86edcc0016cb3c5c0b19e3247a804))
+
+### Internal
+
+- chore: retake the screenshots across all eight palettes ([0023261](https://github.com/pawan67/lift/commit/0023261fbc098ac32b6231253a24aa5183264ce7))
+
 ## [0.18.0](https://github.com/pawan67/lift/compare/v0.17.3...v0.18.0) - 2026-08-29
 
 ### Features
