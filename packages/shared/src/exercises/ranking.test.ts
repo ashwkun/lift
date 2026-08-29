@@ -4,7 +4,9 @@ import { describe, it } from 'node:test';
 import type { MuscleGroup } from '../types.ts';
 import {
   buildTrainingIndex,
+  filterExercises,
   suggestExercises,
+  type FilterableExercise,
   type RankableExercise,
   type TrainingHistoryRow,
 } from './ranking.ts';
@@ -179,5 +181,99 @@ describe('suggestExercises', () => {
     );
 
     assert.equal(suggestExercises({ catalog: CATALOG, index, limit: 3, now: NOW }).length, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Search ordering
+// ---------------------------------------------------------------------------
+
+/**
+ * Names rather than ids, because ordering search results is entirely a question
+ * about names. Shaped like the real catalog: a movement, its equipment, and the
+ * long tail of oddities that share the word.
+ */
+function named(name: string): FilterableExercise {
+  return {
+    id: name,
+    name,
+    primaryMuscle: 'chest',
+    secondaryMuscles: [],
+    isArchived: false,
+    isCustom: false,
+    equipment: 'other',
+  };
+}
+
+const SEARCHABLE: FilterableExercise[] = [
+  named('Squat'),
+  named('Dumbbell Squat'),
+  named('Barbell Squat'),
+  named('U Squat'),
+  named('Sit Squat'),
+  named('Dumbbell Press Squat'),
+  named('Bench Press'),
+  named('Dumbbell Bench Press'),
+  named('Squat Press-up'),
+  named('Barbell Row'),
+  named('Dumbbell Row'),
+  named('Rowing'),
+  named('Rowing Boat Yoga Pose'),
+  // Enough dumbbells and barbells that they read as the catalog's common words.
+  named('Dumbbell Curl'),
+  named('Dumbbell Fly'),
+  named('Barbell Curl'),
+  named('Barbell Fly'),
+];
+
+const order = (search: string) => filterExercises(SEARCHABLE, { search }).map((row) => row.name);
+
+describe('filterExercises ordering', () => {
+  it('puts the exact name first', () => {
+    assert.equal(order('squat')[0], 'Squat');
+  });
+
+  /*
+   * The regression the whole-word tier exists for: "row" used to answer with
+   * Rowing and Rowing Boat Yoga Pose before any actual row.
+   */
+  it('ranks a name containing the word above one merely starting with it', () => {
+    const rows = order('row');
+    assert.ok(rows.indexOf('Barbell Row') < rows.indexOf('Rowing'));
+    assert.ok(rows.indexOf('Dumbbell Row') < rows.indexOf('Rowing Boat Yoga Pose'));
+  });
+
+  /*
+   * Within a tier, what the name adds to the query decides. Fewer added words
+   * first: "Bench Press" is a variant of "press", "Dumbbell Press Squat" is a
+   * different exercise that contains it.
+   */
+  it('prefers the name that adds least to the query', () => {
+    const rows = order('press');
+    assert.ok(rows.indexOf('Bench Press') < rows.indexOf('Dumbbell Press Squat'));
+    assert.ok(rows.indexOf('Bench Press') < rows.indexOf('Squat Press-up'));
+  });
+
+  /*
+   * And among names that added equally little, the one built from the
+   * catalog's common words. Without this "squat" opens on U Squat and Sit
+   * Squat, which is the alphabet pretending to be relevance.
+   */
+  it('prefers the mainstream variant among equally short additions', () => {
+    const rows = order('squat');
+    assert.ok(rows.indexOf('Dumbbell Squat') < rows.indexOf('U Squat'));
+    assert.ok(rows.indexOf('Barbell Squat') < rows.indexOf('Sit Squat'));
+  });
+
+  it('never lets ordering drop a match', () => {
+    // Squat, Dumbbell/Barbell/U/Sit Squat, Dumbbell Press Squat, Squat Press-up.
+    assert.equal(order('squat').length, 7);
+    assert.equal(order('nothing here').length, 0);
+  });
+
+  // The frequency index is memoised on the row array's identity, so the second
+  // search over the same array must not see a stale or doubled index.
+  it('gives the same answer twice over the same rows', () => {
+    assert.deepEqual(order('squat'), order('squat'));
   });
 });

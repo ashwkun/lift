@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import {
   EQUIPMENT_LABELS,
   MUSCLE_GROUP_LABELS,
@@ -12,7 +12,7 @@ import {
 } from '@lift/shared/exercises';
 import { asc, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -36,6 +36,8 @@ import {
   trainingHistoryQuery,
   type ExerciseListItem,
 } from '@/features/exercises/repository';
+import { useDebounced } from '@/hooks/use-debounced';
+import { useScrollToTopOn } from '@/hooks/use-scroll-to-top-on';
 import { spacing } from '@/theme';
 
 /** Hoisted: an inline arrow here is a new component type on every render, which
@@ -69,17 +71,23 @@ export default function ExercisesScreen() {
   const index = useMemo(() => buildTrainingIndex(history), [history]);
 
   /*
-   * Filtering runs against the *deferred* query, not the live one.
+   * Filtering runs against a *debounced then deferred* query, not the live one.
    *
    * Scoring 6,800 names is far too much work to finish between two keystrokes
    * on a mid-range phone, and doing it synchronously means every character
    * waits for the previous one's filter. The keyboard visibly falls behind.
-   * `useDeferredValue` lets the TextInput commit at input priority and re-runs
-   * the filter at transition priority, where React can abandon it the moment
-   * another character arrives. The list lags the field by a frame or two under
-   * fast typing, which is the correct trade: the field is what the eye tracks.
+   *
+   * The two do different halves of the job and both are needed. Debouncing cuts
+   * how *many* passes run: typing "bench press" is one pass instead of eleven,
+   * and ten of the eleven were describing a query nobody was looking at.
+   * `useDeferredValue` then keeps the one pass that does run off the field's
+   * critical path, letting the TextInput commit at input priority while the
+   * filter runs at transition priority where React can abandon it. The list
+   * lags the field, which is the correct trade: the field is what the eye
+   * tracks.
    */
-  const deferredSearch = useDeferredValue(search);
+  const debouncedSearch = useDebounced(search);
+  const deferredSearch = useDeferredValue(debouncedSearch);
 
   const visible = useMemo(
     () =>
@@ -161,6 +169,13 @@ export default function ExercisesScreen() {
     [openExercise],
   );
 
+  const listRef = useRef<FlashListRef<ExerciseListItem>>(null);
+
+  // Every control that changes what the list *is* rather than what is in it.
+  // Joined with a separator no label contains, so "abs" as a search and "abs"
+  // as a muscle can never collide into one key.
+  useScrollToTopOn(listRef, [deferredSearch, ...muscles, ...equipment].join('\u0000'));
+
   return (
     <Screen scrolled={scrollEdge.progress}>
       <Stack.Screen
@@ -226,6 +241,7 @@ export default function ExercisesScreen() {
       </View>
 
       <FlashList
+        ref={listRef}
         {...scrollEdge.list}
         data={visible}
         keyExtractor={(item) => item.id}

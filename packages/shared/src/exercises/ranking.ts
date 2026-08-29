@@ -74,6 +74,117 @@ export interface ExerciseFilters {
   includeArchived?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// How canonical a name is
+// ---------------------------------------------------------------------------
+
+/**
+ * How many names in the library each word appears in.
+ *
+ * The tie-break problem this solves: within one match tier, nothing in the data
+ * said which of "Barbell Squat" and "U Squat" a person searching "squat" meant.
+ * Ordering by name gave the alphabet and ordering by length gave the shortest
+ * qualifier, and both are arbitrary dressed up as an answer: "squat" opened on
+ * U Squat, Air Squat and Sit Squat, and "row" on Lever Row and Pulse Row.
+ *
+ * Word frequency is the signal the catalog does carry. Every row is a movement
+ * plus qualifiers, and the qualifiers of a canonical entry are the ones the
+ * catalog uses constantly: "dumbbell" appears in hundreds of names, "u" and
+ * "sit" in a handful. So a name built from common words is a mainstream variant
+ * and a name built from rare ones is a corner of the catalog, which is exactly
+ * the question a tie-break here has to answer.
+ *
+ * A name is scored by its *rarest* word rather than its average, because one
+ * odd word is what makes an entry obscure and averaging lets the common words
+ * around it hide that.
+ */
+type WordFrequency = ReadonlyMap<string, number>;
+
+/**
+ * Memoised on the row array's identity, not copied into it.
+ *
+ * Building costs ~14ms over the real catalog, which is affordable once and not
+ * per keystroke. Screens hand `filterExercises` the same array from one live
+ * query for as long as the table is unchanged, so the cache holds across every
+ * search, and a `WeakMap` means a superseded array takes its index with it. The
+ * function stays pure: the same rows still produce the same answer, this only
+ * stops it recomputing the same thing.
+ *
+ * Built lazily, and only from the search branch. Browsing never needs it.
+ */
+const wordFrequencyCache = new WeakMap<object, WordFrequency>();
+
+function wordFrequency(rows: readonly RankableExercise[]): WordFrequency {
+  const cached = wordFrequencyCache.get(rows);
+  if (cached) return cached;
+
+  const frequency = new Map<string, number>();
+  for (const row of rows) {
+    // Per name, not per occurrence: "Squat Squat Jump" must not make "squat"
+    // look commoner than it is.
+    for (const token of new Set(nameTokens(row.name))) {
+      frequency.set(token, (frequency.get(token) ?? 0) + 1);
+    }
+  }
+
+  wordFrequencyCache.set(rows, frequency);
+  return frequency;
+}
+
+function nameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+/** What a name adds on top of the query, which is what ranks it within a tier. */
+interface Qualifiers {
+  /** How many words the name has that the query did not ask for. Fewer is better. */
+  count: number;
+  /**
+   * How common the rarest of those words is across the library. Higher is
+   * better. `Infinity` when there are none, which means the name is exactly the
+   * query: the honest value rather than a sentinel, since a name made of no
+   * unusual words cannot be beaten on this key.
+   */
+  commonness: number;
+}
+
+/**
+ * The query's own words are skipped throughout: they are in every row being
+ * compared, so counting them would add the same amount to all of them.
+ *
+ * Count is read before commonness, and the order of those two is not
+ * interchangeable. Commonness alone answered "press" with Squat Press-up and
+ * Dumbbell Press Squat, because "squat", "dumbbell" and "up" are among the
+ * commonest words in the catalog, so piling more of them on scored *better*.
+ * Counting first says what that missed: a name that adds one word to the query
+ * is a variant of it, and a name that adds three is a different exercise that
+ * happens to contain it. Commonness then picks the mainstream variant from
+ * among the ones that added equally little, which is the job it is good at, and
+ * is what keeps "Dumbbell Squat" above "U Squat".
+ */
+function qualifiers(
+  name: string,
+  queryTokens: readonly string[],
+  frequency: WordFrequency,
+): Qualifiers {
+  let count = 0;
+  let commonness = Infinity;
+
+  for (const token of nameTokens(name)) {
+    if (queryTokens.includes(token)) continue;
+    count += 1;
+    const seen = frequency.get(token) ?? 0;
+    if (seen < commonness) commonness = seen;
+  }
+
+  return { count, commonness };
+}
+
 /**
  * Filters and orders an already-loaded library.
  *
@@ -111,22 +222,45 @@ export function filterExercises<T extends FilterableExercise>(
 
   const match = search ? createExerciseMatcher(search) : null;
   if (match) {
+    const frequency = wordFrequency(rows);
+    const queryTokens = nameTokens(search ?? '');
+
     // One array of scored entries rather than map → filter → sort → map, which
     // allocated four intermediate arrays of up to 6,800 elements per keystroke.
-    const scored: { row: T; score: number }[] = [];
+    // The qualifiers are computed here rather than in the comparator because a
+    // sort asks for each element's keys O(log n) times, and this one tokenises.
+    const scored: { row: T; score: number; extra: Qualifiers }[] = [];
     for (const row of result) {
       const score = match(row.name);
-      if (score > 0) scored.push({ row, score });
+      if (score > 0) {
+        scored.push({ row, score, extra: qualifiers(row.name, queryTokens, frequency) });
+      }
     }
 
-    // Usage breaks ties *within* a match tier only. It must never outrank the
-    // text score: someone typing "squat" is naming the row they want, and
-    // burying it under a lift they happen to do more often is the search
-    // failing at the one thing it was asked to do.
+    /*
+     * Four keys, and the order of them is the ranking.
+     *
+     * Usage breaks ties *within* a match tier only. It must never outrank the
+     * text score: someone typing "squat" is naming the row they want, and
+     * burying it under a lift they happen to do more often is the search
+     * failing at the one thing it was asked to do.
+     *
+     * The two qualifier keys are what make a tier an order rather than a heap:
+     * how much the name adds to the query, then how mainstream what it added
+     * is. See `qualifiers`. Both sit below usage, because what this person
+     * actually trains beats anything the catalog's own shape can say.
+     *
+     * Length then separates rows those cannot, which is mostly the same words
+     * spelled longer. Name last, and only to keep the order stable between two
+     * renders of the same query.
+     */
     scored.sort(
       (a, b) =>
         b.score - a.score ||
         uses(usage, b.row.id) - uses(usage, a.row.id) ||
+        a.extra.count - b.extra.count ||
+        b.extra.commonness - a.extra.commonness ||
+        a.row.name.length - b.row.name.length ||
         a.row.name.localeCompare(b.row.name),
     );
     return scored.map((entry) => entry.row);

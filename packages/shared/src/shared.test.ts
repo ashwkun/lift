@@ -408,16 +408,36 @@ describe('exercise library', () => {
     assert.ok(EXERCISE_LIBRARY.length >= 200, `only ${EXERCISE_LIBRARY.length} exercises`);
   });
 
-  it('ranks exact and prefix matches above substring hits', () => {
+  it('ranks exact above whole-word above mid-word above substring', () => {
     const exact = scoreExerciseMatch('Squat (Barbell)', 'squat (barbell)');
-    const prefix = scoreExerciseMatch('Squat (Barbell)', 'squat');
     const word = scoreExerciseMatch('Goblet Squat (Dumbbell)', 'squat');
+    const midWord = scoreExerciseMatch('Squatting Reach', 'squat');
+    const buried = scoreExerciseMatch('Antisquat Drill', 'squat');
     const none = scoreExerciseMatch('Bench Press (Barbell)', 'squat');
 
-    assert.ok(exact > prefix);
-    assert.ok(prefix > word);
-    assert.ok(word > none);
+    assert.ok(exact > word);
+    assert.ok(word > midWord);
+    assert.ok(midWord > buried);
+    assert.ok(buried > none);
     assert.equal(none, 0);
+  });
+
+  /*
+   * The regression the whole-word tier exists for. Ranking "starts with the
+   * query" above "contains the query as a word" answered "row" with Rowing,
+   * Rowing Boat Yoga Pose and Rowing Straight Back before any actual row, and
+   * "press" with Press Under before Bench Press.
+   */
+  it('puts a name containing the word above one merely starting with it', () => {
+    assert.ok(scoreExerciseMatch('Barbell Row', 'row') > scoreExerciseMatch('Rowing', 'row'));
+    assert.ok(
+      scoreExerciseMatch('Bench Press', 'press') > scoreExerciseMatch('Pressure Hold', 'press'),
+    );
+  });
+
+  it('does not drop a tier over a plural', () => {
+    assert.equal(scoreExerciseMatch('Barbell Squats', 'squat'), scoreExerciseMatch('Barbell Squat', 'squat'));
+    assert.equal(scoreExerciseMatch('Leg Presses', 'press'), scoreExerciseMatch('Leg Press', 'press'));
   });
 
   it('matches multi-token queries in any order', () => {

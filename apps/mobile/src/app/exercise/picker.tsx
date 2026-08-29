@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { EQUIPMENT_LABELS, type Equipment, type MuscleGroup } from '@lift/shared';
 import {
   buildTrainingIndex,
@@ -8,7 +8,7 @@ import {
 } from '@lift/shared/exercises';
 import { asc, isNull } from 'drizzle-orm';
 import { router, Stack } from 'expo-router';
-import { Fragment, useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { Fragment, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,6 +34,8 @@ import {
   trainingHistoryQuery,
   type ExerciseListItem,
 } from '@/features/exercises/repository';
+import { useDebounced } from '@/hooks/use-debounced';
+import { useScrollToTopOn } from '@/hooks/use-scroll-to-top-on';
 import { useExercisePicker } from '@/store/exercise-picker';
 import { spacing } from '@/theme';
 
@@ -129,9 +131,12 @@ export default function ExercisePickerScreen() {
 
   const index = useMemo(() => buildTrainingIndex(history), [history]);
 
-  // Deferred for the same reason as the library screen: the field must never
-  // wait on a 6,800-row filter. See the note there.
-  const deferredSearch = useDeferredValue(search);
+  // Debounced then deferred, for the same reason as the library screen: the
+  // field must never wait on a 6,800-row filter, and it should not run that
+  // filter once per character either. See the note there. This screen opens
+  // mid-set with the keyboard already up, so it is the one that feels it.
+  const debouncedSearch = useDebounced(search);
+  const deferredSearch = useDeferredValue(debouncedSearch);
 
   const suggestions = useMemo(
     () => suggestExercises({ catalog: allExercises, index, context }),
@@ -197,6 +202,13 @@ export default function ExercisePickerScreen() {
     ),
     [selected, handlePress],
   );
+
+  const listRef = useRef<FlashListRef<ExerciseListItem>>(null);
+
+  // Same key as the library screen: everything that changes what the list *is*.
+  // Selecting a row deliberately is not in it, since toggling a checkbox must
+  // not throw away the reader's place in the results.
+  useScrollToTopOn(listRef, [deferredSearch, ...muscles, ...equipment].join('\u0000'));
 
   // Both queries have to have answered before anything renders. Not for the
   // catalog's sake (it is empty either way) but so the suggestion block can't
@@ -265,6 +277,7 @@ export default function ExercisePickerScreen() {
       </View>
 
       <FlashList
+        ref={listRef}
         {...scrollEdge.list}
         data={visible}
         keyExtractor={(item) => item.id}
