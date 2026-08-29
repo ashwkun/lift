@@ -869,10 +869,10 @@ function SaveRoutinesStep({
 
   return (
     <>
-      <SectionHeader title="Save as routines" />
-      <Text variant="caption" color="textTertiary" style={styles.hint}>
-        Each title becomes a routine from its most recent session in this file. Uncheck any you do
-        not want. Full edits — rest, supersets, dropping lifts — happen on the routine afterwards.
+      <Text variant="body" color="textSecondary" style={styles.intro}>
+        Named sessions in this file are grouped into routines. The most recent session for each is
+        the template, including the weights and reps. You can edit them and add supersets from
+        Routines after this.
       </Text>
 
       <Card padded={false} style={styles.section}>
@@ -1120,8 +1120,8 @@ function ImportResult({
       {creatable > 0 && (
         <Text variant="caption" color="textTertiary" style={styles.hint}>
           {creatable === 1
-            ? 'One named workout in that file can be saved as a routine.'
-            : `${creatable.toLocaleString()} named workouts in that file can be saved as routines.`}
+            ? 'One named workout in this import can be saved as a routine.'
+            : `${creatable.toLocaleString()} named workouts in this import can be saved as routines.`}
         </Text>
       )}
 
