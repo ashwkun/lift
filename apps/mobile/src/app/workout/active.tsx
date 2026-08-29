@@ -16,15 +16,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -101,22 +93,10 @@ import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
-import { duration, easing, spacing, timing, useColors } from '@/theme';
+import { spacing, timing, useColors } from '@/theme';
 
 /** This screen's name on the picker's hand-off channel. */
 const PICKER_ADDRESS = 'active-workout';
-
-const UNIT_LAYOUT = LinearTransition.duration(duration.base)
-  .easing(easing.out)
-  .reduceMotion(ReduceMotion.System);
-
-const UNIT_ENTER = FadeIn.duration(duration.fast)
-  .easing(easing.out)
-  .reduceMotion(ReduceMotion.System);
-
-const UNIT_EXIT = FadeOut.duration(duration.instant)
-  .easing(easing.in)
-  .reduceMotion(ReduceMotion.System);
 
 export default function ActiveWorkoutScreen() {
   const scrollEdge = useScrollEdge();
@@ -1107,39 +1087,25 @@ export default function ActiveWorkoutScreen() {
             return (
               <View key={unit.id}>
                 {index > 0 && <Divider />}
-                <Animated.View layout={UNIT_LAYOUT} style={styles.unit}>
-                  {open ? (
-                    <Animated.View
-                      key={`${unit.id}-open`}
-                      entering={UNIT_ENTER}
-                      exiting={UNIT_EXIT}
-                    >
-                      {unit.label ? (
-                        <SupersetGroup label={unit.label}>{tables}</SupersetGroup>
-                      ) : (
-                        tables
-                      )}
-                    </Animated.View>
+                {open ? (
+                  unit.label ? (
+                    <SupersetGroup label={unit.label}>{tables}</SupersetGroup>
                   ) : (
-                    <Animated.View
-                      key={`${unit.id}-closed`}
-                      entering={UNIT_ENTER}
-                      exiting={UNIT_EXIT}
-                    >
-                      <CollapsedLift
-                        unit={unit}
-                        onExpand={() => setExpandedId(unit.id)}
-                        onOpenDemo={() =>
-                          setDemo({
-                            name: lead.name,
-                            thumbnailUrl: lead.thumbnailUrl,
-                            videoUrl: lead.videoUrl,
-                          })
-                        }
-                      />
-                    </Animated.View>
-                  )}
-                </Animated.View>
+                    tables
+                  )
+                ) : (
+                  <CollapsedLift
+                    unit={unit}
+                    onExpand={() => setExpandedId(unit.id)}
+                    onOpenDemo={() =>
+                      setDemo({
+                        name: lead.name,
+                        thumbnailUrl: lead.thumbnailUrl,
+                        videoUrl: lead.videoUrl,
+                      })
+                    }
+                  />
+                )}
               </View>
             );
           })
@@ -1503,7 +1469,6 @@ const styles = StyleSheet.create({
   // this the clock's frame and the Finish pill's would meet.
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   scroll: { paddingBottom: spacing.huge },
-  unit: { overflow: 'hidden' },
   actions: {
     padding: spacing.lg,
     gap: spacing.sm,
