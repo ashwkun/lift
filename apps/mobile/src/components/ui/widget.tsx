@@ -20,7 +20,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 
 import { Text } from './text';
-import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '../../theme';
+import { hoverFill, MIN_TOUCH_SIZE, radius, spacing, useColors } from '../../theme';
 import { PressableScale } from './motion';
 
 /**
@@ -123,7 +123,7 @@ export function SquareWidget({
       accessibilityLabel={tileLabel(title, subtitle)}
       fill={colors.surface}
       fillPressed={colors.surfacePressed}
-      hoverFill={colors.surfaceMuted}
+      hoverFill={hoverFill(colors.surface, colors.surfacePressed)}
       style={[styles.square, style]}
       scaleTo={0.97}
       {...props}
@@ -182,7 +182,7 @@ export function WideWidget({
       accessibilityLabel={tileLabel(title, subtitle)}
       fill={colors.surface}
       fillPressed={colors.surfacePressed}
-      hoverFill={colors.surfaceMuted}
+      hoverFill={hoverFill(colors.surface, colors.surfacePressed)}
       style={[styles.wide, style]}
       scaleTo={0.98}
       {...props}
@@ -220,7 +220,17 @@ const ACTION_BOX = 24;
 const styles = StyleSheet.create({
   square: {
     aspectRatio: 1,
-    borderRadius: radius.xl,
+    /*
+     * `lg`, which is what `Card` is and therefore what a card is in this app.
+     *
+     * These tiles spent a release at `xl`. Twenty against fourteen does not
+     * sound like a difference until a tile sits six points above a `Card` on
+     * the same canvas, and then the homepage reads as a screen borrowed from
+     * somewhere else. The grid is the novel thing here; the corner is not, and
+     * a shape that is nearly the app's is worse than one that is either the
+     * app's or plainly not.
+     */
+    borderRadius: radius.lg,
     padding: spacing.lg,
     flexDirection: 'column',
     justifyContent: 'space-between',
@@ -258,7 +268,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   wide: {
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     padding: spacing.lg,
     flexDirection: 'column',
     overflow: 'hidden',
