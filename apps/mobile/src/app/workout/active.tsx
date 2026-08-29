@@ -635,25 +635,34 @@ export default function ActiveWorkoutScreen() {
    * same one `exercise-block` puts a plate calculation under: the set the user
    * is walking to the rack to do.
    *
-   * The flag is taken before anything else can run, so a re-render mid-write
-   * cannot tick a second set. If nothing is unchecked the flag is still
-   * consumed: the workout is finished, and the request has been answered by
-   * there being nothing to answer it with.
+   * Subscribed rather than read in an effect: answering calls `setState`, and
+   * doing that in the effect body is a cascading render. The flag is taken
+   * before anything else can run, so a re-render mid-write cannot tick a second
+   * set. If nothing is unchecked the flag is still consumed: the workout is
+   * finished, and the request has been answered by there being nothing to
+   * answer it with.
    */
-  const completeSetRequested = useNoticeRequest((state) => state.completeSet);
-
   useEffect(() => {
-    if (!completeSetRequested) return;
-    if (!useNoticeRequest.getState().takeCompleteSet()) return;
+    const answer = () => {
+      if (!useNoticeRequest.getState().takeCompleteSet()) return;
 
-    for (const detail of details) {
-      const next = detail.sets.find((set) => !set.isCompleted);
-      if (next) {
-        void handleToggleSet(next, detail);
-        return;
+      for (const detail of details) {
+        const next = detail.sets.find((set) => !set.isCompleted);
+        if (next) {
+          void handleToggleSet(next, detail);
+          return;
+        }
       }
-    }
-  }, [completeSetRequested, details, handleToggleSet]);
+    };
+
+    // The notification can fire before this screen is mounted. Subscribe only
+    // sees later flips, so a flag already waiting is drained once here.
+    if (useNoticeRequest.getState().completeSet) queueMicrotask(answer);
+
+    return useNoticeRequest.subscribe((state, prev) => {
+      if (state.completeSet && !prev.completeSet) answer();
+    });
+  }, [details, handleToggleSet]);
 
   // Which exercise's rest is being edited, held by `workoutExercises.id` rather
   // than by the row itself so the sheet re-reads the live query's latest copy.
