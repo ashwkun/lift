@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
+import { KineticHeading } from "@/components/site/kinetic";
 import { Reveal } from "@/components/site/reveal";
 import { links } from "@/lib/site";
 
@@ -15,30 +16,38 @@ import { links } from "@/lib/site";
  */
 export function Sync() {
   return (
-    <section id="sync" className="border-b border-line py-24 sm:py-28">
+    <section
+      id="sync"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
+    >
       <div className="shell">
-        <Reveal className="max-w-[62rem]">
-          <h2 className="display text-[clamp(1.9rem,4vw,3.1rem)]">
-            An account is optional, and it stays optional.
-          </h2>
+        <KineticHeading
+          top="Sign in"
+          bottom="or don’t"
+          lede="An account is optional and it stays optional. All it buys is a second copy of the log, and nothing is held back until you ask for one."
+        />
 
-          <div className="mt-9 grid gap-8 text-[1.0625rem] leading-[1.75] text-fg-2 sm:mt-11 sm:grid-cols-2 sm:gap-12">
+        {/*
+          One column, capped at a measure. It was two, which was right against
+          a 1280 track and is not against 940: halved, each paragraph came out
+          at 36 characters, and a two-line sentence set 36 characters wide is a
+          newspaper column with the news taken out.
+        */}
+        <Reveal className="mt-16 max-w-[46rem] sm:mt-20">
+          <div className="space-y-6 text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
             <p>
-              Signing in adds a backup and the same log on a second phone. It
-              adds nothing else, it is not a tier, and nothing is held back
-              until you do it. Workouts are written on the phone and sent
-              afterwards, so losing signal in the middle of a session changes
-              nothing about how the app behaves, and a sync cut off halfway is
-              picked up by the next one rather than handing you the same
-              workout twice.
+              Signing in adds a backup and the same log on a second phone. It adds
+              nothing else and it is not a tier. Workouts are written on the
+              phone and sent afterwards, so losing signal mid session changes
+              nothing, and a sync cut off halfway is picked up by the next one
+              rather than handing you the same workout twice.
             </p>
             <p>
-              Edit the same session in two places and the most recent edit is
-              the one that keeps. Delete it on one phone and it goes on the
-              other. Nothing is held back until you sign in and nothing stops
-              working if you never do: not a tier, not a trial, not a screen
-              waiting behind a login. All an account buys is a second copy, and
-              where that copy sits is the next thing on this page.
+              Edit the same session in two places and the most recent edit is the
+              one that keeps. Delete it on one phone and it goes on the other.
+              Nothing stops working if you never sign in: not a trial, not a
+              screen waiting behind a login. Where that second copy sits is the
+              next thing on this page.
             </p>
           </div>
 

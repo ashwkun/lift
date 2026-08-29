@@ -49,17 +49,6 @@
   --warn: #e8913c;
   --alarm: #ec5a62;
 
-  /*
-   * The calendar's volume ramp, lifted rather than eyeballed: these are
-   * `mix(surfaceMuted, accent, f)` for f in 0.38 / 0.58 / 0.77 / 0.96, the
-   * stops in `features/analytics/month-grid.tsx`. The top stops short of the
-   * raw accent so the busiest day reads as the end of a scale, not a button.
-   */
-  --vol-1: #626f33;
-  --vol-2: #869a3b;
-  --vol-3: #a9c242;
-  --vol-4: #cbea49;
-
   /* shadcn semantics, pointed at the ramp above. */
   --background: var(--ink);
   --foreground: var(--fg);
@@ -83,6 +72,37 @@
 
   /* radius.lg from the app's token scale. */
   --radius: 0.875rem;
+
+  /*
+   * The three device widths, hoisted out of `components/site/phone.tsx`.
+   *
+   * They were Tailwind classes on a cva variant until the annotated devices
+   * needed them: a callout rail runs from the gutter to the edge of the frame,
+   * which is `50% - half the frame`, and that arithmetic has to be done against
+   * the width the frame is actually drawn at. Two copies of a clamp is one copy
+   * too many, so the clamp lives here and `Phone` reads it back with `w-(--…)`.
+   *
+   * The middle term is a large fraction of the viewport and the maximum is what
+   * actually holds on a desktop, which is the inversion that makes these read
+   * as a phone on a phone. At `26vw` the hero device came out 208px wide on a
+   * 390pt screen, a bit over half of it, floating in the middle of a column
+   * with nothing beside it: a picture of a phone, on a phone, smaller than the
+   * phone. At `62vw` it is 242px and reads as the thing itself. Every viewport
+   * over about 500px is on the maximum, so nothing above `sm` moved.
+   */
+  /*
+   * The hero device, and the only one with a width of its own.
+   *
+   * It stands under the headline rather than beside it now, in a row as wide
+   * as the page with nothing else on it, so it is not competing with a column
+   * of copy for the same track and can be the size the picture wants to be.
+   * 352 against a 940 measure is a little over a third of it, which is what
+   * stops the whole first screen reading as type with a thumbnail under it.
+   */
+  --phone-xl: clamp(15rem, 72vw, 22rem);
+  --phone-lg: clamp(13rem, 62vw, 18.5rem);
+  --phone-md: clamp(11rem, 52vw, 15rem);
+  --phone-sm: 8.75rem;
 }
 
 @theme inline {
@@ -126,9 +146,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --font-sans: var(--font-jetbrains-sans);
+  --font-sans: var(--font-eina);
   --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-jetbrains-sans);
+  --font-heading: var(--font-eina);
 
   --radius-sm: calc(var(--radius) * 0.45);
   --radius-md: calc(var(--radius) * 0.72);
@@ -153,11 +173,10 @@
   html {
     @apply font-sans;
     /*
-     * No `font-stretch` anywhere on this page any more. The face it used to
-     * carry had a real width axis and the page rode it, narrow for body copy
-     * and wide for headlines, to land near the app's own typeface. This is now
-     * that typeface: three static cuts and no axis at all, so a width
-     * declaration would either do nothing or pick a face that is not there.
+     * No `font-stretch` anywhere on this page. Eina has four widths and they
+     * are four separate families rather than an axis, so a width declaration
+     * would either do nothing or pick a face that is not loaded. The one that
+     * is loaded is 03; see `app/layout.tsx` for why.
      */
     scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
@@ -230,75 +249,67 @@
 }
 
 /*
- * The hero's entrance. Deliberately not an IntersectionObserver: it is already
- * on screen at load, so it animates on the one thing that has actually
- * happened. Everything below the fold waits to be scrolled to.
+ * The hero's entrance used to be here: two keyframes and a pair of component
+ * classes, driven by five hand-counted `animation-delay` values in
+ * `components/sections/hero.tsx`. It is a `gsap.timeline` in
+ * `components/site/scroll-motion.tsx` now, where the delays are positions and
+ * the order reads down one column, and both keyframes went with it.
  */
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 1rem, 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes draw {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@layer components {
-  .rise {
-    animation: rise 0.85s var(--ease-out-quint) both;
-  }
-
-  .draw {
-    transform-origin: left;
-    animation: draw 1.1s var(--ease-out-quint) both;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rise,
-    .draw {
-      animation: none;
-    }
-  }
-}
 
 @layer components {
   /*
-   * The page's one measure. Every section sits in this, so the gutters and the
-   * left edge of the type line up down the whole scroll, and widening the page
-   * is one number rather than a find-and-replace across nine files.
+   * The page's one gutter.
    *
-   * 88rem rather than Tailwind's 7xl: on a 1920 monitor an 80rem column leaves
-   * a 320px margin either side, and the hero starts reading as a screenshot of
-   * a smaller page. The gutter grows with the viewport for the same reason.
+   * Deliberately small on a phone. This page is read at phone width first, and
+   * every rem spent on a margin there comes straight off the headline: at 20px
+   * either side a 390pt screen has 350 left, which is two short words of
+   * display type and no more.
    */
-  .shell {
-    margin-inline: auto;
-    width: 100%;
-    max-width: 88rem;
-    padding-inline: 1.25rem;
+  :where(html) {
+    --gutter: 1.25rem;
   }
 
   @media (width >= 40rem) {
-    .shell {
-      padding-inline: 2rem;
+    :where(html) {
+      --gutter: 2rem;
     }
   }
 
   @media (width >= 64rem) {
-    .shell {
-      padding-inline: 3rem;
+    :where(html) {
+      --gutter: 3rem;
     }
+  }
+
+  /*
+   * The page's one measure. 940px, down from 1280 and from 1408 before that.
+   *
+   * Both of those were arguments about how much the page could hold. This is
+   * an argument about how little it should: a column narrow enough that a
+   * headline set to fill it is *also* a comfortable line of reading, so the
+   * display type and the body copy stop being two separate decisions about two
+   * separate widths. At 940 a three-line headline runs the full track and a
+   * paragraph under it lands around 70 characters without being capped, and
+   * the black either side is most of what the page is made of.
+   *
+   * The margin is not empty space going to waste. On a 1440 monitor it is 250px
+   * a side, and it is the reason nothing here has to shout to read as
+   * deliberate.
+   *
+   * **Nothing is full bleed any more.** A heading used to escape this with a
+   * `100vw` box and a negative margin, which was right when the measure was
+   * 1280 and near enough the window anyway. Against a 940 column it read as a
+   * heading that had come loose from its own section. The titles still arrive
+   * from off the side of the screen; that is now a distance in
+   * `components/site/scroll-motion.tsx` rather than a width here, which is the
+   * honest place for it, because it was always about the travel and never
+   * about how wide the type was allowed to be.
+   */
+  .shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 58.75rem;
+    padding-inline: var(--gutter);
   }
 
   /*
@@ -348,19 +359,110 @@
   /*
    * Headline setting.
    *
-   * 700 rather than 800: the family ships no Extrabold, and the app made the
-   * same call when it moved here — its `display` role names the Bold. Asking
-   * for 800 would resolve to the same file and read as a number nobody chose.
+   * 700, the heaviest cut of Eina loaded, and the whole point of the face on
+   * this page. It was briefly 300, which was a nicer piece of typography and
+   * the wrong one: a light headline is elegant in the way a magazine standfirst
+   * is elegant, and this page is selling a gym app. Set in the Bold the two
+   * words hit like the thing they are describing.
    *
-   * The tracking is the app's own, converted from points to ems rather than
-   * re-eyeballed: `pageDisplay` is -1.2 at 38px, which is -0.032em, and it
-   * holds at any size because an em is what the app's fixed pair describes at
-   * the size it was drawn for.
+   * **The tracking is open, and it is a house decision rather than a default.**
+   * The received rule for display type is a negative track, on the grounds
+   * that a heavy face at 100px leaves craters between round letters that need
+   * closing. This headline is set the other way, at +0.01em, because the thing
+   * being sold is legibility at arm's length: the version that followed the
+   * rule read as one dense object at a glance and had to be resolved word by
+   * word, and open tracking is what turns it back into three separate lines
+   * you can take in at once. It went -0.035em, then -0.016em, then here, and
+   * each step was easier to read than the one before it.
+   *
+   * **How wide depends on the case, which is why there are two classes here.**
+   * This one sets the sentence-case headings: the hero, the download slab and
+   * the 404. `.display-caps` below runs slightly tighter, and the leading
+   * differs too: a figure that works for a row of caps with no descenders in
+   * it runs the `g` of "Log" into the cap-height of the line underneath.
+   *
+   * The leading matters twice over here, because `scroll-motion.tsx` splits the
+   * hero into lines and masks each one with `overflow-hidden` to make the type
+   * rise out of the line above. That mask is the line box: set the leading
+   * under 1 and it is shorter than the glyphs it contains, so the descenders
+   * are clipped by the effect even when it is finished and at rest.
    */
   .display {
     font-weight: 700;
-    letter-spacing: -0.032em;
-    line-height: 0.95;
+    line-height: 0.98;
+  }
+
+  /*
+   * The uppercase half: the kinetic section titles, and only those.
+   *
+   * Open like the sentence-case setting above, and a little tighter than it.
+   * The gaps a Bold leaves between round capitals are already wider than the
+   * gaps it leaves in lower case, so the same figure applied to both would put
+   * more air between `O` and `C` than the line can carry; a few thousandths
+   * less here lands the two at the same apparent looseness.
+   *
+   * +0.004em, up from -0.026em and from -0.035em before that. The old figure
+   * was being defended on width: `.display-line` below is `nowrap`, so a title
+   * too wide for its track hangs off the side of the section for good rather
+   * than for the length of an entrance. **The width is not close, and every
+   * step out has been measured rather than guessed.** At the clamp ceiling of
+   * 108px and at the track this now sets, the longest line on the page is
+   * `read back.` at 659px. The tightest measure it ever has to fit is 821px,
+   * at a 900px window, where the gutter has dropped to 2rem but the type is
+   * still at the ceiling: 162px spare at the worst point on the curve, and
+   * more everywhere else.
+   *
+   * The leading moves with it, 0.86 to 0.9. The original argument for 0.86
+   * holds up on its own terms, but it was tuned against a hero that was also at
+   * 0.86 and the hero is at 0.98 now. This keeps the titles tighter than the
+   * hero, which is the relationship that was wanted, without keeping them at a
+   * figure that reads as cramped beside it.
+   *
+   * **Both figures are still width-sensitive even with the headroom.** A longer
+   * heading than anything currently on the page could overrun; the guard is the
+   * two-words-per-line rule in `components/site/kinetic.tsx`, not this.
+   */
+  .display-caps {
+    letter-spacing: 0.004em;
+    line-height: 0.9;
+  }
+
+  /*
+   * A display line that is allowed to run off the side of the screen rather
+   * than wrap.
+   *
+   * `nowrap` is the load-bearing half. The entrance parks each line a full
+   * viewport width out and slides it back, and a line that wraps to two on a
+   * phone arrives as a paragraph doing the splits instead of as one word
+   * moving. Two words per line, never three, is the constraint that makes the
+   * whole effect work at 390pt, and this is what enforces it: if a heading is
+   * too long to hold, the fix is a shorter heading.
+   */
+  .display-line {
+    display: block;
+    white-space: nowrap;
+  }
+
+  /*
+   * The subheadings: sentence case, a third of the size, same weight. They pick
+   * a sentence out of a column rather than titling a section.
+   *
+   * Nearly neutral, and less open than the display sizes above rather than
+   * more. Tracking is optical, so the right figure moves with the size in both
+   * directions: the craters a Bold leaves between round letters at 100px are
+   * what the open track up there is answering, and at 28px they are already
+   * closed. The same +0.01em applied here would not read as air, it would read
+   * as a heading that had come unstuck.
+   *
+   * The name is now half a lie. It was `tight` when it was the least negative
+   * of three negative figures; it is the tightest of three near-neutral ones,
+   * which is the same ordering and a different fact. Not worth a rename across
+   * every section for.
+   */
+  .display-tight {
+    font-weight: 700;
+    letter-spacing: 0.002em;
+    line-height: 1.05;
   }
 
   /*
@@ -422,5 +524,70 @@
       rgb(210 243 75 / 0.04) 42%,
       transparent 72%
     );
+  }
+}
+
+/*
+ * The scrubbed animations are not here. They are GSAP, in
+ * `components/site/scroll-motion.tsx`, and this comment is the signpost.
+ *
+ * They were here, built on `animation-timeline: view()`, which cost nothing
+ * and ran off the main thread. It was replaced because a view timeline maps
+ * scroll to progress exactly and exactness is the problem: a wheel notch is a
+ * jump, so type driven straight off one jumps too. What reads as smooth is the
+ * lag, and a scroll timeline has no way to express one. The file above sets
+ * `scrub: 0.9`, which is nine tenths of a second of catch-up, and that is the
+ * whole of the difference.
+ *
+ * What is left in CSS is `Reveal`, which fires once off an IntersectionObserver
+ * because a paragraph is either in or out and does not need a tween engine to
+ * say so. The hero's keyframes were the other half of this and are gone; see
+ * the note further up where they used to be.
+ */
+
+@layer components {
+  /*
+   * An annotated device: a frame in the middle of the measure with hairlines
+   * running out to the gutters and a label under each.
+   *
+   * The rails are sized rather than guessed. `--phone-w` is the same token the
+   * frame is drawn at, so a rail is exactly the gap between the gutter and the
+   * glass however wide the viewport is, and the two never overlap or leave a
+   * float of space between them at some width nobody tested.
+   */
+  .annotated {
+    position: relative;
+  }
+
+  .callout {
+    position: absolute;
+    width: calc(50% - var(--phone-w) / 2 - 1.75rem);
+  }
+
+  .callout-left {
+    left: 0;
+  }
+
+  .callout-right {
+    right: 0;
+    text-align: right;
+  }
+
+  .callout-rule {
+    height: 1px;
+    width: 100%;
+    background: var(--line-strong);
+  }
+
+  /*
+   * Each rule grows away from its own gutter, so the pair reads as two things
+   * reaching toward the phone rather than as one line sliding across the page.
+   */
+  .callout-left .callout-rule {
+    transform-origin: left;
+  }
+
+  .callout-right .callout-rule {
+    transform-origin: right;
   }
 }

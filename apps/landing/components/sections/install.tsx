@@ -68,15 +68,15 @@ export function Install({ release }: { release: Release | null }) {
         */}
         <div className="shell relative py-24 sm:py-32 lg:py-36">
           <div className="max-w-4xl">
-            <h2 className="display max-w-[16ch] text-[clamp(2.4rem,6.6vw,5.5rem)]">
+            <h2 className="display max-w-[14ch] text-[clamp(2.75rem,11vw,6rem)]">
               Download it and log one set.
             </h2>
-            <p className="mt-7 max-w-[52ch] text-lg leading-[1.6] text-volt-ink/80">
-              That is the whole evaluation. If it is not faster than what you
-              are using, nothing was signed up for and nothing needs cancelling.
+            <p className="mt-7 max-w-[42ch] text-[1.1875rem] leading-[1.5] text-volt-ink/80 sm:text-2xl sm:leading-[1.45]">
+              That is the whole evaluation. If it is not faster than what you are
+              using, nothing was signed up for and nothing needs cancelling.
             </p>
 
-            <div className="mt-10 flex flex-wrap items-center gap-3">
+            <div className="mt-10 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
               <LinkButton size="hero" variant="ink" href={links.release}>
                 <Download />
                 {release ? `Download ${release.tag}` : "Download the APK"}
@@ -101,7 +101,7 @@ export function Install({ release }: { release: Release | null }) {
         </div>
       </div>
 
-      <div className="border-b border-line">
+      <div>
         {/*
           Same container and gutters as every other section, with the reading
           measure applied inside it. Centring a narrower container instead would
@@ -109,7 +109,7 @@ export function Install({ release }: { release: Release | null }) {
           it, which is the sort of thing you only see once you scroll past both.
         */}
         <div className="shell py-20 sm:py-24">
-          <h2 className="display text-[clamp(1.5rem,2.7vw,2rem)]">
+          <h2 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)]">
             Before you install
           </h2>
 

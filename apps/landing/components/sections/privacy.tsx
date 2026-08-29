@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
+import { KineticHeading } from "@/components/site/kinetic";
 import { Reveal } from "@/components/site/reveal";
 import { links } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -31,43 +32,41 @@ const EGRESS = [
     event: "Every workout, set, routine, record and measurement",
     destination: "Nowhere",
     tone: "text-volt",
-    note: "Written to a database on the phone and read back from the same place. With no account and no backup, uninstalling the app is the end of it, because there was never a second copy anywhere to go looking for.",
+    note: "Written to a database on the phone and read back from the same place. With no account and no backup, uninstalling the app is the end of it: there was never a second copy to go looking for.",
   },
   {
     event: "A sync, once you have decided to sign in",
     destination: "Your server",
     tone: "text-fg",
-    note: "The same rows, over HTTPS, to whichever address the build was pointed at. The server behind that address is in this repository under the same licence, so it can be a machine you own. Nothing is sent before you sign in, and signing out stops it.",
+    note: "The same rows, over HTTPS, to whichever address the build was pointed at. That server is in this repository under the same licence, so it can be a machine you own. Nothing is sent before you sign in, and signing out stops it.",
   },
   {
     event: "An update check, each time the app starts",
     destination: "Expo",
     tone: "text-fg-3",
-    note: "It asks whether a newer JavaScript bundle exists for this exact build, and downloads one if there is. Nothing about your training goes with the question. It is the only thing the app sends on its own initiative to a machine that is not yours, and it is the reason a fix can reach you without another install.",
+    note: "It asks whether a newer JavaScript bundle exists for this build, and downloads one if there is. Nothing about your training goes with the question. It is the only thing the app sends on its own initiative to a machine that is not yours.",
   },
   {
     event: "A backup, a spreadsheet, or a file for a coach",
     destination: "You decide",
     tone: "text-fg",
-    note: "Every export is a file handed to the share sheet, and the share sheet is you choosing. Nothing is uploaded on your behalf first. Send it nowhere and it stays on the phone with everything else.",
+    note: "Every export is a file handed to the share sheet, and the share sheet is you choosing. Nothing is uploaded on your behalf first.",
   },
 ];
 
 export function Privacy() {
   return (
-    <section id="privacy" className="border-b border-line py-24 sm:py-32">
+    <section
+      id="privacy"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
+    >
       <div className="shell">
-        <div className="max-w-[44rem]">
-          <h2 className="display text-[clamp(2rem,4.4vw,3.5rem)]">
-            Nothing leaves the phone that you did not send
-            <span className="text-volt">.</span>
-          </h2>
-          <p className="mt-7 max-w-[56ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
-            Local-first says where your training lives. This is the other half
-            of it: everything the app can send, where each one goes, and what is
-            in it. Four rows, and there is no fifth.
-          </p>
-        </div>
+        <KineticHeading
+          top="Nothing"
+          bottom="leaves"
+          ledeMotion="ink"
+          lede="Everything the app can send, where each one goes, and what is in it. Four rows, and there is no fifth."
+        />
 
         {/*
           One rule above the first row and one under each, so the ledger opens
@@ -75,8 +74,8 @@ export function Privacy() {
           sits on the same baseline as the thing it answers and is set in the
           mono, which is what stops the column reading as four more paragraphs.
         */}
-        <Reveal className="mt-14 border-t border-line sm:mt-16">
-          <ul>
+        <div className="mt-16 border-t border-line sm:mt-20">
+          <ul data-stagger>
             {EGRESS.map((row) => (
               <li
                 key={row.destination}
@@ -99,25 +98,25 @@ export function Privacy() {
               </li>
             ))}
           </ul>
-        </Reveal>
+        </div>
 
+        {/* One column at a capped measure, for the reason the sync section is
+            one: halved, a 940 track sets these at 36 characters. */}
         <Reveal
-          delay={90}
-          className="mt-14 grid gap-8 text-[1.0625rem] leading-[1.75] text-fg-2 sm:mt-16 sm:grid-cols-2 sm:gap-14"
+          delay={140}
+          className="mt-14 max-w-[46rem] space-y-6 text-[1.0625rem] leading-[1.7] text-fg-2 sm:mt-16 sm:text-lg"
         >
           <p>
-            There is no analytics in the build, no crash reporter, no
-            advertising id and no session recording. None of that is a promise
-            about how the project intends to behave. It is the dependency list,
-            and the dependency list is a file in the repository that anybody can
-            open and read to the end in about a minute.
+            No analytics in the build, no crash reporter, no advertising id, no
+            session recording. That is not a promise about how the project
+            intends to behave. It is the dependency list, and the dependency
+            list is a file anybody can read to the end in about a minute.
           </p>
           <p>
             The licence closes the other end. Lift is AGPL-3.0, so a future
             version that started collecting things would have to publish the
             code that collects them, and the copy already on your phone keeps
-            working whatever a future version decides to do. Nothing here
-            expires, phones home for permission, or stops at a paywall.
+            working whatever that version decides to do.
           </p>
         </Reveal>
 

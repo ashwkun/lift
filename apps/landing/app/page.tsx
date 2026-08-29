@@ -1,3 +1,5 @@
+import { Appearance } from "@/components/sections/appearance";
+import { Details } from "@/components/sections/details";
 import { Footer } from "@/components/sections/footer";
 import { Hero } from "@/components/sections/hero";
 import { Install } from "@/components/sections/install";
@@ -9,8 +11,7 @@ import { Privacy } from "@/components/sections/privacy";
 import { Screens } from "@/components/sections/screens";
 import { SelfHost } from "@/components/sections/self-host";
 import { Sync } from "@/components/sections/sync";
-import { Reveal } from "@/components/site/reveal";
-import { VolumeBand } from "@/components/site/volume-band";
+import { ScrollMotion } from "@/components/site/scroll-motion";
 import { latestRelease } from "@/lib/release";
 
 /*
@@ -24,25 +25,46 @@ export default async function Home() {
 
   return (
     <>
+      {/*
+        Renders nothing. It is the one client component on the page, and it is
+        mounted here rather than in `layout.tsx` because everything it drives is
+        on this route: a 404 has no kinetic headings to scrub and should not be
+        paying for a tween engine to find that out.
+      */}
+      <ScrollMotion />
+
       <Nav />
 
       <main className="flex-1">
         <Hero release={release} />
 
         {/*
-          A year of training, between the hero and the tour. It reads as the
-          divider it structurally is, and it is the first thing on the page that
-          shows what a filled-in log looks like rather than describing one.
+          The hero hands straight to the tour. There was a band of 52 shaded
+          cells in between, captioned as illustrative, and "illustrative" was
+          the problem: every other picture on this page is the app's own
+          arithmetic over a real generated year, and this was a drawing of a
+          calendar sitting one screen above a photograph of the calendar. One
+          of the two had to go and it was not going to be the photograph.
         */}
-        <section className="border-b border-line py-14 sm:py-16">
-          <div className="shell">
-            <Reveal>
-              <VolumeBand />
-            </Reveal>
-          </div>
-        </section>
 
+        <Details />
+        {/*
+          Straight after the tour, because it is about the same screens. The
+          tour ends on a rail of four more of them and this reopens one of the
+          four in eight palettes, which is the only place on the page where a
+          reader gets to change something rather than read about it.
+        */}
+        <Appearance />
         <Screens />
+
+        {/*
+          Six features that had no place on the page before there was artwork
+          for them: the rest timer, the superset link, the plate calculator, the
+          widgets, the bell's output stream and the records. None of the six has
+          a screen worth photographing at tile width, which is why every one of
+          them was a line in the README and nothing here.
+        */}
+
         <Opinion />
         <Offline />
         <Portable />

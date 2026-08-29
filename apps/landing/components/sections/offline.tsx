@@ -1,4 +1,4 @@
-import { Reveal } from "@/components/site/reveal";
+import { KineticHeading } from "@/components/site/kinetic";
 
 /*
  * Set as a page of a manual, not as a grid of cards.
@@ -17,62 +17,54 @@ import { Reveal } from "@/components/site/reveal";
 const GUARANTEES = [
   {
     lead: "It works with the network off.",
-    body: "Not degraded, not read-only. Nothing has to be fetched between a rep and its record, so there is no spinner to sit through and nothing that can fail.",
+    body: "Not degraded, not read-only. Nothing is fetched between a rep and its record, so there is no spinner and nothing that can fail.",
   },
   {
     lead: "Force-quitting mid set loses nothing.",
-    body: "The session you are in is written down as you go rather than held in memory. Open the app again and it is still running, on the set you were on.",
+    body: "The session is written down as you go rather than held in memory. Open the app again and it is still running, on the set you were on.",
   },
   {
     lead: "Nothing comes back on its own.",
-    body: "Delete a workout on one phone and it stays deleted on the other. Whatever you got rid of does not quietly reappear the next time the two of them talk.",
+    body: "Delete a workout on one phone and it stays deleted on the other, however many times the two of them talk.",
   },
   {
     lead: "Kilograms in, pounds out.",
-    body: "Switch units whenever you like. It changes what you read, never what was recorded, so nothing already in your history shifts underneath you.",
+    body: "Switch units whenever you like. It changes what you read, never what was recorded.",
   },
   {
     lead: "Warm-up sets do not count.",
-    body: "They stay out of volume, out of your estimated one rep max and out of personal records. Counting them would inflate every figure in the app.",
+    body: "They stay out of volume, out of your estimated one rep max and out of personal records.",
   },
   {
     lead: "Nothing in here wants your attention.",
-    body: "No ads, no upsell, no feed, no streak to protect. It is open source end to end, which is also what stops any of that arriving in a later version.",
+    body: "No ads, no upsell, no feed, no streak to protect. It is open source end to end, which is what stops any of that arriving later.",
   },
 ];
 
 export function Offline() {
   return (
-    <section id="offline" className="border-b border-line py-24 sm:py-32">
+    <section
+      id="offline"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
+    >
       <div className="shell">
-        {/*
-          Headline and lede side by side rather than stacked. Every other
-          opener on this page puts the lede under the headline; putting them
-          in one row here is what stops the six sections opening identically.
-        */}
-        <div className="grid gap-8 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] md:items-end md:gap-12 lg:gap-20">
-          <h2 className="display text-[clamp(2rem,4.4vw,3.5rem)]">
-            It all lives on your phone. Everything else follows from that
-            <span className="text-volt">.</span>
-          </h2>
-          <p className="max-w-[52ch] leading-[1.7] text-fg-2 lg:pb-2">
-            Local-first is not a marketing position here, it is where your
-            training physically is. Six things that follow from it, none of
-            which you have to take on trust.
-          </p>
-        </div>
+        <KineticHeading
+          top="Local"
+          bottom="first"
+          lede="It all lives on your phone, and everything on this page follows from that. Six things that come out of it, none of which you have to take on trust."
+        />
 
-        <Reveal className="mt-16 sm:mt-20 lg:columns-2 lg:gap-20">
+        <div data-stagger className="mt-16 sm:mt-20 lg:columns-2 lg:gap-20">
           {GUARANTEES.map((item) => (
             <p
               key={item.lead}
-              className="mb-9 break-inside-avoid text-[1.0625rem] leading-[1.75] text-fg-2 last:mb-0"
+              className="mb-9 break-inside-avoid text-[1.0625rem] leading-[1.7] text-fg-2 last:mb-0 sm:text-lg"
             >
               <strong className="font-semibold text-fg">{item.lead}</strong>{" "}
               {item.body}
             </p>
           ))}
-        </Reveal>
+        </div>
       </div>
     </section>
   );

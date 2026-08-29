@@ -78,8 +78,20 @@ export function Reveal({
       ref={ref}
       data-reveal=""
       style={{ transitionDelay: `${delay}ms` }}
+      /*
+       * A second flat, up from 700ms, to sit with the scrubbed effects in
+       * `scroll-motion.tsx` rather than against them. This is the only piece of
+       * motion on the page a stopwatch applies to, so it is also the one that
+       * gives the pace away: a paragraph that lands while the title above it is
+       * still arriving reads as two systems, and it was the faster of the two.
+       *
+       * `ease-out-quint` is doing the elegance and it did not need touching.
+       * Nearly all of a quint's travel is over in the first third, so the extra
+       * 300ms is spent on the settle rather than on the movement, which is the
+       * difference between a slow animation and a long one.
+       */
       className={cn(
-        "translate-y-4 opacity-0 transition-[opacity,transform] duration-700 ease-[var(--ease-out-quint)]",
+        "translate-y-4 opacity-0 transition-[opacity,transform] duration-1000 ease-[var(--ease-out-quint)]",
         "data-shown:translate-y-0 data-shown:opacity-100",
         className,
       )}

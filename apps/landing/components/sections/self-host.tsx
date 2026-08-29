@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 
+import { KineticHeading } from "@/components/site/kinetic";
 import { Reveal } from "@/components/site/reveal";
 import { links } from "@/lib/site";
 
@@ -28,41 +29,45 @@ const SERVICES = [
 
 export function SelfHost() {
   return (
-    <section id="self-host" className="border-b border-line py-24 sm:py-32">
+    <section
+      id="self-host"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
+    >
       <div className="shell">
-        {/*
-          `min-w-0` on both halves, and it is load-bearing rather than
-          defensive. A grid item's automatic minimum size is its content's
-          min-content width, and the shell command below is a `pre` that has
-          no smaller size to give: without this the track is set by the width
-          of that one line, and on a phone it drags every paragraph in the
-          section out past the edge of the screen with it.
-        */}
-        <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
-          <div className="min-w-0">
-            <p className="label text-fg-3">Run your own</p>
-            <h2 className="display mt-5 text-[clamp(1.9rem,4vw,3.1rem)] text-balance">
-              If you want sync, be the server.
-            </h2>
+        <KineticHeading
+          top="Be the"
+          bottom="server"
+          lede="If you want sync, you can be the thing your phone syncs to. What follows is the whole of it: a database and a container."
+        />
 
-            <div className="mt-7 space-y-6 text-[1.0625rem] leading-[1.75] text-fg-2">
+        {/*
+          The terminal sits under the prose rather than beside it. Two even
+          tracks was the shape against a 1280 measure; against 940 it gave the
+          paragraphs 382px, which is 34 characters, and gave a shell command
+          that has to be read in one piece the same 382 to be read in.
+
+          `min-w-0` is load-bearing rather than defensive, and it stays whatever
+          the tracks do. A grid item's automatic minimum size is its content's
+          min-content width, and the command below is a `pre` that has no
+          smaller size to give: without this the track is set by the width of
+          that one line, and on a phone it drags every paragraph in the section
+          out past the edge of the screen with it.
+        */}
+        <div className="mt-16 grid gap-14 sm:mt-20">
+          <div className="min-w-0 max-w-[46rem]">
+            <div className="space-y-6 text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
               <p>
                 The thing a signed-in phone talks to is a small service in front
                 of Postgres, in this repository, under the same licence as the
-                app. It depends on nothing that has to be signed up for first:
-                no queue, no object store, no mailer, no third-party anything.
-                A database and a container.
+                app. No queue, no object store, no mailer, no third-party
+                anything.
               </p>
               <p>
                 Migrations are applied before it starts listening, and one that
-                fails takes the container down rather than answering requests
-                against a half-applied schema. The healthcheck round-trips to
-                the database instead of returning a static 200, so a deploy that
-                reports healthy is one that can actually store a set. Six
-                settings are required and the stack refuses to start without
-                them rather than inventing defaults, which is how a
-                misconfiguration announces itself at deploy time instead of at
-                the gym.
+                fails takes the container down rather than answering against a
+                half-applied schema. The healthcheck round-trips to the
+                database instead of returning a static 200, so a deploy that
+                reports healthy is one that can actually store a set.
               </p>
               <p>
                 Pointing the app at it is one variable at build time:{" "}
@@ -71,9 +76,8 @@ export function SelfHost() {
                 <span className="figure text-[0.9375rem] text-fg">
                   EXPO_PUBLIC_API_URL
                 </span>{" "}
-                for the web build. Both are compiled into the bundle rather than
-                read at runtime, so moving the server is a rebuild and not a
-                restart.
+                for the web build. Both are compiled in rather than read at runtime,
+                so moving the server is a rebuild and not a restart.
               </p>
             </div>
 
@@ -95,7 +99,7 @@ export function SelfHost() {
             </div>
           </div>
 
-          <Reveal delay={90} className="min-w-0">
+          <Reveal delay={140} className="min-w-0 max-w-[46rem]">
             {/*
               The command scrolls rather than wraps. A wrapped shell line reads
               as two commands, and this one is meant to be copied whole.
@@ -133,8 +137,8 @@ export function SelfHost() {
               </ul>
 
               <p className="mt-8 border-t border-line pt-6 text-[0.9375rem] leading-[1.7] text-fg-3">
-                Postgres is not on that list because it is not in the file. It
-                is whichever database you already run, named by{" "}
+                Postgres is not on that list because it is not in the file. It is
+                whichever database you already run, named by{" "}
                 <span className="figure text-[0.875rem] text-fg-2">
                   DATABASE_URL
                 </span>

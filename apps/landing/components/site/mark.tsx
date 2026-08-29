@@ -73,7 +73,7 @@ export function Wordmark({
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <Mark id={id} className={cn("h-6 w-auto", markClassName)} />
-      <span className="display text-[1.35rem] leading-none tracking-[-0.03em]">
+      <span className="display-tight text-[1.35rem] leading-none tracking-[-0.03em]">
         Lift
       </span>
     </span>

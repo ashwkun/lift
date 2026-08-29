@@ -1,3 +1,4 @@
+import { KineticHeading } from "@/components/site/kinetic";
 import { Reveal } from "@/components/site/reveal";
 
 /*
@@ -56,27 +57,49 @@ const OUTLINE = [
 
 export function Opinion() {
   return (
-    <section id="coach" className="border-b border-line py-24 sm:py-32">
+    <section
+      id="coach"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
+    >
       <div className="shell">
-        <p className="text-fg-3">New in this release</p>
-        <h2 className="display mt-4 max-w-[25ch] text-[clamp(2rem,4.6vw,3.5rem)]">
-          Most of it just writes down what you did. Two parts read it back.
-        </h2>
+        {/* The one standfirst on the page that sits above a kinetic title
+            rather than under it. It is dated rather than argued, so it belongs
+            with the section's label, not in its lede. */}
+        <p className="label text-fg-3">
+          New in this release
+        </p>
 
-        <div className="mt-16 grid gap-16 sm:mt-20 lg:grid-cols-2 lg:gap-20">
+        <KineticHeading
+          top="Two parts"
+          bottom="read back"
+          className="mt-6"
+          lede="Most of the app writes down what you did. These two read it back: one works out the next set from your own history, the other hands the whole log to whichever model you already talk to."
+        />
+
+        {/*
+          Stacked, not side by side. They were two tracks, which said the right
+          thing about them: these are two halves of one idea and they belong on
+          one row. Against a 940 measure that row is 382px a side, and neither
+          half survives it. The suggestion table is four rows of a label, a
+          target and a reason, and at 382 the reason wraps under the target on
+          every one of them; the document outline hangs its glosses off the
+          heading beside them, and at 382 nothing has room to hang.
+
+          The pairing is still made, by the gap and by the two headings. It is
+          just made down the page rather than across it.
+        */}
+        <div className="mt-16 grid gap-20 sm:mt-20 sm:gap-24">
           <Reveal>
-            <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)]">
+            <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)]">
               What to lift next.
             </h3>
-            <p className="mt-5 max-w-[52ch] leading-[1.7] text-fg-2">
+            <p className="mt-5 max-w-[52ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
               Every exercise carries the weight and the reps to beat, worked out
-              from your own last few sessions rather than from a program. Clear
-              the top of your rep range and it asks for load. Fall short three
-              sessions running and it takes some off. Tap the line to fill the
-              set, or ignore it and nothing happens.
+              from your own last few sessions rather than from a program. Tap
+              the line to fill the set, or ignore it and nothing happens.
             </p>
 
-            <div className="mt-9 overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="mt-9 max-w-[46rem] overflow-hidden rounded-xl border border-line bg-surface">
               <ul className="divide-y divide-line">
                 {SUGGESTIONS.map((row) => (
                   <li
@@ -104,17 +127,16 @@ export function Opinion() {
             </div>
           </Reveal>
 
-          <Reveal delay={90}>
-            <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
+          <Reveal delay={140}>
+            <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)] text-balance">
               A second opinion, from whatever model you already use.
             </h3>
-            <p className="mt-5 max-w-[52ch] leading-[1.7] text-fg-2">
+            <p className="mt-5 max-w-[52ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
               Lift writes your training out as one document: the sessions as you
-              did them, the weekly sets each muscle got against where growth
-              actually starts, and the routines behind all of it. Add a line
-              about your goal, or the shoulder that clicks on incline press,
-              then hand the file to ChatGPT or Claude and read what comes back.
-              The app sends nothing anywhere. You share the file.
+              did them, the weekly sets each muscle got, and the routines
+              behind all of it. Hand the file to ChatGPT or Claude and read
+              what comes back. The app sends nothing anywhere. You share the
+              file.
             </p>
 
             {/*
@@ -122,7 +144,7 @@ export function Opinion() {
               hanging indent. No panel, because the thing it is quoting is not
               part of the interface.
             */}
-            <figure className="mt-9">
+            <figure className="mt-9 max-w-[46rem]">
               <figcaption className="figure border-b border-line pb-3 text-[0.8125rem] text-fg-3">
                 training-review.md
               </figcaption>

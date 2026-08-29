@@ -3,67 +3,68 @@
 import { useEffect, useRef } from "react";
 import { Download } from "lucide-react";
 
-import { GitHubMark } from "@/components/site/icons";
 import { LinkButton } from "@/components/site/link-button";
 import { Wordmark } from "@/components/site/mark";
 import { links } from "@/lib/site";
 
 /*
- * The header carries a progress rule, and it is borrowed rather than invented:
- * the app puts how much of the workout is left across the top of the workout
- * screen, for the same reason a long page wants it. It is state, not
- * decoration, so reduced motion does not turn it off. What reduced motion does
- * turn off is the browser's smooth scrolling, which is handled globally.
+ * A wordmark, three links and the one button the page is asking anybody to
+ * press.
  *
- * Nothing in here re-renders. The scroll handler writes a transform and an
- * attribute straight onto two nodes, and the spy sets `data-active` on a link.
- * Putting a scroll position into React state would re-render the header on
- * every frame of every scroll, which is the one thing this component must not
- * do on a page that is nine thousand pixels long.
- */
-/*
- * Six, and `get` is not one of them. The download button is pinned to the right
- * of this bar at every width and does the job an "Install" link would, so the
- * slot it was taking went to `privacy` and `self-host`, which are sections a
- * reader has no other way of knowing are down there.
+ * The progress rule came out of here. It was borrowed from the app, which puts
+ * how much of the workout is left across the top of the workout screen, and
+ * the borrowing was the mistake: a workout has an end you are working toward
+ * and a marketing page does not. What it actually reported was how much
+ * scrolling was left, which is a fact about the document rather than about
+ * anything the reader wants, and it put a moving lime bar across the top of
+ * every screenshot on the page. It also cost the only per-frame work in this
+ * component.
+ *
+ * Three section links, down from six plus a Source link. Six is a table of
+ * contents, and a table of contents is what you build when you do not trust
+ * the page to be worth scrolling. These three are the argument: what it looks
+ * like, that it works with the network off, and that you can run the server.
+ * Everything else is reached by reading, which is the intended way through.
+ *
+ * Source went with them. It is in the hero, in the footer twice, and behind
+ * the button's neighbour in every section that makes a checkable claim.
+ *
+ * Nothing in here re-renders. The spy sets `data-active` on a link and the
+ * sentinel toggles one attribute on the header; putting either into React
+ * state would re-render the header down the length of the page.
  */
 const SECTIONS = [
   { id: "screens", label: "Screens" },
-  { id: "coach", label: "Coaching" },
   { id: "offline", label: "Offline" },
-  { id: "privacy", label: "Privacy" },
-  { id: "sync", label: "Sync" },
   { id: "self-host", label: "Self-host" },
 ];
 
 export function Nav() {
   const header = useRef<HTMLElement>(null);
-  const bar = useRef<HTMLSpanElement>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     const headerEl = header.current;
-    const barEl = bar.current;
-    if (!headerEl || !barEl) return;
+    const sentinelEl = sentinel.current;
+    if (!headerEl || !sentinelEl) return;
 
-    let frame = 0;
-    const paint = () => {
-      frame = 0;
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-      barEl.style.transform = `scaleX(${progress})`;
-      // Past the first scroll the header needs an edge; over the hero it does not.
-      headerEl.toggleAttribute("data-scrolled", window.scrollY > 24);
-    };
-
-    const onScroll = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(paint);
-    };
-
-    paint();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
+    /*
+     * The header's hairline, which is on once the page has moved off the top
+     * and off while it is over the hero.
+     *
+     * A sentinel rather than a scroll handler. The old one ran on every scroll
+     * event to compare one number, which is per-frame work to answer a
+     * question that changes twice in a session. This fires exactly those two
+     * times.
+     */
+    const edge = new IntersectionObserver(
+      ([entry]) => {
+        headerEl.toggleAttribute("data-scrolled", !entry.isIntersecting);
+      },
+      { threshold: 0 },
+    );
+    edge.observe(sentinelEl);
 
     /*
      * The spy takes whichever section is crossing the middle of the viewport.
@@ -71,7 +72,7 @@ export function Nav() {
      * appears at the bottom, so two links light up at once through every
      * transition.
      */
-    const observer = new IntersectionObserver(
+    const spy = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
@@ -88,86 +89,75 @@ export function Nav() {
 
     for (const section of SECTIONS) {
       const el = document.getElementById(section.id);
-      if (el) observer.observe(el);
+      if (el) spy.observe(el);
     }
 
     return () => {
-      if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      observer.disconnect();
+      edge.disconnect();
+      spy.disconnect();
     };
   }, []);
 
   return (
-    <header
-      ref={header}
-      className="group/header sticky top-0 z-50 border-b border-transparent bg-ink transition-colors duration-300 data-scrolled:border-line"
-    >
-      <nav aria-label="Main" className="shell flex h-16 items-center gap-8">
-        <a
-          href="#top"
-          className="rounded-sm text-fg transition-colors hover:text-volt"
-        >
-          <Wordmark id="mark-nav" />
-          <span className="sr-only">Lift, back to top</span>
-        </a>
-
-        {/*
-          `lg` rather than `md`. Six section links plus Source plus the download
-          button do not fit beside the wordmark at 768px without the gaps
-          closing to the point where the links read as one word. They do fit at
-          1024 with the gap at 6 rather than 7, which is what paid for the two
-          sections added since.
-        */}
-        <ul ref={list} className="ml-auto hidden items-center gap-6 lg:flex xl:gap-7">
-          {SECTIONS.map((section) => (
-            <li key={section.id}>
-              <a
-                href={`#${section.id}`}
-                data-section={section.id}
-                className="underline-draw text-sm text-fg-2 transition-colors hover:text-fg data-active:text-volt"
-              >
-                {section.label}
-              </a>
-            </li>
-          ))}
-          <li>
-            <a
-              href={links.repo}
-              className="underline-draw flex items-center gap-2 text-sm text-fg-2 transition-colors hover:text-fg"
-            >
-              <GitHubMark className="size-4" />
-              Source
-            </a>
-          </li>
-        </ul>
-
-        <LinkButton
-          size="touch"
-          variant="volt"
-          className="ml-auto lg:ml-0"
-          href={links.release}
-        >
-          <Download />
-          Get the app
-        </LinkButton>
-      </nav>
-
+    <>
       {/*
-        Sits on the header's own bottom edge, one pixel below it, so it reads as
-        that rule filling in rather than as a second bar parked under the first.
-        The resting state is an inline transform rather than `scale-x-0`:
-        Tailwind v4 compiles scale utilities to the standalone `scale` property,
-        which composes with `transform` instead of being overridden by it, so
-        the class would multiply every painted frame back down to zero.
+        Absolutely positioned with no positioned ancestor, so it resolves
+        against the initial containing block: the top of the document, which is
+        exactly the thing being watched. It takes no space and paints nothing.
       */}
-      <span
-        ref={bar}
+      <div
+        ref={sentinel}
         aria-hidden
-        style={{ transform: "scaleX(0)" }}
-        className="absolute inset-x-0 -bottom-px h-0.5 origin-left bg-volt"
+        className="pointer-events-none absolute top-0 h-6 w-px"
       />
-    </header>
+
+      <header
+        ref={header}
+        className="sticky top-0 z-50 border-b border-transparent bg-ink transition-colors duration-300 data-scrolled:border-line"
+      >
+        <nav aria-label="Main" className="shell flex h-16 items-center gap-8">
+          <a
+            href="#top"
+            className="rounded-sm text-fg transition-colors hover:text-volt"
+          >
+            <Wordmark id="mark-nav" />
+            <span className="sr-only">Lift, back to top</span>
+          </a>
+
+          {/*
+            `sm` rather than the `lg` this needed at six links plus Source.
+            Three labels and the button clear 640px with room over, so the
+            links are now there on a phone held sideways instead of only on a
+            laptop.
+          */}
+          <ul
+            ref={list}
+            className="ml-auto hidden items-center gap-7 sm:flex"
+          >
+            {SECTIONS.map((section) => (
+              <li key={section.id}>
+                <a
+                  href={`#${section.id}`}
+                  data-section={section.id}
+                  className="underline-draw text-sm text-fg-2 transition-colors hover:text-fg data-active:text-volt"
+                >
+                  {section.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+
+          <LinkButton
+            size="touch"
+            variant="volt"
+            className="ml-auto sm:ml-0"
+            href={links.release}
+          >
+            <Download />
+            Get the app
+          </LinkButton>
+        </nav>
+      </header>
+    </>
   );
 }

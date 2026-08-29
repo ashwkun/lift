@@ -1,3 +1,4 @@
+import { KineticHeading } from "@/components/site/kinetic";
 import { Reveal } from "@/components/site/reveal";
 
 /*
@@ -14,40 +15,35 @@ import { Reveal } from "@/components/site/reveal";
 const HALVES = [
   {
     title: "Moving in",
-    body: "Point it at a Hevy CSV, a Lyfta export, a backup from another phone, or any CSV at all that has a date, an exercise and a set in it. Nothing is written until you say so, and importing the same file twice adds nothing the second time.",
+    body: "Point it at a Hevy CSV, a Lyfta export, a backup from another phone, or any CSV with a date, an exercise and a set in it. Importing the same file twice adds nothing the second time.",
   },
   {
     title: "Moving out",
-    body: "One file holding every workout, set, routine, record and measurement on the phone. Writing it only reads, so it still works on a day when something else is failing. There is a row-per-set spreadsheet export as well.",
+    body: "One file holding every workout, set, routine, record and measurement on the phone. There is a row-per-set spreadsheet export as well.",
   },
 ];
 
 export function Portable() {
   return (
-    <section className="border-b border-line py-24 sm:py-28">
+    <section className="overflow-x-clip py-24 sm:py-36 lg:py-44">
       <div className="shell">
-        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:items-end md:gap-12 lg:gap-20">
-          <h2 className="display text-[clamp(1.9rem,4vw,3.1rem)]">
-            A training log you can carry out the door.
-          </h2>
-          <p className="max-w-[54ch] leading-[1.7] text-fg-2 lg:pb-2">
-            Years of training history is not a thing to hand over on the
-            assumption it stays available. Both doors are open, and they were
-            built at the same time.
-          </p>
-        </div>
+        <KineticHeading
+          top="Out the"
+          bottom="door"
+          lede="Years of training history is not a thing to hand over on the assumption it stays available. Both doors are open, and they were built at the same time."
+        />
 
-        <div className="mt-14 grid gap-12 sm:mt-16 md:grid-cols-2 md:gap-12 lg:gap-20">
+        <div className="mt-16 grid gap-12 sm:mt-24 md:grid-cols-2 md:gap-12 lg:gap-20">
           {HALVES.map((half, i) => (
             <Reveal
               key={half.title}
-              delay={i * 90}
+              delay={i * 140}
               className="border-t border-line pt-8"
             >
-              <h3 className="display text-[clamp(1.4rem,2.4vw,1.9rem)]">
+              <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)]">
                 {half.title}
               </h3>
-              <p className="mt-4 max-w-[48ch] leading-[1.7] text-fg-2">
+              <p className="mt-4 max-w-[48ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
                 {half.body}
               </p>
             </Reveal>

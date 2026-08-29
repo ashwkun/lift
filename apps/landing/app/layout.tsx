@@ -5,65 +5,74 @@ import localFont from "next/font/local";
 import "./globals.css";
 
 /*
- * The page is now set in the app's own typeface rather than in a stand-in for
- * it.
+ * The page is set in Eina 03, and the app is not.
  *
- * It used to run Archivo, chosen to land near Spotify Mix without shipping a
- * licence this project did not have. The app has since moved to JetBrains Sans
- * and bundles the three cuts itself, so the stand-in has nothing left to stand
- * in for: these are the same three files, and a screenshot on this page is now
- * set in the same face as the paragraph beside it.
+ * That is a deliberate split rather than drift. Everything else on this page is
+ * the app's own material: its palette hex for hex, its screenshots, its
+ * arithmetic. The typeface used to be as well, which sounded right and read
+ * flat: JetBrains Sans is drawn for code, its job is to keep forty characters
+ * of dense UI legible at eleven points, and asked to set a 4.5rem headline it
+ * does the honest engineering thing and stays out of the way. A page whose only
+ * job is a headline wants a face with an opinion.
  *
- * Two differences from `apps/mobile/assets/fonts`, both deliberate.
+ * Eina is that face: geometric, wide-countered, quiet, and Swiss enough to sit
+ * over a photograph of an app without arguing with it. The screenshots still
+ * carry the app's own typeface, which is the correct division. The picture is
+ * in the app's voice, and the page is in the page's.
  *
- * They are copies rather than a relative path across the workspace, because
- * `apps/landing/Dockerfile` only copies `apps/landing` into the build stage: a
- * path into the mobile app resolves on a laptop and fails in the image, which
- * is the worse of the two places to find out.
+ * 03 rather than 01, 02 or 04. All four were set side by side at display and
+ * body size before choosing: 04 is too wide for a headline that is already
+ * uppercase, 01 and 02 differ from 03 mostly in the tail of the `y` and the
+ * terminal of the `t`, and 03 is the most even of them at 17px, which is the
+ * size most of this page is actually read at.
  *
- * And they are woff2 rather than the TTFs the app loads, which is a container
- * change and not a subsetting one: same glyphs, 35 KB a cut against 88. React
- * Native has to have TTF and cannot use these; a browser has had woff2 for a
- * decade and should not be handed 265 KB of uncompressed font to render a
- * headline. Regenerate with `woff2_compress` if the app's files ever change.
+ * Four weights, no italics, because the page sets none. The Light is here for
+ * the display sizes: Eina Bold at 4.5rem uppercase is a wall, and the same
+ * words in the Light with the tracking opened read as designed rather than as
+ * shouted.
  *
- * **The licence is not squarely established.** `apps/mobile/src/theme/tokens.ts`
- * records the same caveat and it is worth repeating here, because a public web
- * page serves the file to anyone who loads it rather than to whoever installed
- * an APK: the TTFs carry no licence record in their `name` table, and the
- * family is JetBrains' brand face rather than their OFL-licensed Mono. Settle
- * it before this page is anything but sideloading's front door.
+ * **The licence is not established, and this one is worse than the last.** The
+ * archive is from a free-font aggregator and the `License.txt` inside it is a
+ * generic Fontspring *desktop* EULA whose own permalink points at a different
+ * family. Eina is a commercial face sold by Textaxis; a desktop licence does
+ * not cover serving a webfont to the public, and that is exactly what this
+ * does. Settle it, or swap the family, before this page is anything but
+ * sideloading's front door. `apps/landing/components/site/phone.tsx` carries
+ * the same warning about the device mockup.
  */
-const jetbrainsSans = localFont({
-  variable: "--font-jetbrains-sans",
+const eina = localFont({
+  variable: "--font-eina",
   display: "swap",
   fallback: ["system-ui", "sans-serif"],
   /*
-   * Three files, four weights, and the duplicate is the point. The app folds
-   * its `medium` role up into SemiBold rather than down into Regular, because
-   * folding down would leave a label indistinguishable from body copy. CSS
-   * font matching resolves a request for 500 *downwards* to 400, which is
-   * exactly the fold this project rejected, so the SemiBold is registered at
-   * both 500 and 600 and every `font-medium` on the page lands where the app
-   * puts it. One file, declared twice: the browser fetches it once.
+   * Four files, five weights, and the duplicate is the point. `font-medium` is
+   * asking for 500, and CSS font matching resolves a missing 500 *downwards* to
+   * 400, so a label set in it would come out indistinguishable from the
+   * paragraph beside it. Registering the SemiBold at both 500 and 600 is what
+   * stops that. One file, declared twice: the browser fetches it once.
+   *
+   * The Light is registered at 300 and used in one place, `.display`.
    */
   src: [
-    { path: "./fonts/JetBrainsSans-Regular.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/JetBrainsSans-SemiBold.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/JetBrainsSans-SemiBold.woff2", weight: "600", style: "normal" },
-    { path: "./fonts/JetBrainsSans-Bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/Eina03-Light.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/Eina03-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/Eina03-SemiBold.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/Eina03-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/Eina03-Bold.woff2", weight: "700", style: "normal" },
   ],
 });
 
 /*
  * The mono, for labels and for anything printed as a figure.
  *
- * JetBrains Mono rather than the Azeret it replaces: it is the sans above's
- * own sibling, drawn to the same skeleton, and unlike the sans it is under the
- * OFL with nothing to settle. The app has no mono at all; it sets its figures
- * in JetBrains Sans with `tnum` on. This page cannot do that in every place it
- * wants a figure, so the family's own monospace is the closest thing to the
- * app's intent that a stylesheet can name.
+ * It stays JetBrains Mono now that the sans beside it is not JetBrains Sans,
+ * and the pairing is better for the change rather than in spite of it. The two
+ * are no longer siblings, which was the old argument for it; what they are now
+ * is a geometric sans and an engineer's monospace, and the distance between
+ * them is what makes a tracked-out mono label read as a different kind of
+ * thing from the sentence under it rather than as the same voice in a
+ * different width. It is also the only one of the three faces on this page
+ * whose licence is settled: the OFL, with nothing outstanding.
  */
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -135,7 +144,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${jetbrainsSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${eina.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-ink text-fg">{children}</body>
     </html>

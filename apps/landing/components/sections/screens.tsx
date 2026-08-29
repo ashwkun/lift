@@ -1,19 +1,31 @@
+import {
+  AnnotatedPhone,
+  type Callout,
+} from "@/components/site/annotated-phone";
+import { KineticHeading } from "@/components/site/kinetic";
 import { Phone } from "@/components/site/phone";
 import { Reveal } from "@/components/site/reveal";
 import { screens, type Screen } from "@/lib/screens";
 import { cn } from "@/lib/utils";
 
 /*
- * An opening spread, a band of text, then two rows, and no two of them the same
- * shape.
+ * A kinetic title, one annotated device down the middle of the measure, a band
+ * of text, then two rows, and no two of them the same shape.
  *
- * The spread is the fix for a specific failure: the logging screen deserves the
- * largest device on the page, but a 730px-tall phone beside two hundred pixels
- * of centred copy leaves a quarter of a screen of nothing above and below the
- * text. So the section's own headline moves into that column. The heading, the
- * standfirst and the first feature all sit beside the device, which fills the
- * measure honestly rather than by padding it, and the section opens on its best
- * screen instead of on a heading with a gap under it.
+ * The device used to sit in a column beside the section's own headline, which
+ * was the fix for a real problem: a 730px-tall phone next to two hundred pixels
+ * of copy leaves a quarter of a screen of nothing above and below the text. The
+ * title now solves it a better way. Set across the whole measure, with its two
+ * words pulled to opposite gutters, it fills that space with the thing the
+ * section is actually called, and the device drops below it into the middle of
+ * the page where there is room either side of it for the callouts to name what
+ * is on the glass.
+ *
+ * That is the point of moving it. A logging screen at 300px is grey lines to
+ * anybody who does not already use the app, and this section is the one making
+ * the claim that the app is legible mid set. Four hairlines with a label each
+ * is the screen explaining itself instead of the paragraph beside it doing the
+ * explaining.
  *
  * The band under it is the rest timer, and it has no device because there is no
  * screenshot of one in `screenshots/`: the timer is a sheet over a running
@@ -36,24 +48,53 @@ interface Feature {
 const OPENING: Feature = {
   screen: screens.activeWorkout,
   title: "The set is the unit of work.",
-  body: "Weight, reps, done. Last session's numbers sit beside every row so you know what you are chasing, and checking a set off starts the rest timer without moving anything else on the screen. Nothing happens between the rep and the record.",
+  body: "Weight, reps, done, and last session's numbers on the same row so you know what you are chasing. Checking a set off starts the rest timer and moves nothing else on the screen. Nothing happens between the rep and the record.",
 };
+
+/*
+ * The four heights are measured off `screenshots/session.png` rather than
+ * spaced evenly down the frame: each rule has to arrive at the thing its label
+ * names, and the gaps between them are whatever the screen makes them. They are
+ * percentages rather than pixels so that they survive the frame changing size,
+ * which it has once already. **Retaking the screenshots means re-measuring
+ * them**, the same way the alt text has to be re-read, and it has already
+ * caught one set out: the session screen grew an RPE column and a warm-up
+ * button, every row moved down, and four rules went on pointing at where the
+ * rows used to be.
+ *
+ * They are the screen fraction converted, not the screen fraction. A callout is
+ * positioned against the whole device, and the glass starts 1.218% down it and
+ * runs for 97.321% of it, so a row at fraction `f` of the screenshot sits at
+ * `1.218 + f * 97.321` percent of the frame.
+ *
+ * The sides are not decorative either. `PREVIOUS` is the left-hand column of a
+ * set row and `KG`, `REPS` and the tick are the right-hand ones, so a label
+ * about last session comes in from the left and a label about what you are
+ * entering comes in from the right. A rule that crosses the screen to reach
+ * its subject is pointing at the wrong half of it.
+ */
+const LOGGING: Callout[] = [
+  { label: "Elapsed, and sets done", top: "12.5%", side: "left" },
+  { label: "Weight, reps, RPE", top: "26.8%", side: "right" },
+  { label: "Last session, same row", top: "42.1%", side: "left" },
+  { label: "Checking off starts rest", top: "61.6%", side: "right" },
+];
 
 const TIMER = {
   title: "Rest is a deadline, not a stopwatch.",
-  body: "The countdown carries on in your notification shade whether or not the app is open, and it stays right even if you swipe the app away. Adding fifteen seconds moves one number rather than nudging two clocks back into step.",
+  body: "The countdown carries on in your notification shade whether or not the app is open, and it stays right even if you swipe the app away.",
 };
 
 const FEATURES: Feature[] = [
   {
     screen: screens.statistics,
     title: "Where the volume actually went.",
-    body: "Weekly sets per muscle, drawn on the figure instead of listed in a table, shaded against the range each one actually grows in. Warm-up sets are left out here and everywhere else, because counting them would inflate every number on the screen.",
+    body: "Weekly sets per muscle, drawn on the figure instead of listed in a table, shaded against the range each one actually grows in. Warm-up sets are left out, because counting them would inflate every number on the screen.",
   },
   {
     screen: screens.calendar,
     title: "Every session you have logged.",
-    body: "Months shaded day by day against your own typical session, quarters charted back to your first workout, personal records marked where they happened. It is the same log you were just writing to, so there is nothing to refresh.",
+    body: "Months shaded day by day against your own typical session, and personal records marked where they happened. It is the same log you were just writing to, so there is nothing to refresh.",
   },
 ];
 
@@ -83,46 +124,45 @@ export function Screens() {
   return (
     <section
       id="screens"
-      className="overflow-x-clip border-b border-line py-24 sm:py-32"
+      className="overflow-x-clip py-24 sm:py-36 lg:py-44"
     >
       <div className="shell">
-        <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-24">
-          <div>
-            <h2 className="display max-w-[20ch] text-[clamp(2.2rem,5.2vw,4.25rem)]">
-              Built for one hand, standing up, mid set.
-            </h2>
-            <p className="mt-7 max-w-[56ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
-              Every screen below is the app itself, with a year of training
-              behind it: 179 sessions, 1,646,444 kg. None of it is a mockup, and
-              every figure on them was computed by the app rather than typed
-              into the picture.
-            </p>
+        <KineticHeading
+          top="Built for"
+          bottom="mid set"
+          ledeMotion="ink"
+          lede="Every screen below is the app itself, with a year of training behind it: 182 sessions, 1,683,925 kg. Not one of them is a mockup."
+        />
 
-            <div className="mt-11 border-t border-line pt-9 sm:mt-14">
-              <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)]">
-                {OPENING.title}
-              </h3>
-              <p className="mt-4 max-w-[52ch] leading-[1.7] text-fg-2">
-                {OPENING.body}
-              </p>
-            </div>
-          </div>
-
-          <div className="relative flex justify-center lg:justify-end">
-            {/* The one screen glow on the page. Applied to all the devices it
-                stopped reading as light and started reading as a filter. */}
-            <div
-              aria-hidden
-              className="screen-cast pointer-events-none absolute -inset-x-[35%] -inset-y-[14%]"
-            />
-            <Phone
-              screen={OPENING.screen}
-              size="lg"
-              className="relative"
-              sizes="(max-width: 1024px) 60vw, 336px"
-            />
-          </div>
+        {/* The one screen glow on the page, and it lives inside
+            `AnnotatedPhone`. Applied to all the devices it stopped reading as
+            light and started reading as a filter. */}
+        <div className="mt-16 sm:mt-20">
+          <AnnotatedPhone
+            screen={OPENING.screen}
+            callouts={LOGGING}
+            size="lg"
+            sizes="(max-width: 1024px) 60vw, 336px"
+          />
         </div>
+
+        {/*
+          The opening feature reads as the caption to the device above it, so it
+          is set under it on one rule rather than beside it in a column.
+        */}
+        <Reveal
+          as="article"
+          className="mt-20 border-t border-line pt-12 sm:mt-24 sm:pt-14"
+        >
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:gap-12 lg:gap-20">
+            <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)] text-balance">
+              {OPENING.title}
+            </h3>
+            <p className="max-w-[54ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
+              {OPENING.body}
+            </p>
+          </div>
+        </Reveal>
 
         {/*
           Heading left, body right, both on one rule. The only row in the
@@ -131,13 +171,13 @@ export function Screens() {
         */}
         <Reveal
           as="article"
-          className="mt-24 border-t border-line pt-12 sm:mt-28 sm:pt-14"
+          className="mt-14 border-t border-line pt-12 sm:mt-16 sm:pt-14"
         >
           <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:gap-12 lg:gap-20">
-            <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
+            <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)] text-balance">
               {TIMER.title}
             </h3>
-            <p className="max-w-[54ch] leading-[1.7] text-fg-2">{TIMER.body}</p>
+            <p className="max-w-[54ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">{TIMER.body}</p>
           </div>
         </Reveal>
 
@@ -147,14 +187,16 @@ export function Screens() {
               as="article"
               key={feature.title}
               className={cn(
-                "grid items-center gap-10 md:gap-12 lg:grid-cols-2 lg:gap-16",
+                "grid items-center gap-10 md:gap-12 lg:gap-16",
                 /*
-                  Between 768 and 1024 the device gets a track exactly its own
-                  width rather than half the row. Split down the middle at 768 a
-                  192px phone sits in a 328px column and the copy beside it is
-                  34ch, which is a newspaper column, not a paragraph; sized to
-                  the device it is 48ch. At `lg` there is room for the even
-                  split the alternation was drawn around, so it goes back to it.
+                  The device gets a track exactly its own width and the copy
+                  gets everything left, at every size from `md` up. There used
+                  to be an even split at `lg` on the grounds that a 1280 measure
+                  had room for one; a 940 one does not. Halved, a 240px phone
+                  sits in a 390px column and the paragraph beside it is 36ch,
+                  which is a newspaper column rather than a paragraph. Sized to
+                  the device it is 48ch and the phone stops floating in a third
+                  of a metre of its own black.
                 */
                 i % 2 === 1
                   ? "md:grid-cols-[minmax(0,1fr)_auto]"
@@ -183,10 +225,10 @@ export function Screens() {
               </div>
 
               <div className={cn(i % 2 === 1 && "md:order-1")}>
-                <h3 className="display text-[clamp(1.5rem,2.7vw,2rem)] text-balance">
+                <h3 className="display-tight text-[clamp(1.75rem,3.2vw,2.5rem)] text-balance">
                   {feature.title}
                 </h3>
-                <p className="mt-5 max-w-[54ch] leading-[1.7] text-fg-2">
+                <p className="mt-5 max-w-[54ch] text-[1.0625rem] leading-[1.7] text-fg-2 sm:text-lg">
                   {feature.body}
                 </p>
               </div>
@@ -196,8 +238,7 @@ export function Screens() {
 
         <Reveal className="mt-28 sm:mt-32">
           <p className="max-w-[46ch] text-fg-3">
-            The rest of it: your routines, the history behind the charts,
-            bodyweight and measurements, and everything the profile tab reaches.
+            The rest of it: routines, history, bodyweight and measurements.
           </p>
 
           {/*
@@ -207,7 +248,10 @@ export function Screens() {
             exactly the padding: the leading phone and its caption end up flush
             against the screen edge with the gutter eaten.
           */}
-          <ul className="rail mt-8 -mx-5 flex snap-x snap-mandatory scroll-pl-5 gap-5 overflow-x-auto px-5 pb-5 sm:-mx-8 sm:scroll-pl-8 sm:px-8 lg:-mx-12 lg:scroll-pl-12 lg:px-12">
+          <ul
+            data-stagger
+            className="rail mt-8 -mx-5 flex snap-x snap-mandatory scroll-pl-5 gap-5 overflow-x-auto px-5 pb-5 sm:-mx-8 sm:scroll-pl-8 sm:px-8 lg:-mx-12 lg:scroll-pl-12 lg:px-12"
+          >
             {RAIL.map((screen) => (
               <li key={screen.caption} className="snap-start">
                 <Phone screen={screen} size="sm" sizes="152px" />
