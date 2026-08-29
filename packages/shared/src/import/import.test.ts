@@ -653,13 +653,36 @@ describe('parseWorkoutCsv: Lift', () => {
     assert.equal(plank.reps, null);
   });
 
-  it('leaves an unknown session length null rather than zero', () => {
+  it('estimates a session length the file does not give', () => {
     const workout = parsed.workouts[0]!;
 
-    assert.equal(workout.durationSeconds, null);
+    // Three sets at 2.5 minutes each. The export has no end time and no
+    // duration column, so this is `resolveEnd`'s last resort: see the note
+    // there for why a length is estimated where a weight never is.
+    assert.equal(workout.durationSeconds, 3 * 150);
     // Never null: a null finish is what marks the *active* session, and an
-    // import must not reopen a workout from two years ago.
-    assert.equal(workout.finishedAt, workout.startedAt);
+    // import must not reopen a workout from two years ago. It now lands the
+    // estimate past the start rather than exactly on it.
+    assert.equal(workout.finishedAt, workout.startedAt + 3 * 150 * 1000);
+  });
+
+  it('drops a session whose only row performed nothing', () => {
+    /*
+     * Which is why `resolveEnd`'s null is a guard rather than a state.
+     *
+     * A workout draft is only created by a row that recorded something, so
+     * every draft reaching `resolveEnd` has at least one set and the set-count
+     * estimate always has something to count. A file whose only row is blank
+     * produces no workout at all rather than a workout of unknown length,
+     * which is the case this pins.
+     */
+    const empty = parseWorkoutCsv(
+      'Date,Workout,Exercise,Set Type,Weight (kg),Reps,Duration (s),Distance (km),RPE\n' +
+        '2026-08-18T17:30:00.000Z,Push day,Bench Press (Barbell),normal,,,,,',
+    );
+
+    assert.equal(empty.workouts.length, 0);
+    assert.equal(empty.diagnostics.blankRows, 1);
   });
 });
 

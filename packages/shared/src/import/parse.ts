@@ -65,11 +65,18 @@ export interface ImportedWorkout {
    *
    * A workout with no `finishedAt` is what Lift calls the *active session*.
    * Importing one would have the app reopen a workout from 2023 the next time
-   * it launched. When the end is genuinely unknown this equals `startedAt` and
-   * `durationSeconds` stays null, which reads as "no duration recorded" rather
-   * than as a zero-minute session.
+   * it launched. So when a file gives no end at all this is `startedAt` plus
+   * whatever `resolveEnd` could work out, and in the one case where it can
+   * work out nothing (a session with no sets) it equals `startedAt` exactly.
    */
   finishedAt: number;
+  /**
+   * How long the session ran, from the file where it says so and from the set
+   * count where it does not. Null only when there is nothing to count.
+   *
+   * See `resolveEnd` for the order those are tried in and for why an estimate
+   * is preferred to a null here while a set's own weight is never invented.
+   */
   durationSeconds: number | null;
   exercises: ImportedExercise[];
 }
@@ -359,6 +366,16 @@ function orderSets(rows: SetRow[]): SetRow[] {
   return [...rows].sort((a, b) => a.setIndex! - b.setIndex! || a.fileOrder - b.fileOrder);
 }
 
+/**
+ * How long a set is assumed to take when the file will not say.
+ *
+ * 2.5 minutes: a working set and the rest after it. Named rather than inlined
+ * because it is the one number in this file that is a guess about human
+ * behaviour rather than a reading of the data, and it should be obvious where
+ * to change it.
+ */
+const SECONDS_PER_SET = 150;
+
 function resolveEnd(draft: WorkoutDraft, setCount: number): { finishedAt: number; durationSeconds: number | null } {
   if (draft.endedAt !== null) {
     const seconds = Math.round((draft.endedAt - draft.startedAt) / 1000);
@@ -372,13 +389,45 @@ function resolveEnd(draft: WorkoutDraft, setCount: number): { finishedAt: number
     return { finishedAt: draft.startedAt + seconds * 1000, durationSeconds: seconds };
   }
 
-  // Estimate duration based on set count (for apps like Strong that don't provide end time)
-  // Logic ported from LiftShift (2.5 minutes per set)
-  const estimatedSeconds = setCount * 150;
+  /*
+   * Nothing in the file says how long it ran, so it is estimated from the set
+   * count at 2.5 minutes a set.
+   *
+   * Strong is the case that needs it: its export has a row per set and no end
+   * time anywhere, so every session it produced used to import as a workout of
+   * no length. That is not a neutral outcome. Duration is one of the three
+   * metrics Home and History plot, and a year of imported training reading as
+   * zero hours makes the chart wrong rather than empty.
+   *
+   * ## Why this is invented where a set's weight is not
+   *
+   * The file next to this one refuses to guess a missing weight, and the two
+   * are not in tension. A set's weight is a *fact about what happened* that
+   * only the lifter knows, and a wrong one silently corrupts an estimated 1RM
+   * and a personal record. A session's length is an interval between two
+   * timestamps, and 2.5 minutes a set is a defensible reading of the same rows
+   * the file does give. It also cannot mislead in the same way: nothing in the
+   * app treats an imported duration as a record.
+   *
+   * Anything that *can* be read is read first: an explicit end time, then an
+   * explicit duration column. This is the last resort, and it is bounded by
+   * `MAX_SESSION_SECONDS` like the two above it.
+   */
+  const estimatedSeconds = setCount * SECONDS_PER_SET;
   if (estimatedSeconds > 0 && estimatedSeconds <= MAX_SESSION_SECONDS) {
     return { finishedAt: draft.startedAt + estimatedSeconds * 1000, durationSeconds: estimatedSeconds };
   }
 
+  /*
+   * A guard rather than a state anything reaches.
+   *
+   * A draft is only created by a row that recorded something, so every workout
+   * arriving here has at least one set and the estimate above always returns.
+   * This is what the type still allows and what a future caller with a
+   * zero-set draft would get: `finishedAt` a number, because a null one is the
+   * active session, and a null duration, because inventing one from no sets
+   * would be a guess about nothing.
+   */
   return { finishedAt: draft.startedAt, durationSeconds: null };
 }
 
