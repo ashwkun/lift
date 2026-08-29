@@ -8,6 +8,27 @@ run. To change an entry, reword the commit; to change the shape of the file,
 change the script. Releases before v0.8.0 predate the commit convention and
 appear under "Other changes".
 
+## [0.17.0](https://github.com/pawan67/lift/compare/v0.16.1...v0.17.0) - 2026-08-29
+
+### Features
+
+- share a routine or a workout with a friend ([a0681f5](https://github.com/pawan67/lift/commit/a0681f577b88fd21d9d9de6ed0803a9fbd980d8b))
+- redesign homepage layout into modular widget grid ([3c702c4](https://github.com/pawan67/lift/commit/3c702c4bec164a42f0f6e314347c417b97ca04de))
+- add brand logos for third-party imports ([31fcc50](https://github.com/pawan67/lift/commit/31fcc5048db331e3f7f3caa2ae76e9a071d958ac))
+- add Strong to import options and estimate duration ([1f7bddc](https://github.com/pawan67/lift/commit/1f7bddcc7a3f604df0720e53cf9fb0d7f5177430))
+
+### Fixes
+
+- rebuild the homepage widget grid on real data ([a4974cc](https://github.com/pawan67/lift/commit/a4974ccb71b20c66db45d05592eadc6e317b74e4))
+- add the brand logos the import guides already require ([0fd137c](https://github.com/pawan67/lift/commit/0fd137ce6ef4ceac8cb21d8b12caa13b215b0dbf))
+- duplicate declaration of latest in bodyweight widget ([d168572](https://github.com/pawan67/lift/commit/d1685726550e2c38aac512de406c5dd3ad7c8484))
+- layout structure and flex issues on homepage widgets ([0b814d9](https://github.com/pawan67/lift/commit/0b814d9b26cc469a318b1ce3a06dab0a0b858412))
+- typecheck issues and make bodyweight widget interactive ([6285463](https://github.com/pawan67/lift/commit/6285463bce06355da696225fab1fc4d008b92df4))
+
+## [0.16.1](https://github.com/pawan67/lift/compare/v0.16.0...v0.16.1) - 2026-08-28
+
+No commits outside the release itself.
+
 ## [0.16.0](https://github.com/pawan67/lift/compare/v0.15.1...v0.16.0) - 2026-08-28
 
 ### Features
