@@ -316,7 +316,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    height: controlHeight.sm,
+    /*
+     * `controlHeight.md` and `radius.md`, which is what a control is in this
+     * app: `Button` at md and lg, `TextField`, `SegmentedControl`'s track,
+     * `ListPicker`'s trigger and `HeaderAction` all sit on exactly that pair.
+     * `radius.pill` is for the other vocabulary. Chips, badges, progress
+     * tracks, and square boxes where a pill is how you draw a circle.
+     *
+     * The height moved up from `sm`. 36pt is under `MIN_TOUCH_SIZE`, and
+     * `FilterTrigger` records leaving `sm` for exactly that reason: nothing
+     * around a free-standing filter bar carries its target the way a set row
+     * carries its stepper's. Every search field in the app was eight points
+     * short of the floor, which only became visible once History put one
+     * beside a 44pt trigger.
+     */
+    height: controlHeight.md,
     borderRadius: radius.md,
     borderWidth: stroke.outline,
   },

@@ -285,7 +285,17 @@ const styles = StyleSheet.create({
     // the exercise library.
     height: controlHeight.md,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    /*
+     * `md`, not the pill this was.
+     *
+     * `ListPicker`'s trigger does the same job (a labelled control that opens a
+     * picker) and has always been `radius.md`, so the two read as different
+     * kinds of thing for no reason anybody could name. Every other control in
+     * the app agrees with `ListPicker`: `Button`, `TextField`,
+     * `SegmentedControl`, `HeaderAction`. This was the outlier, and it was only
+     * ever noticeable once History set it beside a search field.
+     */
+    borderRadius: radius.md,
     borderWidth: stroke.outline,
   },
   list: { flexGrow: 0 },

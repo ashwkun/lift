@@ -3,13 +3,19 @@
  *
  * Same reasoning as `spacing` and `radius`: durations picked per call site
  * drift, and drifting durations are how an interface starts feeling assembled
- * rather than designed. Four durations, three easings, two springs: every
+ * rather than designed. Five durations, four easings, two springs: every
  * animation in the app is built from these.
  *
  * The numbers are short on purpose. Motion here is feedback, not decoration:
  * it exists to say "that press registered" or "this number just changed", and
  * anything a user has to *wait* for has stopped being feedback. Nothing outside
- * a full-screen transition should run longer than `base`.
+ * a full-screen transition or a counting figure should run longer than `base`.
+ *
+ * `count` is the one deliberate exception and it is named rather than inlined
+ * so it stays one exception. A figure counting up is the rare case where the
+ * motion *is* the content: the point is watching the number arrive, and at
+ * `base` it does not count, it just appears late. Anything reaching for it that
+ * is not a number climbing to its own value is reaching for the wrong token.
  *
  * Every config carries `ReduceMotion.System`, so the OS accessibility setting
  * is honoured on the UI thread without a JS round trip to observe it. Reanimated
@@ -30,6 +36,15 @@ export const duration = {
   base: 200,
   /** Only for something travelling the width or height of the screen. */
   slow: 280,
+  /**
+   * A figure counting up to itself, and nothing else. See the note above.
+   *
+   * Long enough that the digits are legibly moving rather than flickering
+   * once. Paired with `easing.count`, which is heavily front-loaded, so the
+   * figure is in the right order of magnitude within the first fifth of it and
+   * the rest is the last digits settling.
+   */
+  count: 800,
 } as const;
 
 export const easing = {
@@ -39,6 +54,15 @@ export const easing = {
   in: Easing.in(Easing.quad),
   /** Travel between two on-screen positions, where both ends are watched. */
   inOut: Easing.inOut(Easing.cubic),
+  /**
+   * The counting curve: `1 - 2^(-10t)`, which is what `out(exp)` expands to.
+   *
+   * Steeper off the mark than `out` by a long way. A number rising linearly, or
+   * even on a cubic, reads as a progress bar; this one is most of the way there
+   * before the eye has settled on it and then walks in the final digits, which
+   * is the part that reads as a total being counted.
+   */
+  count: Easing.out(Easing.exp),
 } as const;
 
 /**
