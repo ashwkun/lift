@@ -1,6 +1,6 @@
 import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
 
-import { font, fontSize, letterSpacing, lineHeight, useColors, type Palette } from '@/theme';
+import { font, fontSize, letterSpacing, lineHeight, useColors, type PaletteColor } from '@/theme';
 
 export type TextVariant =
   | 'display'
@@ -22,7 +22,7 @@ export type TextVariant =
   | 'numericLarge';
 
 type TextColor = Extract<
-  keyof Palette,
+  PaletteColor,
   | 'text'
   | 'textSecondary'
   | 'textTertiary'

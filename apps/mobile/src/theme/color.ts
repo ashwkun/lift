@@ -38,6 +38,25 @@ function rgbToHex(r: number, g: number, b: number): string {
   );
 }
 
+/**
+ * A colour with its alpha baked into the string.
+ *
+ * The palette ships a `*Surface` tint beside every role colour, solved and
+ * audited, and that is what a role's tinted background must use. This is for
+ * the colours that have no such companion: the six in `data`, which are a ramp
+ * rather than five roles and would need thirty more tokens to be given tints
+ * the same way, and the chart libraries whose own `opacity` prop fades an
+ * outline along with the fill it is under.
+ *
+ * Hex in, `rgba()` out. Not a substitute for a `*Surface` token: a tint derived
+ * here has been measured by nobody, so anything printing text on top of one
+ * owes the same check `audit-palette.mjs` does for the roles.
+ */
+export function translucent(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 /** Linear blend in sRGB. Good enough across the short hops between adjacent stops. */
 export function mix(from: string, to: string, factor: number): string {
   const a = hexToRgb(from);

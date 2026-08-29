@@ -13,6 +13,7 @@ import {
   spacing,
   useColors,
   type Palette,
+  type PaletteColor,
 } from '@/theme';
 
 import { PressableScale } from './motion';
@@ -36,7 +37,7 @@ export type HeaderActionTone = 'accent' | 'danger' | 'success';
 export type HeaderActionVariant = 'plain' | 'filled';
 
 /** The foreground a filled pill takes, per role. See `textOnAccent` in the tokens. */
-const PILL_FOREGROUND: Record<HeaderActionTone, keyof Palette> = {
+const PILL_FOREGROUND: Record<HeaderActionTone, PaletteColor> = {
   accent: 'textOnAccent',
   danger: 'textOnDanger',
   success: 'textOnSuccess',

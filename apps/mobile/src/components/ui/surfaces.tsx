@@ -23,6 +23,7 @@ import {
   radius,
   spacing,
   stroke,
+  translucent,
   useColors,
   type Palette,
 } from '@/theme';
@@ -30,8 +31,35 @@ import {
 import { PressableScale } from './motion';
 import { Text } from './text';
 
-/** Role colours that a tinted surface can be built from. */
-export type Tone = 'accent' | 'success' | 'warning' | 'danger' | 'record' | 'neutral';
+/**
+ * The six category hues, named so a tone can be one.
+ *
+ * `Tone` was five roles and a neutral, and a role answers "how important is
+ * this". A list of six statistics screens, or six body parts, is not six levels
+ * of importance, so every such list either drew in one colour or reached past
+ * this type for a raw hex. These are the same six in `Palette['data']`, by
+ * index, and they resolve through `toneColors` like everything else here.
+ */
+export const CATEGORY_TONES = [
+  'category0',
+  'category1',
+  'category2',
+  'category3',
+  'category4',
+  'category5',
+] as const;
+
+export type CategoryTone = (typeof CATEGORY_TONES)[number];
+
+/** Role colours, plus the six categories, that a tinted surface can be built from. */
+export type Tone =
+  | 'accent'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'record'
+  | 'neutral'
+  | CategoryTone;
 
 /** How far a control with no fill of its own fades under the thumb. */
 const PRESSED_OPACITY = 0.6;
@@ -82,6 +110,38 @@ function toneColors(c: Palette, tone: Tone): { fg: string; bg: string } {
       return { fg: c.record, bg: c.recordSurface };
     case 'neutral':
       return { fg: c.textSecondary, bg: c.surfaceMuted };
+    default: {
+      /*
+       * A category, whose tint is derived rather than looked up.
+       *
+       * The five roles each ship a `*Surface` beside them, solved against the
+       * colour that prints on top of it and re-measured on every audit run.
+       * The ramp does not: six more tokens per palette across eight palettes is
+       * forty-eight values to hand-solve, for tints that are only ever drawn
+       * *behind* their own colour rather than behind arbitrary text.
+       *
+       * 0.16 is the alpha the roles use, and it is the number to change if a
+       * category chip ever looks heavier or lighter than a role chip beside it.
+       * It is checked: `audit-palette.mjs` measures every entry on the tint
+       * this line builds, because a derived colour is still a colour something
+       * prints a glyph on.
+       */
+      const index = CATEGORY_TONES.indexOf(tone);
+
+      /*
+       * Index 0 is the accent, and it takes the accent's own tint.
+       *
+       * Not a shortcut. `accentSurface` is a solved value rather than the
+       * accent at a round alpha, and on Fitness it is 0.15 precisely because
+       * 0.16 puts the Move ring under AA on its own tint. Deriving here would
+       * have quietly reintroduced that, on the first row of the stats list and
+       * the first bar of every body-part chart.
+       */
+      if (index === 0) return { fg: c.accent, bg: c.accentSurface };
+
+      const color = c.data[index];
+      return { fg: color, bg: translucent(color, 0.16) };
+    }
   }
 }
 

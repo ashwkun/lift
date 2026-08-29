@@ -47,9 +47,13 @@
  *    is lifted and the roles come down to meet it. Neither side alone works:
  *    holding the roles put pushes the accent past 0.98, and holding the accent
  *    still crushes Catppuccin's pastels into vivid mid-tones. Fitness is the
- *    one palette here that does not meet this rule at all, because its accent
- *    is a red and no role fits underneath one; its note records what pays for
- *    the exception and what breaks if the rest of that palette is loosened.
+ *    one palette *in this file* that does not meet this rule at all, because
+ *    its accent is a red and no role fits underneath one; its note records what
+ *    pays for the exception and what breaks if the rest of that palette is
+ *    loosened. `darkPalette` has since taken the same crimson and is waived for
+ *    the same check, and it is worth reading the two notes together: they reach
+ *    opposite conclusions about what to do with the roles afterwards, and both
+ *    are defensible.
  *
  * Every value was checked against the same bar the shipped two meet: AA on all
  * three grounds and on each role's own tint, a readable foreground on every
@@ -117,6 +121,15 @@ export const nordPalette: Palette = {
   overlay: 'rgba(11, 13, 17, 0.72)',
   skeleton: '#232936',
   mediaPlate: '#E5E9F0',
+
+  // Aurora and Frost, which is very nearly the whole of Nord's colour: `nord8`
+  // for the accent it already is, then `nord11` through `nord15` in hue order.
+  // Nord puts its red and its orange 20° apart and this ramp inherits that,
+  // which is the tightest pair in any of the eight and the reason the audit's
+  // floor is 20° rather than 25°. Each is lifted to clear AA on a Polar Night
+  // canvas, so they run paler than the published Aurora: the same tax every
+  // role in this palette pays, recorded above.
+  data: ['#B8DAE3', '#D899A0', '#DA9C89', '#D6A136', '#95B37A', '#C59EBE'],
 };
 
 /**
@@ -171,6 +184,12 @@ export const gruvboxPalette: Palette = {
   overlay: 'rgba(13, 15, 16, 0.72)',
   skeleton: '#32302F',
   mediaPlate: '#FBF1C7',
+
+  // `bright_green` as the accent it already is, then red, orange, aqua, blue
+  // and purple. Gruvbox's `yellow` is deliberately left out: it sits 18° off
+  // the orange, which is under the floor, and dropping it is better than
+  // rotating one of the two away from a hue the theme is known for.
+  data: ['#D5D942', '#FC8482', '#FE8637', '#81B569', '#88AFA5', '#DA93AA'],
 };
 
 /**
@@ -225,6 +244,13 @@ export const catppuccinPalette: Palette = {
   overlay: 'rgba(8, 8, 13, 0.72)',
   skeleton: '#28283C',
   mediaPlate: '#EFF1F5',
+
+  // Mauve, red, peach, green, teal, blue: six of Mocha's fourteen, picked for
+  // spacing rather than for being the famous ones. They needed less adjustment
+  // than any other port here, because Catppuccin already solves for even
+  // perceived weight across its whole set, which is exactly what a category
+  // ramp wants and what an editor palette usually does not do.
+  data: ['#E0CAFA', '#F390AC', '#F89456', '#5AC350', '#35C2AB', '#80AEFA'],
 };
 
 /**
@@ -321,6 +347,22 @@ export const spotifyPalette: Palette = {
   overlay: 'rgba(0, 0, 0, 0.72)',
   skeleton: '#282828',
   mediaPlate: '#F2F2F2',
+
+  /*
+   * Five of these six are not Spotify's, and there is no way for them to be.
+   *
+   * Spotify ships one colour and a grey scale. That is the identity, and it is
+   * why this palette works everywhere else in the file: a single green on near
+   * black needs no companions. A category ramp does, so the green leads and the
+   * other five are placed on hue alone, at Spotify's own saturation and at a
+   * lightness that clears its unusually light `surfaceMuted` (#3C3C3C, the
+   * lightest muted fill of any theme here, which is what holds this ramp paler
+   * than the rest).
+   *
+   * Read them as this app's colours borrowed into a Spotify shell rather than
+   * as anything Spotify publishes.
+   */
+  data: ['#1ED760', '#FFA366', '#D4B700', '#4FC8E0', '#9CBAF4', '#D7A6EF'],
 };
 
 /**
@@ -329,8 +371,7 @@ export const spotifyPalette: Palette = {
  * The accent is the Move ring, #FF375F, at Apple's published value. That is the
  * whole theme: the colour that app draws the outer ring, the calorie figure and
  * the day's total in, on the black canvas it uses everywhere. `accentPressed`
- * is #FA114F, the other end of the same ring's gradient. `success` is the
- * Exercise ring, `danger` is systemRed nudged off the accent, and the greys are
+ * is #FA114F, the other end of the same ring's gradient, and the greys are
  * iOS's own.
  *
  * **This is the one palette here where `accent` does not outrank every other
@@ -344,21 +385,45 @@ export const spotifyPalette: Palette = {
  * a salmon, and a Fitness theme whose Move colour is salmon has nothing left to
  * be.
  *
- * What is done instead is to close the gap from the other side. Every role sits
- * as deep as it can while still passing and still reading as its own colour,
- * 0.31 to 0.46 against `darkPalette`'s 0.26 to 0.78, so the palette spans 0.21
- * of luminance in total rather than half the scale. Nothing in it shouts, which
- * is what lets the one saturated red be the loud thing by hue instead of by
- * brightness. The arrangement is only stable because it is *flat*. Lift any
- * role back towards its published value, particularly systemYellow at 0.694 or
- * the Exercise ring at 0.640, and that role becomes the accent in everything
- * but name.
+ * ## What this palette used to do about that, and why it stopped
+ *
+ * It closed the gap from the other side. Every role was taken as deep as it
+ * could go while still passing, 0.31 to 0.46, so the palette spanned 0.21 of
+ * luminance in total and nothing in it shouted. The argument was that a flat
+ * set lets the one saturated red be the loud thing by hue instead of by
+ * brightness, and as an argument about *this app's* roles it was sound.
+ *
+ * It was also the wrong reading of the source. Open the app this theme is named
+ * after and the Exercise ring is a full-brightness lime, the step count is
+ * printed in a bright violet and the distance under it in a bright cyan, all on
+ * the same black canvas as the Move ring, all at once. The multiplicity *is*
+ * the design. Flattening every role to protect the accent produced something
+ * that reads as one colour on grey, which is a defensible palette and is not
+ * this one.
+ *
+ * So the roles are back at or beside their published values: the Exercise ring
+ * at 0.656 rather than the 0.418 it was cut to, systemYellow at 0.685 rather
+ * than 0.461, systemOrange whole. The palette now spans 0.25 to 0.69.
+ *
+ * What pays for it is honesty about the ranking rather than a number. The
+ * accent is the *quietest* role here by luminance and there is no arrangement
+ * in which it is not, so it cannot lead on brightness and does not try to. It
+ * leads on hue, being the only red-pink in the palette, and on rationing: the
+ * app budgets roughly one accent element per view. That is a weaker guarantee
+ * than the other seven themes have and the waiver in `audit-palette.mjs` is
+ * where it is written down.
  *
  * The neutrals are a step under Apple's. #1C1C1E is the card in that app and is
  * `surfaceElevated` here, because with it as `surface` the crimson measures
  * 4.14 on its own tint: below AA, on the label of every selected chip. On
  * #141416 it reads 4.51. The same move Nord makes with `nord0`, and for the
  * same reason: the alternative is bleaching the colour that the theme is for.
+ *
+ * This is also the *only* palette in the app that can hold a true Move crimson,
+ * and the reason is entirely the depth of those neutrals. `darkPalette` spent a
+ * release trying to take the same accent and had to give it up: its card ramp
+ * is two rungs lighter, the crimson measured 4.08 on its `surfaceMuted`, and
+ * lifting it to pass turned it pink. See the note under `data` there.
  *
  * `text` is pure white, which no other dark palette here uses. Two reasons, and
  * the second is the one that decides it. iOS's label colour is #FFFFFF, so the
@@ -409,15 +474,24 @@ export const fitnessPalette: Palette = {
   // to clear its own tint. At 0.16 it reads 4.42.
   accentSurface: 'rgba(255, 55, 95, 0.15)',
 
-  // The Exercise ring at 0.418 rather than its published 0.640. See the note:
-  // at 0.640 this is the brightest thing in the palette by a distance, and a
-  // checked-off set row becomes the loudest element on the screen.
-  success: '#73C115',
-  successPressed: '#69B013',
-  successSurface: 'rgba(115, 193, 21, 0.16)',
+  // The Exercise ring, published, at 0.656. It was cut to #73C115 and 0.418 to
+  // keep it under the Move ring; see the note for why that cut is gone. This
+  // is now the brightest role bar `record`, which is what it is in the app
+  // being quoted, where a closed Exercise ring is meant to be seen from across
+  // a room.
+  success: '#A2E82C',
+  // Darker, and a whole step rather than the shallow one the crimson needs: the
+  // foreground here is a near-black on a very bright fill, so there is a great
+  // deal of room to press into. 9.94 on the held state.
+  successPressed: '#8FD024',
+  successSurface: 'rgba(162, 232, 44, 0.16)',
 
-  warning: '#E78D00',
-  warningSurface: 'rgba(231, 141, 0, 0.16)',
+  // systemOrange, whole. 36°, which is the closest any role gets to `record` at
+  // 48°: 12°, over the 10° floor, and the pair is also separated by a third of
+  // a stop of luminance, which the two of them can afford now that neither is
+  // being held down.
+  warning: '#FF9F0A',
+  warningSurface: 'rgba(255, 159, 10, 0.16)',
 
   danger: '#FF6553',
   // Effectively systemRed (#FF453A), which is where a pressed step from the
@@ -425,9 +499,11 @@ export const fitnessPalette: Palette = {
   dangerPressed: '#FF4733',
   dangerSurface: 'rgba(255, 101, 83, 0.16)',
 
-  // systemYellow deepened from 0.694, the single largest cut in the palette.
-  record: '#D6B200',
-  recordSurface: 'rgba(214, 178, 0, 0.16)',
+  // systemYellow, published, at 0.685. This was #D6B200 and 0.461, described in
+  // the old note as "the single largest cut in the palette"; it is now the
+  // largest restoration.
+  record: '#FFD426',
+  recordSurface: 'rgba(255, 212, 38, 0.16)',
 
   textOnAccent: '#1A0008',
   textOnSuccess: '#0A1602',
@@ -439,6 +515,25 @@ export const fitnessPalette: Palette = {
   // systemGray6 light. Softer than pure white, for the reason `darkPalette`
   // gives under its own plate.
   mediaPlate: '#F2F2F7',
+
+  /*
+   * Apple's system colours, published, and the only ramp in the file that is a
+   * straight quotation: systemPink (the Move ring), systemOrange, the Exercise
+   * ring, systemGreen, systemCyan and systemPurple.
+   *
+   * This is the palette the category ramp was designed for and the one where it
+   * costs nothing to be literal. Everywhere else the six had to be re-solved,
+   * either because the source project crowded its own hues or because a
+   * published set spans more luminance than one theme can absorb. Here the
+   * source *is* a six-colour system built for one black canvas, so five of the
+   * six are exact.
+   *
+   * The exception is `data[5]`. systemPurple (#BF5AF2) sits at 0.248, the same
+   * luminance as the Move ring, and measures 4.33 on its own 0.16 tint: below
+   * AA on the glyph of every category row it would draw. Two points of HSL
+   * lightness fixes it at 4.71 and nothing about the colour changes.
+   */
+  data: ['#FF375F', '#FF9F0A', '#A2E82C', '#30D158', '#64D2FF', '#C567F4'],
 };
 
 /**
@@ -510,4 +605,12 @@ export const solarizedPalette: Palette = {
   overlay: 'rgba(7, 54, 66, 0.42)',
   skeleton: '#E2DCC8',
   mediaPlate: '#FDF6E3',
+
+  // Solarized's accent set, which is the one part of that palette designed to
+  // be six-plus distinguishable colours on one background: blue as the accent
+  // it already is, then red, yellow, green, cyan and magenta. Orange and violet
+  // are dropped as too near red and blue respectively. These are close to
+  // published, because Solarized solved them against a light ground to begin
+  // with, which is the one thing the four editor ports above did not.
+  data: ['#185783', '#A01C1A', '#694E00', '#4B5700', '#185B56', '#94265B'],
 };

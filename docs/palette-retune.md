@@ -177,10 +177,121 @@ palette closes the gap from the other side instead. That was always a decision.
 It is now a decision the script has been told about, printed beside the 0.248
 the Move ring sits at while `record` sits at 0.461.
 
+## The category ramp, and Fitness un-flattened
+
+A later change, in two halves: every palette grew a set of colours that are not
+about status at all, and the Fitness theme stopped hiding its own.
+
+### `data`: six hues that are not statuses
+
+Every token in the palette answered "what kind of thing is this". None of them
+could say "this series is duration and that one is reps", so charts drew every
+series in the accent and leaned on a legend, and every list of categories drew
+six identical grey glyphs. `Palette` now carries a six-long `data` ramp for
+exactly that.
+
+- `data[0]` **is** the palette's `accent`, repeated rather than approximated, so
+  a single-series chart is unchanged and a chart that grows a second series
+  keeps its first one where it was. Checked by string equality in the audit.
+- Every entry clears **AA on all three surfaces**, not the graphical-object bar,
+  because the point is that a figure can be printed in its series' colour.
+- Every pair is separated by **20° of hue or 1.15:1 of contrast**, and the audit
+  prints which of the two carried each pair.
+
+All eight themes define one, but not all eight are polychrome:
+
+| Themes | Ramp | Why |
+|---|---|---|
+| `nord`, `gruvbox`, `catppuccin`, `spotify`, `solarized`, `fitness` | six hues, ≥20° apart | their sources are themselves multi-colour systems; Fitness's is Apple's system colours, five of six exact |
+| `light`, `dark` | the accent and five steps of one hue | one saturated colour on a plain canvas is the whole of what those two themes are |
+
+The monochrome pair is the worse ramp at the job the ramp exists for, and it is
+worth being exact about the cost rather than glossing it: adjacent steps sit
+1.19:1 apart, so six lime bars are told apart by order and label far more than
+by colour. That number cannot be improved by picking better values. The scale is
+bounded above by the accent (11.39 on `surfaceMuted`) and below by AA on the
+same surface, which is a factor of 2.4 to divide among five gaps. Widening it
+means a second hue or a step that fails AA.
+
+Spotify keeps a polychrome ramp despite shipping one colour and a grey scale, so
+five of its six are this app's rather than Spotify's, and its note says so. A
+monochrome green was tried and does not fit: its `surfaceMuted` is `#3C3C3C`,
+the lightest of any theme here, which leaves only 1.04:1 between steps.
+
+### Fitness stopped flattening its roles
+
+The `fitness` palette had every role squeezed into a 0.31–0.46 luminance band so
+that nothing outshouted the Move ring at 0.248. The reasoning was sound about
+this app's roles and wrong about the source: open Apple's Fitness app and the
+Exercise ring is a full-brightness lime, the step count is bright violet, the
+distance under it bright cyan, all on the same black canvas as the Move ring.
+The multiplicity is the design. Flattened, the theme read as one colour on grey.
+
+| Role | Was | Now | Note |
+|---|---|---|---|
+| `success` | `#73C115` 0.418 | `#A2E82C` 0.656 | the Exercise ring, published |
+| `record` | `#D6B200` 0.461 | `#FFD426` 0.685 | systemYellow, published |
+| `warning` | `#E78D00` 0.360 | `#FF9F0A` 0.461 | systemOrange, whole |
+| `accent` | `#FF375F` 0.248 | unchanged | the Move ring, published |
+
+The palette now spans 0.25 to 0.69. What pays for it is honesty rather than a
+number: the accent is the *quietest* role here and there is no arrangement in
+which it is not, so it leads on hue and on rationing instead. That is a weaker
+guarantee than the other seven themes have and it is what the waiver records.
+
+Its `data` ramp is the only one in the file that is a straight quotation:
+systemPink, systemOrange, the Exercise ring, systemGreen, systemCyan and
+systemPurple, five of six exact. systemPurple is lifted two points of lightness
+because at its published value it measures 4.33 on its own tint.
+
+### What `dark` is not
+
+`dark` briefly took the Move crimson as its accent and it is worth recording why
+that came out. The crimson is a dark colour (0.248 against the lime's 0.783) and
+`dark`'s card ramp is two rungs lighter than Fitness's: measured on it the
+accent read **4.08 on `surfaceMuted`** and **4.25 on its own tint**, two AA
+failures. Lifting it to pass takes it to `#FF5274`, a rose. Dropping the ramp to
+`#000` → `14` → `1B` → `22` → `2A` fixes it and makes `dark` a near-duplicate of
+`fitness`, which is a strange thing for two themes to be.
+
+`dark` keeps the lime. Fitness is where the crimson lives, and the ramp is how
+both of them get more than one colour.
+
+### Where it is actually spent
+
+A ramp nothing draws in is a ramp that does not exist, which is what the first
+pass of this change amounted to. It is now spent in four places:
+
+| Surface | What gets a hue |
+|---|---|
+| Home masthead, History chart | the selected metric: volume is the accent, duration the blue, reps the violet (`METRIC.tone`) |
+| Home tile grid | one hue per tile, on the icon (`tone` on `SquareWidget`/`WideWidget`) |
+| Sets by body part, workout summary split | one hue per body part (`BODY_PART_TONE`) |
+| Statistics hub, Settings, Profile | one hue per row, on the icon and its circle (`CATEGORY_TONES` on `ListRow`) |
+
+Two rules hold all of it together and both are in `features/analytics/tones.ts`:
+
+- **Body-part colour is a fixed map, not a position.** Every body-part chart in
+  the app is sorted by volume, so a positional scheme would make chest crimson
+  in a week you trained it hardest and orange in a week you did not. The colour
+  would then encode rank, which the bar's length already encodes. Fixed, it
+  encodes which muscle it is, and it says the same thing on Home, on the workout
+  summary and on the stats screens.
+- **`other` takes no hue.** It is the bucket for exercises that mapped to no
+  muscle group, and colouring it puts the leftovers on equal footing with the
+  six things the chart is about.
+
+`Tone` in `components/ui/surfaces.tsx` grew the six alongside its five roles, so
+anything that already took a tone can take a category. Index 0 resolves to the
+palette's `accentSurface` rather than deriving a tint at 0.16: on Fitness 0.16
+puts the Move ring under AA on its own tint, which is why `accentSurface` is
+0.15 there, and the audit measures the pairing the component actually draws
+rather than the one it was assumed to.
+
 ## Verification
 
 `scripts/audit-palette.mjs` parses every palette out of `tokens.ts` and
-`palettes.ts` and runs 387 checks across the eight themes in `THEMES`:
+`palettes.ts` and runs 755 checks across the eight themes in `THEMES`:
 
 - every role as text on all three surfaces
 - **the three neutral text tiers on all three surfaces**
@@ -188,6 +299,10 @@ the Move ring sits at while `record` sits at 0.461.
 - every role as text on its own tint, over both the canvas and a card
 - a pressed fill is darker than its resting one
 - hue separation between roles that must not be confused
+- **every `data` entry as text on all three surfaces**
+- **every `data` entry on the tint `toneColors` derives for it**
+- **every pair of `data` entries 20° apart in hue or 1.15:1 apart in contrast,
+  and `data[0]` equal to `accent`**
 - the accent outranks every role in luminance (dark schemes only: see the note
   in the script for why this one is not run against light)
 - the two palettes this app designed for itself name the same hues

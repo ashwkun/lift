@@ -18,7 +18,7 @@
  *
  * Exits non-zero on the first failing invariant, so it can go in CI.
  *
- * The five families of check, and why each one exists:
+ * The six families of check, and why each one exists:
  *
  * 1. **Role colour as text on each surface.** Every role is printed as text
  *    somewhere — sync status, a set-type badge, the PR marker — so each has to
@@ -42,7 +42,14 @@
  *    alpha. Contrast *falls* as the tint deepens, so this is the check that
  *    catches someone strengthening a tint to make it more visible.
  *
- * 5. **The system-level invariants.** The accent has to be the brightest role
+ * 5. **The category ramp.** `data` is six hues for telling one series from
+ *    another, and it is held to the *text* bar rather than the graphical-object
+ *    one, because the point of it is that a figure can be printed in its
+ *    series' colour. Its entries also have to be mutually distinguishable by
+ *    hue, which nothing else in the palette requires: two role colours are told
+ *    apart by where they appear, two bars in one chart are not.
+ *
+ * 6. **The system-level invariants.** The accent has to be the brightest role
  *    or it stops reading as the accent; `warning` and `record` have to be
  *    separated by hue, because a PR trophy is 13px and a lightness step does
  *    not register at that size; and a pressed fill must be darker than its
@@ -162,6 +169,11 @@ function readPalette(name) {
     for (const match of body.matchAll(/^\s*([a-zA-Z]+):\s*'([^']+)'/gm)) {
       palette[match[1]] = match[2];
     }
+    // `data` is the one token that is a list. Read separately rather than by
+    // loosening the line above, which would otherwise start matching the first
+    // string of the array and calling it the whole value.
+    const ramp = /^\s*data:\s*\[([^\]]+)\]/m.exec(body);
+    if (ramp) palette.data = [...ramp[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
     return palette;
   }
   throw new Error(`Could not find ${name} in ${TOKENS} or ${PALETTES}`);
@@ -233,17 +245,22 @@ const FOREGROUNDS = {
  *    see `docs/palette-retune.md`.
  *
  * 2. **Fitness and the accent ranking.** Its accent is Apple's Move ring and
- *    no role fits underneath a crimson: `palettes.ts` works through the
- *    alternative under `fitnessPalette` and shows that lifting the ring until
- *    it outranks the others turns it into a salmon. The palette closes the gap
- *    from the other side instead, which is a real design decision about one
- *    theme rather than a number that drifted.
+ *    no role fits underneath a crimson: it has to clear 4.5 against the canvas,
+ *    the card, a muted fill *and* its own tint, and there is nothing left
+ *    below. `palettes.ts` works through the alternative under `fitnessPalette`
+ *    and shows that lifting the ring until it outranks the others turns it into
+ *    a salmon. That palette answers the leftover problem by hue and by
+ *    rationing instead, which is a real design decision about one theme rather
+ *    than a number that drifted. It is the only palette here with a red accent,
+ *    and `darkPalette` briefly was too: the lime went back because a red accent
+ *    on that palette's lighter card ramp cannot be a red at all. The note under
+ *    `data` in the tokens records what that cost.
  */
 const WAIVED = {
   'light: textTertiary on background': 'decorative tier; see tokens.ts',
   'light: textTertiary on surface': 'decorative tier; see tokens.ts',
   'light: textTertiary on surfaceMuted': 'decorative tier; see tokens.ts',
-  'fitness: accent ranks first': 'flat palette under a fixed crimson; see palettes.ts',
+  'fitness: accent ranks first': 'a crimson accent cannot outrank a role; see palettes.ts',
 };
 
 let failures = 0;
@@ -366,6 +383,107 @@ function auditPalette(name, palette, scheme) {
    * and that is a decision about one theme rather than a property of the
    * light/dark split, so it lives in `WAIVED` next to the number it costs.
    */
+  console.log('\n-- the category ramp, which is printed as text and not only drawn --');
+  palette.data.forEach((color, index) => {
+    for (const surface of SURFACES) {
+      expect(`data[${index}] ${color} on ${surface}`, contrastRatio(color, palette[surface]), AA);
+    }
+  });
+
+  /*
+   * The tint a category tone draws behind its own glyph.
+   *
+   * `surfaces.tsx` derives this rather than reading a token, because six tints
+   * per palette across eight palettes is forty-eight values nobody would
+   * hand-solve. Derived is not the same as unchecked: a `ListRow` prints a 17px
+   * glyph on exactly this colour, so the same 4.5 the roles clear on their own
+   * `*Surface` applies. The alpha here has to track the one in `toneColors`.
+   */
+  console.log('\n-- a category glyph on the tint that component derives for it --');
+  palette.data.forEach((color, index) => {
+    // Index 0 is the accent and takes `accentSurface`, which is solved rather
+    // than derived: see the note in `toneColors`. Measured here anyway, because
+    // what is being checked is the pairing the component actually draws.
+    const [r, g, b] = hexToRgb(color);
+    const tint = index === 0 ? palette.accentSurface : `rgba(${r}, ${g}, ${b}, 0.16)`;
+    for (const base of ['background', 'surface']) {
+      expect(
+        `data[${index}] on its category tint over ${base}`,
+        contrastRatio(color, flatten(tint, palette[base])),
+        AA,
+      );
+    }
+  });
+
+  /*
+   * Every pair, not each neighbour, and separated by hue *or* by luminance.
+   *
+   * Every pair, because the ramp is handed out in order but nothing stops a
+   * screen from spending index 1 and index 5 on the two things it draws.
+   * Checking only adjacent pairs would pass a ramp whose ends wrap round onto
+   * each other, which is exactly the mistake a hue list ordered warm-to-cool
+   * invites.
+   *
+   * Either criterion, because there are two kinds of ramp here and only one of
+   * them is polychrome. Six themes spend `data` on five or six hues, and 20° is
+   * the bar those clear: lower than the 25° the roles hold, because three of
+   * the ports quote source projects that crowd their own warm hues and cannot
+   * do better without rotating a colour away from the value the theme is
+   * recognised by. `light` and `dark` spend it on one hue and six lightnesses
+   * instead, which `tokens.ts` argues out at length under `data`, and no hue
+   * bar can be met by a scale that has only one.
+   *
+   * 1.15:1 for the luminance route, which is a **weak** bar and is set where it
+   * is on purpose. A single-hue ramp is bounded by its accent above and by AA
+   * below, and on both palettes that leaves a factor of about 2.4 to divide
+   * among five gaps: 1.19 is what the arithmetic allows, so a bar above it
+   * would fail a ramp that cannot be improved rather than catch one that can.
+   * What it does catch is a scale with a duplicate or a wasted step in it.
+   *
+   * Which route carried each pair is printed, so a polychrome ramp that has
+   * quietly collapsed into a monochrome one is visible in the output rather
+   * than merely passing.
+   */
+  console.log('\n-- and no two of its entries may be mistaken for each other --');
+  for (let i = 0; i < palette.data.length; i += 1) {
+    for (let j = i + 1; j < palette.data.length; j += 1) {
+      const [first, second] = [palette.data[i], palette.data[j]];
+      const gap = hueGap(first, second);
+      const step = contrastRatio(first, second);
+
+      // Normalised so one `expect` can report either: 1.0 is exactly at
+      // whichever bar the pair is being held to, and the label says which.
+      const byHue = gap / 20;
+      const byStep = step / 1.15;
+      const hueWins = byHue >= byStep;
+
+      expect(
+        hueWins
+          ? `data[${i}] vs data[${j}]: ${gap}° apart`
+          : `data[${i}] vs data[${j}]: ${step.toFixed(2)}:1 apart, same hue`,
+        Math.max(byHue, byStep),
+        1,
+        '×',
+      );
+    }
+  }
+
+  /*
+   * The ramp leads with the accent, repeated rather than approximated.
+   *
+   * This is what lets a chart adopt `data` without changing how it looks today:
+   * one series still draws in the accent. It is also the check that catches the
+   * likelier drift, which is someone retuning `accent` and leaving the ramp
+   * holding the old value. String equality, not a contrast measurement, because
+   * "close enough" is the failure being prevented.
+   */
+  expect(
+    `data[0] ${palette.data[0]} is the accent ${palette.accent}`,
+    palette.data[0].toLowerCase() === palette.accent.toLowerCase() ? 1 : 0,
+    1,
+    '',
+  );
+
   if (scheme === 'dark') {
     console.log('\n-- the accent must be the brightest role, or it is not the accent --');
     const ranked = ROLES.map((role) => [role, relativeLuminance(palette[role])]).sort(

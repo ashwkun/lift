@@ -8,10 +8,15 @@
  * half the themes.
  *
  * The two palettes below are this app's own and carry the reasoning for every
- * value in them; the four ported ones live in `palettes.ts` and were solved
+ * value in them; the six ported ones live in `palettes.ts` and were solved
  * against the constraints recorded here. Anything written below about what a
- * token has to clear applies to those four as well, so a change here is a
- * change to six palettes.
+ * token has to clear applies to those six as well, so a change here is a
+ * change to eight palettes.
+ *
+ * Not every token is a colour. `data` is a list of six, and it is the one part
+ * of the palette that encodes *categories* rather than status; see its own note
+ * on the interface. `PaletteColor` below is the subset that is a single colour,
+ * and is what anything taking a token by name should accept.
  */
 
 import { Platform, StyleSheet, type TextStyle } from 'react-native';
@@ -98,7 +103,66 @@ export interface Palette {
    * artwork rather than a dark-mode patch.
    */
   mediaPlate: string;
+
+  /**
+   * Six hues for encoding *categories*, and the one part of the palette that is
+   * not about status.
+   *
+   * Every token above answers "what kind of thing is this": an accent marks the
+   * subject, `success` says done, `danger` says this destroys something. None of
+   * them can say "this series is steps and that one is distance", because a
+   * chart's third series is not a third kind of importance. Reaching for role
+   * colours to fill that gap is how a palette ends up with a green bar that
+   * does not mean success, and it is why every chart in this app used to draw
+   * every series in the accent and rely on a legend to disambiguate.
+   *
+   * The order is fixed and meaningful. `data[0]` **is** the palette's `accent`,
+   * repeated rather than approximated, so a single-series chart drawn from this
+   * ramp is identical to one drawn from the accent, and a chart that grows a
+   * second series keeps its first one where it was.
+   *
+   * Every entry clears AA on `background`, `surface` and `surfaceMuted`, which
+   * is a stricter bar than a chart mark needs. It is set there deliberately:
+   * the point of the ramp is that a figure can be *printed* in its series'
+   * colour, the way Apple's Fitness app prints a step count in the same purple
+   * as the bars under it, and a colour that only works as a 4px bar cannot do
+   * that. `audit-palette.mjs` measures all six against all three surfaces.
+   *
+   * ## Two kinds of ramp, and a theme picks one
+   *
+   * **Polychrome**, which is six hues at least 20° apart, running warm to cool
+   * after the accent. Six themes do this, because their source projects are
+   * themselves six-or-more-colour systems and a chart drawn in them is readable
+   * without a legend. `fitness` is the clearest case: its ramp is Apple's own
+   * system colours, five of six exact.
+   *
+   * **Monochrome**, which is the accent and five steps of the same hue. `light`
+   * and `dark` do this, because one saturated colour on a plain canvas is the
+   * whole of what those two themes are, and a violet in the dark palette would
+   * be a violet in a theme that has never had one. It is the worse ramp at the
+   * job the ramp exists for, and the note on `darkPalette` says so in those
+   * words along with the arithmetic that bounds it.
+   *
+   * The audit accepts either: every pair of entries must be 20° apart in hue
+   * **or** 1.15:1 apart in contrast, and it prints which of the two carried
+   * each pair, so a polychrome ramp that has quietly collapsed shows up in the
+   * output rather than merely passing.
+   */
+  data: readonly [string, string, string, string, string, string];
 }
+
+/**
+ * The palette keys that name a single colour.
+ *
+ * `data` is a list, so `keyof Palette` stopped being the same thing as "a token
+ * a component may hand to a `color` prop" the moment it was added. Anything
+ * that takes a token by *name* wants this instead. Derived rather than written
+ * out, so a colour added tomorrow is included tomorrow and a second ramp is
+ * excluded tomorrow.
+ */
+export type PaletteColor = {
+  [K in keyof Palette]: Palette[K] extends string ? K : never;
+}[keyof Palette];
 
 /**
  * AMOLED dark palette, with Nuvio's card ramp above it.
@@ -294,6 +358,41 @@ export const darkPalette: Palette = {
   // a glare source at 6am, and the artwork's dark ink stays legible well below
   // that brightness.
   mediaPlate: '#E8E8EC',
+
+  /*
+   * The category ramp, and this palette's is **one hue**.
+   *
+   * Six colours is what the ramp is *for*: `data` exists so a chart can say
+   * which series is which without a legend, and five of the eight themes spend
+   * it on five or six different hues. This one does not, and the reason is that
+   * the lime is the entire identity of this theme. A theme whose premise is one
+   * saturated colour on a black canvas cannot also be the theme with a violet
+   * and a cyan in it; that is what `fitness` is, and it is a different theme.
+   *
+   * So this is the accent and five steps beneath it, at 72° throughout, losing
+   * saturation as it darkens so the deep end fades toward the neutral rather
+   * than staying an insistent olive. `data[0]` is `accent` exactly, as it is
+   * everywhere.
+   *
+   * ## What that costs, stated plainly
+   *
+   * Adjacent steps sit 1.19:1 apart. That is a real separation and it is a weak
+   * one: six lime bars in a row are told apart by their order and their labels
+   * far more than by their colour, where six hues would be readable at a
+   * glance. A single-hue ramp is simply worse at the job the ramp exists to do,
+   * and this palette accepts that in exchange for looking like itself.
+   *
+   * The 1.19 is not a number that can be improved by choosing better values,
+   * which is worth knowing before someone tries. The scale is bounded above by
+   * the accent (11.39 on `surfaceMuted`) and below by AA on that same surface
+   * (4.5), so there is a factor of 2.4 of contrast to divide among five gaps
+   * and no arrangement of six colours inside it does better. Widening it means
+   * either a second hue or letting the deep end fail AA.
+   *
+   * `audit-palette.mjs` accepts a ramp separated by hue *or* by luminance for
+   * this reason, and prints which of the two carried each pair.
+   */
+  data: ['#D2F34B', '#CDD99B', '#B9CA72', '#9CBF0D', '#91AE1D', '#899D3B'],
 };
 
 export const lightPalette: Palette = {
@@ -381,6 +480,28 @@ export const lightPalette: Palette = {
   overlay: 'rgba(0, 0, 0, 0.4)',
   skeleton: '#E7E7EC',
   mediaPlate: '#FFFFFF',
+
+  /*
+   * The dark palette's single-hue ramp, at 76° and running the other way.
+   *
+   * Same decision and same trade: see `data` on `darkPalette`, which argues it
+   * out. What differs is only the direction. On a dark palette the accent is
+   * the brightest thing available and the scale descends from it; here the
+   * accent is already a deepened text colour sitting at 4.95 on `surfaceMuted`,
+   * a third of a stop above the AA floor, so there is nothing underneath it and
+   * the scale has to go *deeper* instead, ending near-black.
+   *
+   * Which means `data[0]` is the palest entry here and the brightest one there.
+   * That is correct rather than an inconsistency: what a reader matches to a
+   * legend is the hue and the position in the scale, and both hold. It is the
+   * same reason `accent` itself is a lime in one scheme and an olive in the
+   * other.
+   *
+   * Adjacent steps land at 1.192:1, within a thousandth of the dark palette's,
+   * which is a coincidence of both scales having roughly a factor of 2.4 to
+   * divide among five gaps rather than anything anyone arranged.
+   */
+  data: ['#54700A', '#4F621A', '#455616', '#3B4A13', '#303E0B', '#263108'],
 };
 
 /** 4-point spacing scale. */

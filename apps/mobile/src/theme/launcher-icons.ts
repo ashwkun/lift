@@ -50,7 +50,10 @@ export interface LauncherIcon {
  */
 export const LAUNCHER_ICONS: Record<ThemeName, LauncherIcon> = {
   light: { background: '#FFFFFF', glyph: '#54700A' },
-  dark: { background: '#0C0C0F', glyph: '#D2F34B' },
+  // `background` corrected from `#0C0C0F`, which was a `surface` two retunes
+  // old: `warnOnDrift` had been reporting the pair every dev launch. The glyph
+  // is unchanged, and is the lime this app has always been.
+  dark: { background: '#1A1A1A', glyph: '#D2F34B' },
   nord: { background: '#1D222C', glyph: '#B8DAE3' },
   gruvbox: { background: '#1D2021', glyph: '#D5D942' },
   catppuccin: { background: '#15151F', glyph: '#E0CAFA' },
