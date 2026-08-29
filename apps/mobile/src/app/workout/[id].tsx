@@ -39,9 +39,12 @@ import { resolveExerciseUnits, useAppUnits } from '@/features/exercises/units';
 import { useDeferredFocusEffect } from '@/hooks/use-deferred-focus-effect';
 import { showAlert, showConfirm } from '@/store/dialog';
 import { spacing } from '@/theme';
+import { buildSessionShare } from '@/features/share';
+import { useShare } from '@/features/share/use-share';
 
 export default function WorkoutDetailScreen() {
   const scrollEdge = useScrollEdge();
+  const { sharing, share } = useShare();
 
   const { id } = useLocalSearchParams<{ id: string }>();
   // The app-wide pair, which the session's own totals are printed in and which
@@ -174,6 +177,12 @@ export default function WorkoutDetailScreen() {
                 label="Edit workout"
                 icon="create-outline"
                 onPress={() => router.push({ pathname: '/workout/edit/[id]', params: { id } })}
+              />
+              <HeaderAction
+                label="Share workout"
+                icon="share-outline"
+                disabled={sharing}
+                onPress={() => share(() => buildSessionShare(id))}
               />
               <HeaderAction
                 label="Delete workout"

@@ -20,6 +20,12 @@ import {
 } from '@lift/shared/import';
 
 import { inspectBackup, type BackupFile } from '@/features/backup';
+import {
+  inspectShare,
+  routineAsImportedWorkout,
+  SHARE_FORMAT,
+  type SharedFile,
+} from '@/features/share';
 
 import { planExercises } from './exercise-resolver';
 import { countAlreadyPresent } from './repository';
@@ -52,20 +58,49 @@ export interface WorkoutsPreview {
   newExercises: string[];
 }
 
-export type ImportPreview = BackupPreview | WorkoutsPreview;
+/** One routine or one session, sent by another person. See `features/share`. */
+export interface SharePreview {
+  kind: 'share';
+  file: SharedFile;
+  /**
+   * Names in the share with no library entry here.
+   *
+   * Planned for both kinds even though only a routine writes them itself: a
+   * session goes on to `importWorkouts`, which plans again, and this is what
+   * lets the confirmation say "adds 2 exercises to your library" before the
+   * user commits to either.
+   */
+  newExercises: string[];
+}
+
+export type ImportPreview = BackupPreview | WorkoutsPreview | SharePreview;
 
 /**
  * Reads a file and works out what can be done with it.
  *
  * A leading `{` is the whole test for JSON, which is enough: the only JSON this
- * app has ever written is a backup, and `inspectBackup` rejects anything else
- * with a sentence about what it wanted.
+ * app writes is a backup or a share, and both inspectors reject anything else
+ * with a sentence about what they wanted.
+ *
+ * The two are told apart on their `format` tag rather than by trying one and
+ * catching the other. A backup that fails to parse and a share that fails to
+ * parse have different things to say, and running both would report whichever
+ * threw last instead of the one the user actually picked.
  */
 export async function readImportFile(
   text: string,
   options: ParseOptions = {},
 ): Promise<ImportPreview> {
   if (text.trimStart().startsWith('{')) {
+    if (looksLikeShare(text)) {
+      const file = inspectShare(text);
+      const workout =
+        file.kind === 'routine' ? routineAsImportedWorkout(file.routine) : file.session;
+      const plan = await planExercises([workout]);
+
+      return { kind: 'share', file, newExercises: plan.created };
+    }
+
     const file = inspectBackup(text);
     return { kind: 'backup', file, json: text };
   }
@@ -121,4 +156,16 @@ export function newExercisesIn(
   );
 
   return preview.newExercises.filter((name) => present.has(name.toLowerCase()));
+}
+
+/**
+ * Whether a JSON file claims to be a share, without committing to parsing it.
+ *
+ * A substring test rather than a parse, because the caller is about to hand
+ * whichever inspector wins the full text and both parse it properly. This only
+ * has to pick the right one, and a file large enough for the double parse to
+ * matter is not a single routine.
+ */
+function looksLikeShare(text: string): boolean {
+  return text.includes(`"${SHARE_FORMAT}"`);
 }

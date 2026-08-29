@@ -596,6 +596,32 @@ export async function saveSessionAsRoutine(workoutId: string, name: string): Pro
   return routine;
 }
 
+/**
+ * Builds a routine from a prescription resolved elsewhere.
+ *
+ * The other half of `saveSessionAsRoutine`, for a prescription that did not
+ * come from a session on this device. `features/share` uses it to land a
+ * routine a friend sent, having already turned that file's exercise *names*
+ * into library ids.
+ *
+ * Exported rather than inlined there because `fillRoutine` is where the two
+ * things easy to get wrong live: sets are positioned from the order they were
+ * written in rather than queried per row, and a superset group left with one
+ * member is swept away afterwards. A second writer would have both bugs.
+ */
+export async function createRoutineFromPrescription(input: {
+  name: string;
+  notes: string | null;
+  exercises: PrescribedExercise[];
+}): Promise<Routine> {
+  const routine = await createRoutine({ name: input.name, notes: input.notes });
+  await fillRoutine(routine.id, input.exercises);
+
+  return routine;
+}
+
+export type { PrescribedExercise };
+
 /** A sentence about one difference between a session and its routine. */
 export interface RoutineChange {
   /** The exercise it is about, or null when it is about the routine as a whole. */

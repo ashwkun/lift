@@ -19,6 +19,7 @@ import {
   useScrollEdge,
 } from '@/components/ui';
 import { restoreBackup } from '@/features/backup';
+import { importSharedRoutine, type SharedRoutineResult } from '@/features/share';
 import {
   EXPORT_GUIDES,
   IMPORT_APP_ORDER,
@@ -67,6 +68,7 @@ export default function ImportScreen() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [restored, setRestored] = useState<number | null>(null);
+  const [addedRoutine, setAddedRoutine] = useState<SharedRoutineResult | null>(null);
 
   /**
    * Discards the answer to a read that has since been superseded.
@@ -116,6 +118,7 @@ export default function ImportScreen() {
 
       setSummary(null);
       setRestored(null);
+      setAddedRoutine(null);
       setFile({ name: picked.result.name, text });
       await loadPreview(text, unit);
     } catch (cause) {
@@ -178,6 +181,33 @@ export default function ImportScreen() {
     }
   };
 
+  /*
+   * A share commits down one of two paths, decided by the file rather than by
+   * the user.
+   *
+   * A routine is written here. A session is handed to `importWorkouts`, the
+   * same call a CSV goes through, so a friend's session earns records and skips
+   * duplicates by exactly the rules a session imported from Strong does. There
+   * is no third staging path for shared sessions, and that is the point of the
+   * file carrying `ImportedWorkout` in the first place.
+   */
+  const runShare = async () => {
+    if (preview?.kind !== 'share') return;
+
+    setBusy(true);
+    try {
+      if (preview.file.kind === 'routine') {
+        setAddedRoutine(await importSharedRoutine(preview.file.routine));
+      } else {
+        setSummary(await importWorkouts([preview.file.session]));
+      }
+    } catch (cause) {
+      void showAlert('Nothing was added', describe(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const startOver = () => {
     // Bumped so a read still in flight cannot repopulate the screen the user
     // just cleared.
@@ -187,6 +217,7 @@ export default function ImportScreen() {
     setPreview(null);
     setSummary(null);
     setRestored(null);
+    setAddedRoutine(null);
     setError(null);
     setReading(false);
     setRange('all');
@@ -205,6 +236,8 @@ export default function ImportScreen() {
           <ImportResult summary={summary} onImportMore={startOver} />
         ) : restored !== null ? (
           <RestoreResult rows={restored} onImportMore={startOver} />
+        ) : addedRoutine !== null ? (
+          <RoutineResult result={addedRoutine} onImportMore={startOver} />
         ) : (
           <>
             <SourceStep app={app} onPick={setApp} onReset={startOver} />
@@ -226,6 +259,10 @@ export default function ImportScreen() {
                 busy={busy}
                 onRestore={() => void runRestore()}
               />
+            )}
+
+            {preview?.kind === 'share' && (
+              <ShareStep preview={preview} busy={busy} onImport={() => void runShare()} />
             )}
 
             {preview?.kind === 'workouts' && selection && (
@@ -440,6 +477,101 @@ function BackupStep({
         disabled={busy}
         style={styles.action}
         onPress={onRestore}
+      />
+    </>
+  );
+}
+
+function ShareStep({
+  preview,
+  busy,
+  onImport,
+}: {
+  preview: Extract<ImportPreview, { kind: 'share' }>;
+  busy: boolean;
+  onImport: () => void;
+}) {
+  const { file, newExercises } = preview;
+
+  const isRoutine = file.kind === 'routine';
+  const name = isRoutine ? file.routine.name : file.session.name;
+  const exercises = isRoutine ? file.routine.exercises : file.session.exercises;
+  const sets = exercises.reduce((total, entry) => total + entry.sets.length, 0);
+
+  return (
+    <>
+      <SectionHeader title={isRoutine ? 'A routine from a friend' : 'A session from a friend'} />
+      <Card style={styles.card}>
+        <Row label="Name" value={name} />
+        <Figure label="Exercises" value={exercises.length} />
+        <Figure label="Sets" value={sets} />
+        {newExercises.length > 0 && (
+          <Figure label="New to your library" value={newExercises.length} />
+        )}
+      </Card>
+
+      {/*
+       * What lands where, stated before the button rather than after it. The
+       * two kinds go to two different places and neither is guessable from a
+       * file name, which is the one thing someone could reasonably be annoyed
+       * about discovering afterwards.
+       */}
+      <Text variant="caption" color="textTertiary" style={styles.hint}>
+        {isRoutine
+          ? 'This is added as a new routine of your own. Your existing routines are left alone, including one of the same name.'
+          : 'This is added to your log as a completed workout, with any personal records it earns. Importing it twice adds nothing the second time.'}
+        {newExercises.length > 0
+          ? ` ${newExercises.length === 1 ? 'One exercise is' : `${newExercises.length} exercises are`} not in your library yet and will be added: ${newExercises.join(', ')}.`
+          : ''}
+      </Text>
+
+      <Button
+        title={isRoutine ? 'Add to my routines' : 'Add to my log'}
+        icon="download-outline"
+        size="lg"
+        fullWidth
+        loading={busy}
+        disabled={busy}
+        style={styles.action}
+        onPress={onImport}
+      />
+    </>
+  );
+}
+
+function RoutineResult({
+  result,
+  onImportMore,
+}: {
+  result: SharedRoutineResult;
+  onImportMore: () => void;
+}) {
+  return (
+    <>
+      <SectionHeader title="Routine added" />
+      <Card style={styles.card}>
+        <Row label="Name" value={result.name} />
+        <Figure label="Exercises" value={result.exercises} />
+        <Figure label="Sets" value={result.sets} />
+        {result.added.length > 0 && (
+          <Figure label="Exercises added to library" value={result.added.length} />
+        )}
+      </Card>
+
+      <Button
+        title="Open routines"
+        size="lg"
+        fullWidth
+        style={styles.action}
+        onPress={() => router.replace('/(tabs)/workout')}
+      />
+      <Button
+        title="Import something else"
+        variant="secondary"
+        size="lg"
+        fullWidth
+        style={styles.action}
+        onPress={onImportMore}
       />
     </>
   );

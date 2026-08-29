@@ -67,6 +67,8 @@ import { haptics } from '@/features/feedback/haptics';
 import { showConfirm } from '@/store/dialog';
 import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { MIN_TOUCH_SIZE, radius, spacing, useColors } from '@/theme';
+import { buildRoutineShare } from '@/features/share';
+import { useShare } from '@/features/share/use-share';
 
 /**
  * Matches the identical control in `exercise-block.tsx`: 34pt of row plus 8pt
@@ -100,6 +102,7 @@ const normalizeDuration = (text: string) => {
 
 export default function RoutineEditorScreen() {
   const scrollEdge = useScrollEdge();
+  const { sharing, share } = useShare();
 
   const { id, start } = useLocalSearchParams<{ id: string; start?: string }>();
 
@@ -395,6 +398,15 @@ export default function RoutineEditorScreen() {
                   onPress={() => setReordering(true)}
                 />
               )}
+              {/* Between reorder and delete, which is where it belongs by
+                  consequence: the two either side of it change this routine and
+                  this one only copies it out. */}
+              <HeaderAction
+                label="Share routine"
+                icon="share-outline"
+                disabled={sharing}
+                onPress={() => share(() => buildRoutineShare(id))}
+              />
               <HeaderAction
                 label="Delete routine"
                 icon="trash-outline"
