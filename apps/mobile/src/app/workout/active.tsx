@@ -17,6 +17,10 @@ import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -47,7 +51,15 @@ import {
 import { haptics } from '@/features/feedback/haptics';
 import { setExerciseUnits } from '@/features/exercises/repository';
 import { clearSessionNotice, prepareLiveNotice } from '@/features/notifications/live';
+import { ExerciseDemoSheet } from '@/features/exercises/exercise-demo-sheet';
 import { ExerciseBlock } from '@/features/workouts/exercise-block';
+import { CollapsedLift, SupersetGroup } from '@/features/workouts/collapsed-lift';
+import {
+  defaultExpandedUnit,
+  groupLiftUnits,
+  unitIsComplete,
+  type LiftUnit,
+} from '@/features/workouts/lift-units';
 import { ghostFill, pairedPreviousSet } from '@/features/workouts/previous';
 import {
   cancelRestNotification,
@@ -80,7 +92,7 @@ import {
   type SetInput,
   type WorkoutExerciseDetail,
 } from '@/features/workouts/repository';
-import { showSupersetMenu, supersetMap, SupersetTie } from '@/features/workouts/superset';
+import { showSupersetMenu, supersetMap } from '@/features/workouts/superset';
 import type { ProgressionInput } from '@/features/workouts/suggestion';
 import { useWriteGuard } from '@/features/workouts/use-write-guard';
 import { useTicker } from '@/hooks/use-ticker';
@@ -90,10 +102,22 @@ import { useExercisePicker, usePickedExercises } from '@/store/exercise-picker';
 import { useNoticeRequest } from '@/store/notice-request';
 import { useSettings } from '@/store/settings';
 import { useTimer } from '@/store/timer';
-import { spacing, timing, useColors } from '@/theme';
+import { duration, easing, spacing, timing, useColors } from '@/theme';
 
 /** This screen's name on the picker's hand-off channel. */
 const PICKER_ADDRESS = 'active-workout';
+
+const UNIT_LAYOUT = LinearTransition.duration(duration.base)
+  .easing(easing.out)
+  .reduceMotion(ReduceMotion.System);
+
+const UNIT_ENTER = FadeIn.duration(duration.fast)
+  .easing(easing.out)
+  .reduceMotion(ReduceMotion.System);
+
+const UNIT_EXIT = FadeOut.duration(duration.instant)
+  .easing(easing.in)
+  .reduceMotion(ReduceMotion.System);
 
 export default function ActiveWorkoutScreen() {
   const scrollEdge = useScrollEdge();
@@ -111,6 +135,13 @@ export default function ActiveWorkoutScreen() {
   const settings = useSettings();
   const startRest = useTimer((state) => state.startRest);
   const { guard, lostWrites } = useWriteGuard();
+  const unitsRef = useRef<LiftUnit[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [demo, setDemo] = useState<{
+    name: string;
+    thumbnailUrl: string | null;
+    videoUrl: string | null;
+  } | null>(null);
 
   /*
    * Keeps the screen on mid-set so the phone doesn't lock between reps.
@@ -522,6 +553,24 @@ export default function ActiveWorkoutScreen() {
       // place: the milestone is still acknowledged, it just no longer interrupts.
       if (finishesExercise) haptics.finished();
 
+      const unit = unitsRef.current.find((entry) =>
+        entry.members.some((member) => member.workoutExercise.id === detail.workoutExercise.id),
+      );
+      if (unit) {
+        const finishesUnit = unit.members.every((member) => {
+          if (member.sets.length === 0) return false;
+          if (member.workoutExercise.id === detail.workoutExercise.id) {
+            return member.sets.every((other) => other.id === set.id || other.isCompleted);
+          }
+          return member.sets.every((other) => other.isCompleted);
+        });
+        if (finishesUnit) {
+          const index = unitsRef.current.findIndex((entry) => entry.id === unit.id);
+          const next = unitsRef.current.slice(index + 1).find((entry) => !unitIsComplete(entry));
+          if (next) setExpandedId(next.id);
+        }
+      }
+
       if (settings.restTimerEnabled && settings.restTimerAutoStart) {
         // Scaled to the set just performed, not to the exercise: a warm-up is
         // capped and a set followed by a drop gets none at all. The kind rides
@@ -627,6 +676,14 @@ export default function ActiveWorkoutScreen() {
   );
 
   const placements = useMemo(() => supersetMap(supersetRows), [supersetRows]);
+
+  const units = useMemo(() => groupLiftUnits(details, placements), [details, placements]);
+  unitsRef.current = units;
+
+  const openUnitId =
+    expandedId && units.some((unit) => unit.id === expandedId)
+      ? expandedId
+      : (defaultExpandedUnit(units)?.id ?? null);
 
   const applySupersets = useCallback(
     (writes: SupersetAssignment[]) => {
@@ -969,24 +1026,24 @@ export default function ActiveWorkoutScreen() {
             description="Add your first exercise to start logging sets."
           />
         ) : (
-          details.map((detail, index) => (
-            <View key={detail.workoutExercise.id}>
-              {/* A member that is not the first of its run is tied to the block
-                  above rather than separated from it: a run is contiguous, so
-                  "not first" is the whole test. See `SupersetTie`. */}
-              {index > 0 &&
-                (placements.get(detail.workoutExercise.id)?.first === false ? (
-                  <SupersetTie />
-                ) : (
-                  <Divider />
-                ))}
+          units.map((unit, index) => {
+            const open = units.length === 1 || unit.id === openUnitId;
+            const lead = unit.members[0]!.exercise;
+            const tables = unit.members.map((detail) => (
               <ExerciseBlock
+                key={detail.workoutExercise.id}
                 detail={detail}
                 previousSets={previousByExercise[detail.exercise.id]?.sets ?? []}
                 previousNote={previousByExercise[detail.exercise.id]?.note ?? null}
                 recordSetIds={recordSetIds}
                 superset={placements.get(detail.workoutExercise.id)}
-                // Nothing to pair with in a session of one, so no control.
+                onOpenDemo={() =>
+                  setDemo({
+                    name: detail.exercise.name,
+                    thumbnailUrl: detail.exercise.thumbnailUrl,
+                    videoUrl: detail.exercise.videoUrl,
+                  })
+                }
                 onEditSuperset={
                   details.length > 1
                     ? () =>
@@ -1028,10 +1085,6 @@ export default function ActiveWorkoutScreen() {
                   router.push('/exercise/picker');
                 }}
                 onEditNotes={(seed) => {
-                  // The spread, not `seed: undefined`: params are serialised
-                  // into the href, and an explicit undefined can arrive at the
-                  // editor as the literal string "undefined". The plain "Add
-                  // note" paths call this with nothing.
                   router.push({
                     pathname: '/workout/notes/[id]',
                     params: { id: detail.workoutExercise.id, ...(seed ? { seed } : {}) },
@@ -1039,10 +1092,8 @@ export default function ActiveWorkoutScreen() {
                 }}
                 onReorder={() => setReordering(true)}
                 onEditRest={() => setRestEditorId(detail.workoutExercise.id)}
-                onChangeUnits={(units) => {
-                  // No haptic here: the heading fires its own on the tap, and
-                  // the conversion is visible in every figure in the block.
-                  guard(setExerciseUnits(detail.exercise.id, units));
+                onChangeUnits={(next) => {
+                  guard(setExerciseUnits(detail.exercise.id, next));
                 }}
                 onOpenExercise={() => {
                   router.push({
@@ -1051,8 +1102,47 @@ export default function ActiveWorkoutScreen() {
                   });
                 }}
               />
-            </View>
-          ))
+            ));
+
+            return (
+              <View key={unit.id}>
+                {index > 0 && <Divider />}
+                <Animated.View layout={UNIT_LAYOUT} style={styles.unit}>
+                  {open ? (
+                    <Animated.View
+                      key={`${unit.id}-open`}
+                      entering={UNIT_ENTER}
+                      exiting={UNIT_EXIT}
+                    >
+                      {unit.label ? (
+                        <SupersetGroup label={unit.label}>{tables}</SupersetGroup>
+                      ) : (
+                        tables
+                      )}
+                    </Animated.View>
+                  ) : (
+                    <Animated.View
+                      key={`${unit.id}-closed`}
+                      entering={UNIT_ENTER}
+                      exiting={UNIT_EXIT}
+                    >
+                      <CollapsedLift
+                        unit={unit}
+                        onExpand={() => setExpandedId(unit.id)}
+                        onOpenDemo={() =>
+                          setDemo({
+                            name: lead.name,
+                            thumbnailUrl: lead.thumbnailUrl,
+                            videoUrl: lead.videoUrl,
+                          })
+                        }
+                      />
+                    </Animated.View>
+                  )}
+                </Animated.View>
+              </View>
+            );
+          })
         )}
 
         <View style={styles.actions}>
@@ -1167,6 +1257,16 @@ export default function ActiveWorkoutScreen() {
         workout={workout}
         details={details}
       />
+
+      {demo && (
+        <ExerciseDemoSheet
+          visible
+          name={demo.name}
+          thumbnailUrl={demo.thumbnailUrl}
+          videoUrl={demo.videoUrl}
+          onClose={() => setDemo(null)}
+        />
+      )}
 
       <ReorderSheet
         visible={reordering}
@@ -1403,6 +1503,7 @@ const styles = StyleSheet.create({
   // this the clock's frame and the Finish pill's would meet.
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   scroll: { paddingBottom: spacing.huge },
+  unit: { overflow: 'hidden' },
   actions: {
     padding: spacing.lg,
     gap: spacing.sm,
